@@ -1,0 +1,3 @@
+# Levio
+
+Levio is a cross-platform mobile application developed to support individuals with Parkinson’s disease in their daily management. The app enables users to log and monitor symptoms such as tremors, rigidity, and balance difficulties, track medication schedules, and access therapy modules for speech and movement exercises. Levio also provides data visualization to help users recognize patterns over time and includes a curated resource hub with educational materials. The app combines various features to address different aspects of Parkinson's disease, allowing users to take control of their condition and improve their quality of life.
