@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:levio/linechart.dart';
 import 'dart:io';
 
-import 'Firebase/firebase_cloud.dart';
 import 'Main/manage.dart';
 import 'Main/recovery.dart';
 import 'Main/community.dart';
@@ -25,7 +24,7 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
   bool button = false;
   bool addPost = false;
   bool editProfile = false;
-  IconData iconButton = Icons.edit;
+  IconData iconButton = Icons.edit_outlined;
   String name = "[Name]";
   String email = "[Email]";
 
@@ -41,24 +40,23 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
   ];
 
   final List<_NavItem> navItems = [
-    _NavItem(icon: Icons.home_rounded, label: 'Home'),
-    _NavItem(icon: Icons.analytics_rounded, label: 'Manage'),
-    _NavItem(icon: Icons.favorite_rounded, label: 'Recovery'),
-    _NavItem(icon: Icons.people_rounded, label: 'Community'),
-    _NavItem(icon: Icons.person_rounded, label: 'Profile'),
+    _NavItem(icon: Icons.home_outlined, activeIcon: Icons.home, label: 'Home'),
+    _NavItem(icon: Icons.bar_chart_outlined, activeIcon: Icons.bar_chart, label: 'Manage'),
+    _NavItem(icon: Icons.favorite_outline, activeIcon: Icons.favorite, label: 'Recovery'),
+    _NavItem(icon: Icons.people_outline, activeIcon: Icons.people, label: 'Community'),
+    _NavItem(icon: Icons.person_outline, activeIcon: Icons.person, label: 'Profile'),
   ];
 
   void checkTab() {
-    button = true;
-    if (currentIndex == 3) {
-      editProfile = false;
-      addPost = true;
-      iconButton = Icons.add;
-    }
     if (currentIndex == 4) {
+      button = true;
       addPost = false;
       editProfile = true;
       iconButton = Icons.edit;
+    } else {
+      button = false;
+      addPost = false;
+      editProfile = false;
     }
   }
 
@@ -69,13 +67,13 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
     if (currentIndex == 3 || currentIndex == 4) checkTab();
 
     _fabAnimationController = AnimationController(
-      duration: const Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: 200),
       vsync: this,
     );
     _fabScaleAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _fabAnimationController,
-        curve: Curves.elasticOut,
+        curve: Curves.easeOut,
       ),
     );
     if (button) {
@@ -92,7 +90,8 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
   void updateAccount() async {
     singleton.setEmail(email);
     singleton.setName(name);
-    FirebaseCloud().updateUser(name, singleton.image, email);
+    // Update user in local database
+    await singleton.updateUser(userName: name);
   }
 
   void _onTabTapped(int index) {
@@ -110,6 +109,57 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
     });
   }
 
+  bool _hasCustomImage() {
+    return singleton.image.isNotEmpty && 
+        singleton.image != 'images/711128.png' &&
+        !singleton.image.contains('711128');
+  }
+
+  Widget _buildNavbarAvatar(AppColors colors) {
+    if (_hasCustomImage()) {
+      if (singleton.image.startsWith('images/')) {
+        return Image.asset(
+          singleton.image,
+          fit: BoxFit.cover,
+          width: 36,
+          height: 36,
+          errorBuilder: (_, __, ___) => _buildInitialsAvatar(colors),
+        );
+      }
+      return Image.file(
+        File(singleton.image),
+        fit: BoxFit.cover,
+        width: 36,
+        height: 36,
+        errorBuilder: (_, __, ___) => _buildInitialsAvatar(colors),
+      );
+    }
+    return _buildInitialsAvatar(colors);
+  }
+
+  Widget _buildInitialsAvatar(AppColors colors) {
+    final displayName = singleton.name != '[Name]' && singleton.name.isNotEmpty 
+        ? singleton.name 
+        : 'User';
+    final initial = displayName.isNotEmpty ? displayName[0].toUpperCase() : 'U';
+    
+    return Container(
+      width: 36,
+      height: 36,
+      color: colors.primary.withValues(alpha: 0.15),
+      child: Center(
+        child: Text(
+          initial,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: colors.primary,
+          ),
+        ),
+      ),
+    );
+  }
+
   void _showEditProfileDialog() {
     final colors = context.colors;
     
@@ -124,10 +174,10 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
           ),
           decoration: BoxDecoration(
             color: colors.surface,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
           ),
           child: Padding(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.all(20),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -135,7 +185,7 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
                 // Handle bar
                 Center(
                   child: Container(
-                    width: 40,
+                    width: 32,
                     height: 4,
                     decoration: BoxDecoration(
                       color: colors.border,
@@ -143,23 +193,23 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
                     ),
                   ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 20),
                 Text(
                   'Edit Profile',
-                  style: Theme.of(c).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
+                  style: Theme.of(c).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
                       ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 20),
                 ModernTextField(
                   label: 'Name',
                   hint: 'Enter your name',
-                  prefixIcon: Icons.person_outline_rounded,
+                  prefixIcon: Icons.person_outline,
                   onChanged: (text) {
                     name = text;
                   },
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
                 ModernTextField(
                   label: 'Email',
                   hint: 'Enter your email',
@@ -169,7 +219,7 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
                     email = text;
                   },
                 ),
-                const SizedBox(height: 32),
+                const SizedBox(height: 24),
                 Row(
                   children: [
                     Expanded(
@@ -179,9 +229,9 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
                           Navigator.pop(c);
                         },
                         style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(6),
                             side: BorderSide(color: colors.border),
                           ),
                         ),
@@ -191,28 +241,25 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 16),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: ElevatedButton(
                         onPressed: () {
-                          HapticUtils.success();
+                          HapticUtils.lightImpact();
                           updateAccount();
                           Navigator.pop(c);
                           Navigator.pushNamedAndRemoveUntil(
                               context, '/', (r) => false);
                         },
                         style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
                         ),
                         child: const Text('Save'),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
               ],
             ),
           ),
@@ -249,29 +296,17 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
   PreferredSizeWidget _buildAppBar(AppColors colors) {
     return AppBar(
       elevation: 0,
-      scrolledUnderElevation: 1,
+      scrolledUnderElevation: 0,
+      backgroundColor: colors.background,
       leadingWidth: 200,
       leading: Padding(
         padding: const EdgeInsets.only(left: 20),
         child: Row(
           children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: colors.primary.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(
-                navItems[currentIndex].icon,
-                color: colors.primary,
-                size: 24,
-              ),
-            ),
-            const SizedBox(width: 12),
             Text(
               navItems[currentIndex].label,
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w600,
                   ),
             ),
           ],
@@ -279,51 +314,36 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
       ),
       actions: [
         // User avatar
-        if (singleton.image.isNotEmpty)
-          GestureDetector(
-            onTap: () => _onTabTapped(4),
-            child: Container(
-              width: 40,
-              height: 40,
-              margin: const EdgeInsets.only(right: 8),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: currentIndex == 4 ? colors.primary : colors.border,
-                  width: 2,
-                ),
-                image: singleton.image.startsWith('images/')
-                    ? DecorationImage(
-                        image: AssetImage(singleton.image),
-                        fit: BoxFit.cover,
-                      )
-                    : DecorationImage(
-                        image: FileImage(File(singleton.image)),
-                        fit: BoxFit.cover,
-                      ),
+        GestureDetector(
+          onTap: () => _onTabTapped(4),
+          child: Container(
+            width: 36,
+            height: 36,
+            margin: const EdgeInsets.only(right: 8),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: currentIndex == 4 ? colors.primary : colors.border,
+                width: 1.5,
               ),
             ),
+            child: ClipOval(
+              child: _buildNavbarAvatar(colors),
+            ),
           ),
+        ),
         IconButton(
-          iconSize: 24,
-          icon: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: colors.surfaceVariant,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(
-              Icons.settings_rounded,
-              color: colors.textSecondary,
-              size: 20,
-            ),
+          iconSize: 20,
+          icon: Icon(
+            Icons.settings_outlined,
+            color: colors.textSecondary,
           ),
           onPressed: () {
             HapticUtils.lightImpact();
             Navigator.pushNamed(context, '/settingsScreen');
           },
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 8),
       ],
     );
   }
@@ -332,17 +352,13 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
     return Container(
       decoration: BoxDecoration(
         color: colors.navBackground,
-        boxShadow: [
-          BoxShadow(
-            color: colors.shadow.withOpacity(0.1),
-            blurRadius: 20,
-            offset: const Offset(0, -4),
-          ),
-        ],
+        border: Border(
+          top: BorderSide(color: colors.border, width: 1),
+        ),
       ),
       child: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: List.generate(navItems.length, (index) {
@@ -369,34 +385,25 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: EdgeInsets.symmetric(
-          horizontal: isSelected ? 16 : 12,
-          vertical: 8,
-        ),
-        decoration: BoxDecoration(
-          color: isSelected ? colors.primary.withOpacity(0.1) : Colors.transparent,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Row(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              item.icon,
+              isSelected ? item.activeIcon : item.icon,
               color: isSelected ? colors.primary : colors.navUnselected,
-              size: 24,
+              size: 22,
             ),
-            if (isSelected) ...[
-              const SizedBox(width: 8),
-              Text(
-                item.label,
-                style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: colors.primary,
-                      fontWeight: FontWeight.w600,
-                    ),
-              ),
-            ],
+            const SizedBox(height: 4),
+            Text(
+              item.label,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: isSelected ? colors.primary : colors.navUnselected,
+                    fontWeight: isSelected ? FontWeight.w500 : FontWeight.w400,
+                    fontSize: 10,
+                  ),
+            ),
           ],
         ),
       ),
@@ -410,7 +417,7 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
       scale: _fabScaleAnimation,
       child: FloatingActionButton(
         onPressed: () {
-          HapticUtils.buttonTap();
+          HapticUtils.lightImpact();
           if (addPost) {
             // Add post functionality
           }
@@ -418,8 +425,8 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
             _showEditProfileDialog();
           }
         },
-        elevation: 4,
-        child: Icon(iconButton),
+        elevation: 2,
+        child: Icon(iconButton, size: 22),
       ),
     );
   }
@@ -427,7 +434,8 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
 
 class _NavItem {
   final IconData icon;
+  final IconData activeIcon;
   final String label;
 
-  _NavItem({required this.icon, required this.label});
+  _NavItem({required this.icon, required this.activeIcon, required this.label});
 }

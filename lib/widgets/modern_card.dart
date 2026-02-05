@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../utils/haptic_utils.dart';
 
-/// A modern card widget with hover effects and optional onTap
+/// A professional card widget with subtle interactions
 class ModernCard extends StatefulWidget {
   final Widget child;
   final VoidCallback? onTap;
@@ -10,7 +10,7 @@ class ModernCard extends StatefulWidget {
   final EdgeInsets? margin;
   final Color? backgroundColor;
   final double borderRadius;
-  final bool showShadow;
+  final bool showBorder;
   final Gradient? gradient;
   final Border? border;
 
@@ -21,8 +21,8 @@ class ModernCard extends StatefulWidget {
     this.padding,
     this.margin,
     this.backgroundColor,
-    this.borderRadius = 16,
-    this.showShadow = true,
+    this.borderRadius = 8,
+    this.showBorder = true,
     this.gradient,
     this.border,
   });
@@ -32,7 +32,7 @@ class ModernCard extends StatefulWidget {
 }
 
 class _ModernCardState extends State<ModernCard> {
-  bool _isPressed = false;
+  bool _isHovered = false;
 
   @override
   Widget build(BuildContext context) {
@@ -40,43 +40,35 @@ class _ModernCardState extends State<ModernCard> {
     
     return GestureDetector(
       onTapDown: widget.onTap != null 
-          ? (_) => setState(() => _isPressed = true) 
+          ? (_) => setState(() => _isHovered = true) 
           : null,
       onTapUp: widget.onTap != null 
-          ? (_) => setState(() => _isPressed = false) 
+          ? (_) => setState(() => _isHovered = false) 
           : null,
       onTapCancel: widget.onTap != null 
-          ? () => setState(() => _isPressed = false) 
+          ? () => setState(() => _isHovered = false) 
           : null,
       onTap: widget.onTap != null
           ? () {
-              HapticUtils.cardTap();
+              HapticUtils.lightImpact();
               widget.onTap!();
             }
           : null,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
+        duration: const Duration(milliseconds: 100),
         curve: Curves.easeOut,
-        margin: widget.margin ?? const EdgeInsets.symmetric(vertical: 8),
-        transform: Matrix4.identity()..scale(_isPressed ? 0.98 : 1.0),
+        margin: widget.margin ?? const EdgeInsets.symmetric(vertical: 6),
         decoration: BoxDecoration(
           color: widget.gradient == null 
-              ? (widget.backgroundColor ?? colors.cardBackground) 
+              ? (_isHovered 
+                  ? colors.surfaceVariant 
+                  : widget.backgroundColor ?? colors.cardBackground)
               : null,
           gradient: widget.gradient,
           borderRadius: BorderRadius.circular(widget.borderRadius),
-          border: widget.border ?? Border.all(
-            color: colors.border.withOpacity(0.3),
-          ),
-          boxShadow: widget.showShadow
-              ? [
-                  BoxShadow(
-                    color: colors.shadow.withOpacity(_isPressed ? 0.05 : 0.1),
-                    blurRadius: _isPressed ? 8 : 16,
-                    offset: Offset(0, _isPressed ? 2 : 4),
-                  ),
-                ]
-              : null,
+          border: widget.border ?? (widget.showBorder 
+              ? Border.all(color: colors.border)
+              : null),
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(widget.borderRadius),
@@ -116,33 +108,33 @@ class FeatureCard extends StatelessWidget {
     return ModernCard(
       onTap: onTap,
       gradient: gradient,
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: (iconColor ?? colors.primary).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
+              color: (iconColor ?? colors.primary).withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(6),
             ),
             child: Icon(
               icon,
-              size: 28,
+              size: 22,
               color: iconColor ?? colors.primary,
             ),
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   title,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 2),
                 Text(
                   description,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -153,8 +145,8 @@ class FeatureCard extends StatelessWidget {
             ),
           ),
           Icon(
-            Icons.arrow_forward_ios_rounded,
-            size: 16,
+            Icons.chevron_right,
+            size: 20,
             color: colors.textTertiary,
           ),
         ],
@@ -193,28 +185,21 @@ class StatCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: cardColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  icon,
-                  size: 20,
-                  color: cardColor,
-                ),
+              Icon(
+                icon,
+                size: 20,
+                color: cardColor,
               ),
             ],
           ),
           const SizedBox(height: 12),
           Text(
             value,
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-              fontWeight: FontWeight.bold,
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.w600,
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 2),
           Text(
             title,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(

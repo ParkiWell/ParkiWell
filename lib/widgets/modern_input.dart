@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../theme/app_theme.dart';
 
-/// Modern text input field with animations
+/// Professional text input field
 class ModernTextField extends StatefulWidget {
   final String? label;
   final String? hint;
@@ -68,48 +68,34 @@ class _ModernTextFieldState extends State<ModernTextField> {
   Widget build(BuildContext context) {
     final colors = context.colors;
 
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: _isFocused
-            ? [
-                BoxShadow(
-                  color: colors.primary.withOpacity(0.1),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ]
+    return TextField(
+      controller: widget.controller,
+      focusNode: _focusNode,
+      autofocus: widget.autofocus,
+      onChanged: widget.onChanged,
+      keyboardType: widget.keyboardType,
+      obscureText: widget.obscureText,
+      maxLines: widget.maxLines,
+      inputFormatters: widget.inputFormatters,
+      style: Theme.of(context).textTheme.bodyMedium,
+      decoration: InputDecoration(
+        labelText: widget.label,
+        hintText: widget.hint,
+        errorText: widget.errorText,
+        prefixIcon: widget.prefixIcon != null
+            ? Icon(
+                widget.prefixIcon,
+                color: _isFocused ? colors.primary : colors.textTertiary,
+                size: 20,
+              )
             : null,
-      ),
-      child: TextField(
-        controller: widget.controller,
-        focusNode: _focusNode,
-        autofocus: widget.autofocus,
-        onChanged: widget.onChanged,
-        keyboardType: widget.keyboardType,
-        obscureText: widget.obscureText,
-        maxLines: widget.maxLines,
-        inputFormatters: widget.inputFormatters,
-        style: Theme.of(context).textTheme.bodyLarge,
-        decoration: InputDecoration(
-          labelText: widget.label,
-          hintText: widget.hint,
-          errorText: widget.errorText,
-          prefixIcon: widget.prefixIcon != null
-              ? Icon(
-                  widget.prefixIcon,
-                  color: _isFocused ? colors.primary : colors.textTertiary,
-                )
-              : null,
-          suffix: widget.suffix,
-        ),
+        suffix: widget.suffix,
       ),
     );
   }
 }
 
-/// Modern dropdown selector
+/// Professional dropdown selector
 class ModernDropdown<T> extends StatelessWidget {
   final T value;
   final List<T> items;
@@ -142,13 +128,13 @@ class ModernDropdown<T> extends StatelessWidget {
                   color: colors.textSecondary,
                 ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
         ],
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 14),
           decoration: BoxDecoration(
             color: colors.inputBackground,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(6),
             border: Border.all(color: colors.inputBorder),
           ),
           child: Row(
@@ -157,9 +143,9 @@ class ModernDropdown<T> extends StatelessWidget {
                 Icon(
                   prefixIcon,
                   color: colors.textTertiary,
-                  size: 20,
+                  size: 18,
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 10),
               ],
               Expanded(
                 child: DropdownButtonHideUnderline(
@@ -167,19 +153,20 @@ class ModernDropdown<T> extends StatelessWidget {
                     value: value,
                     isExpanded: true,
                     icon: Icon(
-                      Icons.keyboard_arrow_down_rounded,
+                      Icons.expand_more,
                       color: colors.textSecondary,
+                      size: 20,
                     ),
                     dropdownColor: colors.surface,
-                    borderRadius: BorderRadius.circular(12),
-                    style: Theme.of(context).textTheme.bodyLarge,
+                    borderRadius: BorderRadius.circular(6),
+                    style: Theme.of(context).textTheme.bodyMedium,
                     onChanged: onChanged,
                     items: items.map((item) {
                       return DropdownMenuItem<T>(
                         value: item,
                         child: Text(
                           itemLabel(item),
-                          style: Theme.of(context).textTheme.bodyLarge,
+                          style: Theme.of(context).textTheme.bodyMedium,
                         ),
                       );
                     }).toList(),
@@ -221,20 +208,20 @@ class ModernChipSelector extends StatelessWidget {
         return GestureDetector(
           onTap: () => onToggle(option),
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            duration: const Duration(milliseconds: 100),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: isSelected ? colors.primary : colors.surfaceVariant,
-              borderRadius: BorderRadius.circular(20),
+              color: isSelected ? colors.primary : Colors.transparent,
+              borderRadius: BorderRadius.circular(4),
               border: Border.all(
                 color: isSelected ? colors.primary : colors.border,
               ),
             ),
             child: Text(
               option,
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: isSelected ? colors.textOnPrimary : colors.textPrimary,
-                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                    fontWeight: FontWeight.w500,
                   ),
             ),
           ),

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../Firebase/firebase_cloud.dart';
 import '../singleton.dart';
 import '../theme/app_theme.dart';
 import '../utils/haptic_utils.dart';
@@ -117,13 +116,8 @@ class _EditScheduleScreenState extends State<EditScheduleScreen>
           ? 'Everyday'
           : 'Every ${selectedDays.join(", ")}';
 
-      singleton.addScheduleList(
-        _nameController.text.trim(),
-        _detailsController.text.trim(),
-        days,
-      );
-
-      await FirebaseCloud().createSchedule(
+      // Save to local database
+      await singleton.saveSchedule(
         _nameController.text.trim(),
         _detailsController.text.trim(),
         days,

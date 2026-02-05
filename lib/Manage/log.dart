@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:levio/Firebase/firebase_cloud.dart';
 
 import '../singleton.dart';
 import '../theme/app_theme.dart';
@@ -14,13 +13,9 @@ class LogScreen extends StatefulWidget {
   State<LogScreen> createState() => _LogScreenState();
 }
 
-class _LogScreenState extends State<LogScreen>
-    with SingleTickerProviderStateMixin {
+class _LogScreenState extends State<LogScreen> {
   final singleton = Singleton();
   late List<List<String>> log;
-
-  late AnimationController _animationController;
-  late Animation<double> _animation;
 
   String time(int index) => log[index][0];
   String symptom(int index) => log[index][1];
@@ -73,30 +68,14 @@ class _LogScreenState extends State<LogScreen>
   @override
   void initState() {
     super.initState();
-    FirebaseCloud().idList(true);
+    // Data is loaded from local database via singleton
     log = singleton.log;
     if (log.isNotEmpty) sortTime();
-
-    _animationController = AnimationController(
-      duration: const Duration(milliseconds: 600),
-      vsync: this,
-    );
-    _animation = CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeOutCubic,
-    );
-    _animationController.forward();
-  }
-
-  @override
-  void dispose() {
-    _animationController.dispose();
-    super.dispose();
   }
 
   void _showLogDetails(int index) {
     final colors = context.colors;
-    HapticUtils.cardTap();
+    HapticUtils.lightImpact();
 
     showModalBottomSheet(
       context: context,
@@ -106,10 +85,10 @@ class _LogScreenState extends State<LogScreen>
         return Container(
           decoration: BoxDecoration(
             color: colors.surface,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
           ),
           child: Padding(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.all(20),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -117,7 +96,7 @@ class _LogScreenState extends State<LogScreen>
                 // Handle bar
                 Center(
                   child: Container(
-                    width: 40,
+                    width: 32,
                     height: 4,
                     decoration: BoxDecoration(
                       color: colors.border,
@@ -125,62 +104,37 @@ class _LogScreenState extends State<LogScreen>
                     ),
                   ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 20),
                 
                 // Header
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: colors.primary.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
+                Text(
+                  'Symptom Details',
+                  style: Theme.of(c).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
                       ),
-                      child: Icon(
-                        Icons.favorite_rounded,
-                        color: colors.primary,
-                        size: 24,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Symptom Log',
-                            style: Theme.of(c).textTheme.titleLarge?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                          ),
-                          Text(
-                            time(index),
-                            style: Theme.of(c).textTheme.bodySmall?.copyWith(
-                                  color: colors.textSecondary,
-                                ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 4),
+                Text(
+                  time(index),
+                  style: Theme.of(c).textTheme.bodySmall?.copyWith(
+                        color: colors.textTertiary,
+                      ),
+                ),
+                const SizedBox(height: 20),
                 
                 // Details
                 _DetailRow(
                   label: 'Symptom',
                   value: symptom(index),
-                  icon: Icons.description_outlined,
                   colors: colors,
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
                 _DetailRow(
                   label: 'Severity',
                   value: severity(index),
-                  icon: Icons.speed_rounded,
                   colors: colors,
                 ),
-                const SizedBox(height: 32),
+                const SizedBox(height: 24),
                 
                 // Actions
                 Row(
@@ -192,12 +146,12 @@ class _LogScreenState extends State<LogScreen>
                         onPressed: () => Navigator.pop(c),
                       ),
                     ),
-                    const SizedBox(width: 16),
+                    const SizedBox(width: 12),
                     ModernIconButton(
-                      icon: Icons.delete_outline_rounded,
+                      icon: Icons.delete_outline,
                       backgroundColor: colors.error,
                       onPressed: () {
-                        HapticUtils.heavyImpact();
+                        HapticUtils.lightImpact();
                         singleton.deleteEntireList(index, "logs");
                         Navigator.pop(c);
                         Navigator.pushNamed(context, '/logScreen');
@@ -205,7 +159,7 @@ class _LogScreenState extends State<LogScreen>
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
               ],
             ),
           ),
@@ -221,17 +175,10 @@ class _LogScreenState extends State<LogScreen>
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
-          icon: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: colors.surfaceVariant,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(
-              Icons.arrow_back_rounded,
-              color: colors.textPrimary,
-              size: 20,
-            ),
+          icon: Icon(
+            Icons.arrow_back,
+            color: colors.textPrimary,
+            size: 22,
           ),
           onPressed: () {
             HapticUtils.lightImpact();
@@ -244,7 +191,7 @@ class _LogScreenState extends State<LogScreen>
           ? _buildEmptyState(colors)
           : _buildLogList(colors),
       floatingActionButton: ModernFAB(
-        icon: Icons.add_rounded,
+        icon: Icons.add,
         onPressed: () {
           Navigator.popAndPushNamed(context, '/editLogScreen');
         },
@@ -255,43 +202,33 @@ class _LogScreenState extends State<LogScreen>
   }
 
   Widget _buildEmptyState(AppColors colors) {
-    return FadeTransition(
-      opacity: _animation,
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: colors.primary.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.favorite_border_rounded,
-                  size: 48,
-                  color: colors.primary,
-                ),
-              ),
-              const SizedBox(height: 24),
-              Text(
-                'No Symptoms Logged',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Start tracking your symptoms to monitor your health over time.',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: colors.textSecondary,
-                    ),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(40),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.favorite_outline,
+              size: 40,
+              color: colors.textTertiary,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'No symptoms logged',
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Track your symptoms to monitor your health over time.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: colors.textTertiary,
+                  ),
+              textAlign: TextAlign.center,
+            ),
+          ],
         ),
       ),
     );
@@ -299,30 +236,16 @@ class _LogScreenState extends State<LogScreen>
 
   Widget _buildLogList(AppColors colors) {
     return ListView.builder(
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       itemCount: singleton.log.length,
       itemBuilder: (BuildContext context, int index) {
-        return FadeTransition(
-          opacity: _animation,
-          child: SlideTransition(
-            position: Tween<Offset>(
-              begin: const Offset(0, 0.1),
-              end: Offset.zero,
-            ).animate(CurvedAnimation(
-              parent: _animationController,
-              curve: Interval(
-                (index / singleton.log.length) * 0.5,
-                1.0,
-                curve: Curves.easeOutCubic,
-              ),
-            )),
-            child: _LogCard(
-              time: time(index),
-              symptom: symptom(index),
-              severity: severity(index),
-              onTap: () => _showLogDetails(index),
-            ),
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: _LogCard(
+            time: time(index),
+            symptom: symptom(index),
+            severity: severity(index),
+            onTap: () => _showLogDetails(index),
           ),
         );
       },
@@ -349,133 +272,97 @@ class _LogCard extends StatelessWidget {
 
     return ModernCard(
       onTap: onTap,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: colors.primary.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(
-              Icons.favorite_rounded,
-              color: colors.primary,
-              size: 24,
-            ),
+          Icon(
+            Icons.favorite_outline,
+            color: colors.textSecondary,
+            size: 20,
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   symptom.isEmpty ? 'Symptom' : symptom,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w500,
                       ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Icon(
-                      Icons.schedule_rounded,
-                      size: 14,
-                      color: colors.textTertiary,
-                    ),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        time,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: colors.textSecondary,
-                            ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                const SizedBox(height: 2),
+                Text(
+                  time,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: colors.textTertiary,
                       ),
-                    ),
-                  ],
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: _getSeverityColor(severity, colors).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              severity.isEmpty ? 'N/A' : severity,
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: _getSeverityColor(severity, colors),
-                    fontWeight: FontWeight.w600,
-                  ),
-            ),
+          Text(
+            severity.isEmpty ? 'N/A' : severity,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: colors.textTertiary,
+                ),
+          ),
+          const SizedBox(width: 8),
+          Icon(
+            Icons.chevron_right,
+            color: colors.textTertiary,
+            size: 20,
           ),
         ],
       ),
     );
-  }
-
-  Color _getSeverityColor(String severity, AppColors colors) {
-    final lowerSeverity = severity.toLowerCase();
-    if (lowerSeverity.contains('high') ||
-        lowerSeverity.contains('severe') ||
-        lowerSeverity.contains('10') ||
-        lowerSeverity.contains('9')) {
-      return colors.error;
-    } else if (lowerSeverity.contains('medium') ||
-        lowerSeverity.contains('moderate')) {
-      return colors.warning;
-    }
-    return colors.success;
   }
 }
 
 class _DetailRow extends StatelessWidget {
   final String label;
   final String value;
-  final IconData icon;
   final AppColors colors;
 
   const _DetailRow({
     required this.label,
     required this.value,
-    required this.icon,
     required this.colors,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: colors.surfaceVariant,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
         children: [
-          Icon(icon, color: colors.textSecondary, size: 20),
-          const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: colors.textTertiary,
-                    ),
-              ),
-              Text(
-                value.isEmpty ? 'Not specified' : value,
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      fontWeight: FontWeight.w500,
-                    ),
-              ),
-            ],
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: colors.textTertiary,
+                      ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value.isEmpty ? 'Not specified' : value,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w500,
+                      ),
+                ),
+              ],
+            ),
           ),
         ],
       ),

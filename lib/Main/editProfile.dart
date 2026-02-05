@@ -1,8 +1,10 @@
-import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
+import 'dart:async';
 import 'dart:io';
 
-import '../Firebase/firebase_cloud.dart';
+import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+
+import '../navbar.dart';
 import '../singleton.dart';
 import '../theme/app_theme.dart';
 import '../utils/haptic_utils.dart';
@@ -99,21 +101,26 @@ class _EditProfileScreenState extends State<EditProfileScreen>
           : _emailController.text.trim());
       singleton.setName(_nameController.text.trim());
       singleton.setImage(image);
-      await FirebaseCloud().createUser(
-        _nameController.text.trim(),
-        image,
-        _emailController.text.trim().isEmpty 
-            ? 'Not provided' 
-            : _emailController.text.trim(),
-        0,
-        0,
-      );
+      
+      // Create user in local database
+      await singleton.createUser(_nameController.text.trim(), 0);
+      
+      // Update image if custom image was selected
+      if (image != "images/711128.png") {
+        await singleton.updateUser(profileImage: image);
+      }
 
       HapticUtils.success();
 
       if (singleton.firstTime && mounted) {
         singleton.setFirstTime(false);
-        Navigator.of(context).pushNamedAndRemoveUntil('/', (r) => false);
+        if (mounted) {
+          // Navigate to main app
+          unawaited(Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (context) => const Navbar()),
+            (r) => false,
+          ));
+        }
       }
     } catch (e) {
       HapticUtils.error();
@@ -354,7 +361,17 @@ class _EditProfileScreenState extends State<EditProfileScreen>
     );
   }
 
+  bool _hasCustomImage() {
+    return image.isNotEmpty && 
+        image != 'images/711128.png' &&
+        !image.contains('711128');
+  }
+
   Widget _buildProfileImage(double size, AppColors colors) {
+    if (!_hasCustomImage()) {
+      return _buildInitialsAvatar(size, colors);
+    }
+    
     if (image.startsWith('images/')) {
       return ClipOval(
         child: Image.asset(
@@ -363,7 +380,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
           width: size,
           height: size,
           errorBuilder: (context, error, stackTrace) {
-            return _buildDefaultAvatar(size, colors);
+            return _buildInitialsAvatar(size, colors);
           },
         ),
       );
@@ -377,27 +394,44 @@ class _EditProfileScreenState extends State<EditProfileScreen>
             width: size,
             height: size,
             errorBuilder: (context, error, stackTrace) {
-              return _buildDefaultAvatar(size, colors);
+              return _buildInitialsAvatar(size, colors);
             },
           ),
         );
       }
-      return _buildDefaultAvatar(size, colors);
+      return _buildInitialsAvatar(size, colors);
     }
   }
 
-  Widget _buildDefaultAvatar(double size, AppColors colors) {
+  Widget _buildInitialsAvatar(double size, AppColors colors) {
+    final displayName = _nameController.text.isNotEmpty 
+        ? _nameController.text 
+        : 'User';
+    final initial = displayName.isNotEmpty ? displayName[0].toUpperCase() : 'U';
+    
     return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: colors.surfaceVariant,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            colors.primary.withValues(alpha: 0.2),
+            colors.primaryLight.withValues(alpha: 0.1),
+          ],
+        ),
         shape: BoxShape.circle,
       ),
-      child: Icon(
-        Icons.person_rounded,
-        size: size * 0.5,
-        color: colors.textTertiary,
+      child: Center(
+        child: Text(
+          initial,
+          style: TextStyle(
+            fontSize: size * 0.4,
+            fontWeight: FontWeight.bold,
+            color: colors.primary,
+          ),
+        ),
       ),
     );
   }

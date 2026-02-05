@@ -294,7 +294,7 @@ class LineChartSample1State extends State<LineChartSample1>
       horizontalInterval: 1,
       getDrawingHorizontalLine: (value) {
         return FlLine(
-          color: colors.divider.withOpacity(0.5),
+          color: colors.divider.withValues(alpha: 0.5),
           strokeWidth: 1,
           dashArray: [5, 5],
         );
@@ -340,8 +340,8 @@ class LineChartSample1State extends State<LineChartSample1>
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            colors.chartLine.withOpacity(0.3),
-            colors.chartLine.withOpacity(0.0),
+            colors.chartLine.withValues(alpha: 0.3),
+            colors.chartLine.withValues(alpha: 0.0),
           ],
         ),
       ),
@@ -424,7 +424,7 @@ class LineChartSample1State extends State<LineChartSample1>
                         Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: colors.chartLine.withOpacity(0.1),
+                            color: colors.chartLine.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Icon(
@@ -511,7 +511,7 @@ class LineChartSample1State extends State<LineChartSample1>
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: colors.chartBar.withOpacity(0.1),
+                        color: colors.chartBar.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Icon(
@@ -554,7 +554,7 @@ class LineChartSample1State extends State<LineChartSample1>
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: color.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(icon, color: color, size: 24),

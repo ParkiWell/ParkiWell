@@ -1,6 +1,70 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../widgets/modern_card.dart';
+import '../singleton.dart';
+import '../utils/haptic_utils.dart';
+
+// Data models for community features
+class CommunityPost {
+  final String id;
+  final String authorName;
+  final String authorImage;
+  final String content;
+  final DateTime timestamp;
+  final String? category;
+  int likes;
+  bool isLiked;
+  final List<PostComment> comments;
+
+  CommunityPost({
+    required this.id,
+    required this.authorName,
+    required this.authorImage,
+    required this.content,
+    required this.timestamp,
+    this.category,
+    this.likes = 0,
+    this.isLiked = false,
+    List<PostComment>? comments,
+  }) : comments = comments ?? [];
+}
+
+class PostComment {
+  final String id;
+  final String authorName;
+  final String authorImage;
+  final String content;
+  final DateTime timestamp;
+
+  PostComment({
+    required this.id,
+    required this.authorName,
+    required this.authorImage,
+    required this.content,
+    required this.timestamp,
+  });
+}
+
+class SupportGroup {
+  final String id;
+  final String name;
+  final String description;
+  final IconData icon;
+  final Color color;
+  final int memberCount;
+  bool isJoined;
+
+  SupportGroup({
+    required this.id,
+    required this.name,
+    required this.description,
+    required this.icon,
+    required this.color,
+    required this.memberCount,
+    this.isJoined = false,
+  });
+}
 
 class CommunityScreen extends StatefulWidget {
   const CommunityScreen({super.key});
@@ -11,195 +75,976 @@ class CommunityScreen extends StatefulWidget {
 
 class _CommunityScreenState extends State<CommunityScreen>
     with SingleTickerProviderStateMixin {
-  late AnimationController _animationController;
-  late Animation<double> _animation;
+  late TabController _tabController;
+  final singleton = Singleton();
+  
+  // Sample data for posts
+  late List<CommunityPost> _posts;
+  late List<SupportGroup> _groups;
 
   @override
   void initState() {
     super.initState();
-    _animationController = AnimationController(
-      duration: const Duration(milliseconds: 600),
-      vsync: this,
-    );
-    _animation = CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeOutCubic,
-    );
-    _animationController.forward();
+    _tabController = TabController(length: 3, vsync: this);
+    _initializeSampleData();
+  }
+
+  void _initializeSampleData() {
+    // Start with empty lists - users create their own content
+    _posts = [];
+    _groups = [];
   }
 
   @override
   void dispose() {
-    _animationController.dispose();
+    _tabController.dispose();
     super.dispose();
+  }
+
+  void _showCreatePostSheet() {
+    final colors = context.colors;
+    final textController = TextEditingController();
+    String? selectedCategory;
+    final categories = ['General', 'Exercise Tips', 'Speech Therapy', 'Daily Living', 'Questions'];
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setModalState) => Container(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(ctx).viewInsets.bottom,
+          ),
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 32,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: colors.border,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'Create Post',
+                  style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // Category selector
+                SizedBox(
+                  height: 32,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: categories.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 6),
+                    itemBuilder: (context, index) {
+                      final cat = categories[index];
+                      final isSelected = selectedCategory == cat;
+                      return GestureDetector(
+                        onTap: () => setModalState(() => selectedCategory = cat),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: isSelected ? colors.primary : Colors.transparent,
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(
+                              color: isSelected ? colors.primary : colors.border,
+                            ),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            cat,
+                            style: TextStyle(
+                              color: isSelected ? Colors.white : colors.textSecondary,
+                              fontWeight: FontWeight.w500,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: textController,
+                  maxLines: 4,
+                  decoration: InputDecoration(
+                    hintText: 'Share your thoughts, tips, or questions...',
+                    hintStyle: TextStyle(color: colors.textTertiary),
+                    filled: true,
+                    fillColor: colors.surfaceVariant,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        child: Text('Cancel', style: TextStyle(color: colors.textSecondary)),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          if (textController.text.trim().isNotEmpty) {
+                            HapticUtils.lightImpact();
+                            setState(() {
+                              _posts.insert(0, CommunityPost(
+                                id: DateTime.now().millisecondsSinceEpoch.toString(),
+                                authorName: singleton.name,
+                                authorImage: singleton.image,
+                                content: textController.text.trim(),
+                                timestamp: DateTime.now(),
+                                category: selectedCategory ?? 'General',
+                              ));
+                            });
+                            Navigator.pop(ctx);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: const Text('Post shared'),
+                                behavior: SnackBarBehavior.floating,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                              ),
+                            );
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        child: const Text('Post'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
 
-    return SingleChildScrollView(
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.all(20),
+    return Column(
+      children: [
+        // Tab bar
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 20),
+          decoration: BoxDecoration(
+            border: Border(bottom: BorderSide(color: colors.border)),
+          ),
+          child: TabBar(
+            controller: _tabController,
+            indicatorColor: colors.primary,
+            indicatorWeight: 2,
+            labelColor: colors.textPrimary,
+            unselectedLabelColor: colors.textTertiary,
+            labelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+            dividerColor: Colors.transparent,
+            tabs: const [
+              Tab(text: 'Feed'),
+              Tab(text: 'Groups'),
+              Tab(text: 'Resources'),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        
+        // Tab content
+        Expanded(
+          child: TabBarView(
+            controller: _tabController,
+            children: [
+              _buildFeedTab(colors),
+              _buildGroupsTab(colors),
+              _buildResourcesTab(colors),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFeedTab(AppColors colors) {
+    return Column(
+      children: [
+        // Create post button
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: GestureDetector(
+            onTap: _showCreatePostSheet,
+            child: ModernCard(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  _buildUserAvatar(40, colors),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: colors.surfaceVariant,
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                      child: Text(
+                        'Share something with the community...',
+                        style: TextStyle(color: colors.textTertiary),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        
+        // Posts list or empty state
+        Expanded(
+          child: _posts.isEmpty
+              ? _buildEmptyFeedState(colors)
+              : ListView.separated(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  physics: const BouncingScrollPhysics(),
+                  itemCount: _posts.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  itemBuilder: (context, index) => _buildPostCard(_posts[index], colors),
+                ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildUserAvatar(double size, AppColors colors) {
+    final hasCustomImage = singleton.image.isNotEmpty && 
+        singleton.image != 'images/711128.png' &&
+        !singleton.image.contains('711128');
+    
+    if (hasCustomImage) {
+      return CircleAvatar(
+        radius: size / 2,
+        backgroundColor: colors.primary.withValues(alpha: 0.1),
+        backgroundImage: singleton.image.startsWith('images/')
+            ? AssetImage(singleton.image)
+            : FileImage(File(singleton.image)) as ImageProvider,
+      );
+    }
+    
+    return CircleAvatar(
+      radius: size / 2,
+      backgroundColor: colors.primary.withValues(alpha: 0.1),
+      child: Text(
+        singleton.name.isNotEmpty && singleton.name != '[Name]'
+            ? singleton.name[0].toUpperCase()
+            : 'U',
+        style: TextStyle(
+          color: colors.primary,
+          fontWeight: FontWeight.bold,
+          fontSize: size * 0.4,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPostAuthorAvatar(CommunityPost post, double size, AppColors colors) {
+    final hasCustomImage = post.authorImage.isNotEmpty && 
+        post.authorImage != 'images/711128.png' &&
+        !post.authorImage.contains('711128');
+    
+    if (hasCustomImage) {
+      if (post.authorImage.startsWith('images/')) {
+        return CircleAvatar(
+          radius: size / 2,
+          backgroundColor: colors.primary.withValues(alpha: 0.1),
+          backgroundImage: AssetImage(post.authorImage),
+        );
+      }
+      return CircleAvatar(
+        radius: size / 2,
+        backgroundColor: colors.primary.withValues(alpha: 0.1),
+        backgroundImage: FileImage(File(post.authorImage)),
+      );
+    }
+    
+    return CircleAvatar(
+      radius: size / 2,
+      backgroundColor: colors.primary.withValues(alpha: 0.1),
+      child: Text(
+        post.authorName.isNotEmpty ? post.authorName[0].toUpperCase() : 'U',
+        style: TextStyle(
+          color: colors.primary,
+          fontWeight: FontWeight.bold,
+          fontSize: size * 0.4,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCommentAuthorAvatar(PostComment comment, double size, AppColors colors) {
+    final hasCustomImage = comment.authorImage.isNotEmpty && 
+        comment.authorImage != 'images/711128.png' &&
+        !comment.authorImage.contains('711128');
+    
+    if (hasCustomImage) {
+      if (comment.authorImage.startsWith('images/')) {
+        return CircleAvatar(
+          radius: size / 2,
+          backgroundColor: colors.surfaceVariant,
+          backgroundImage: AssetImage(comment.authorImage),
+        );
+      }
+      return CircleAvatar(
+        radius: size / 2,
+        backgroundColor: colors.surfaceVariant,
+        backgroundImage: FileImage(File(comment.authorImage)),
+      );
+    }
+    
+    return CircleAvatar(
+      radius: size / 2,
+      backgroundColor: colors.surfaceVariant,
+      child: Text(
+        comment.authorName.isNotEmpty ? comment.authorName[0].toUpperCase() : 'U',
+        style: TextStyle(
+          color: colors.textSecondary,
+          fontWeight: FontWeight.bold,
+          fontSize: size * 0.4,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyFeedState(AppColors colors) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(40),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.forum_outlined,
+              size: 40,
+              color: colors.textTertiary,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'No posts yet',
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Be the first to share something with the community.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: colors.textTertiary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: _showCreatePostSheet,
+              child: const Text('Create Post'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPostCard(CommunityPost post, AppColors colors) {
+    return ModernCard(
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          FadeTransition(
-            opacity: _animation,
-            child: SlideTransition(
-              position: Tween<Offset>(
-                begin: const Offset(0, 0.1),
-                end: Offset.zero,
-              ).animate(_animation),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Community',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Connect with others on similar journeys',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: colors.textSecondary,
-                        ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 48),
-
-          // Coming soon illustration
-          FadeTransition(
-            opacity: _animation,
-            child: Center(
-              child: Column(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(32),
-                    decoration: BoxDecoration(
-                      color: colors.primary.withOpacity(0.1),
-                      shape: BoxShape.circle,
+          // Author row
+          Row(
+            children: [
+              _buildPostAuthorAvatar(post, 40, colors),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      post.authorName,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                    child: Icon(
-                      Icons.people_rounded,
-                      size: 64,
+                    Text(
+                      _formatTimestamp(post.timestamp),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: colors.textTertiary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (post.category != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: colors.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    post.category!,
+                    style: TextStyle(
                       color: colors.primary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
-                  const SizedBox(height: 24),
-                  Text(
-                    'Coming Soon',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                  ),
-                  const SizedBox(height: 12),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 32),
-                    child: Text(
-                      'We\'re building a supportive community where you can share experiences, ask questions, and connect with others.',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: colors.textSecondary,
-                          ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+                ),
+            ],
           ),
-          const SizedBox(height: 48),
-
-          // Feature preview cards
-          FadeTransition(
-            opacity: _animation,
-            child: Text(
-              'What\'s Coming',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+          const SizedBox(height: 12),
+          
+          // Content
+          Text(
+            post.content,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: colors.textPrimary,
+              height: 1.5,
             ),
           ),
           const SizedBox(height: 16),
-
-          _buildFeaturePreview(
-            colors,
-            Icons.forum_rounded,
-            'Discussion Forums',
-            'Share experiences and get advice from the community',
-            colors.info,
+          
+          // Actions row
+          Row(
+            children: [
+              _buildActionButton(
+                icon: post.isLiked ? Icons.favorite_rounded : Icons.favorite_outline_rounded,
+                label: post.likes.toString(),
+                color: post.isLiked ? colors.error : colors.textSecondary,
+                onTap: () {
+                  HapticUtils.lightImpact();
+                  setState(() {
+                    post.isLiked = !post.isLiked;
+                    post.likes += post.isLiked ? 1 : -1;
+                  });
+                },
+              ),
+              const SizedBox(width: 24),
+              _buildActionButton(
+                icon: Icons.chat_bubble_outline_rounded,
+                label: post.comments.length.toString(),
+                color: colors.textSecondary,
+                onTap: () => _showCommentsSheet(post),
+              ),
+              const SizedBox(width: 24),
+              _buildActionButton(
+                icon: Icons.share_outlined,
+                label: 'Share',
+                color: colors.textSecondary,
+                onTap: () {
+                  HapticUtils.lightImpact();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: const Text('Sharing coming soon!'),
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  );
+                },
+              ),
+            ],
           ),
-          const SizedBox(height: 12),
-
-          _buildFeaturePreview(
-            colors,
-            Icons.group_rounded,
-            'Support Groups',
-            'Join groups based on your specific needs',
-            colors.success,
-          ),
-          const SizedBox(height: 12),
-
-          _buildFeaturePreview(
-            colors,
-            Icons.event_rounded,
-            'Events & Meetups',
-            'Find local and virtual events to participate in',
-            colors.warning,
-          ),
-          const SizedBox(height: 24),
+          
+          // Show preview of comments if any
+          if (post.comments.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Divider(color: colors.divider),
+            const SizedBox(height: 8),
+            GestureDetector(
+              onTap: () => _showCommentsSheet(post),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildCommentAuthorAvatar(post.comments.first, 28, colors),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: RichText(
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      text: TextSpan(
+                        style: Theme.of(context).textTheme.bodySmall,
+                        children: [
+                          TextSpan(
+                            text: '${post.comments.first.authorName} ',
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          TextSpan(
+                            text: post.comments.first.content,
+                            style: TextStyle(color: colors.textSecondary),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (post.comments.length > 1)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: GestureDetector(
+                  onTap: () => _showCommentsSheet(post),
+                  child: Text(
+                    'View all ${post.comments.length} comments',
+                    style: TextStyle(
+                      color: colors.textTertiary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ),
+          ],
         ],
       ),
     );
   }
 
-  Widget _buildFeaturePreview(
-    AppColors colors,
-    IconData icon,
-    String title,
-    String description,
-    Color color,
-  ) {
-    return ModernCard(
-      padding: const EdgeInsets.all(16),
+  Widget _buildActionButton({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
       child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: color, size: 24),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  description,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: colors.textSecondary,
-                      ),
-                ),
-              ],
+          Icon(icon, size: 20, color: color),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
             ),
           ),
         ],
       ),
     );
+  }
+
+  void _showCommentsSheet(CommunityPost post) {
+    final colors = context.colors;
+    final commentController = TextEditingController();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setModalState) => Container(
+          height: MediaQuery.of(context).size.height * 0.7,
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            children: [
+              // Handle
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: colors.border,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Text(
+                  'Comments',
+                  style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              Expanded(
+                child: post.comments.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.chat_bubble_outline, size: 48, color: colors.textTertiary),
+                            const SizedBox(height: 16),
+                            Text(
+                              'No comments yet',
+                              style: TextStyle(color: colors.textSecondary),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Be the first to comment!',
+                              style: TextStyle(color: colors.textTertiary, fontSize: 12),
+                            ),
+                          ],
+                        ),
+                      )
+                    : ListView.separated(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        itemCount: post.comments.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 16),
+                        itemBuilder: (context, index) {
+                          final comment = post.comments[index];
+                          return Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildCommentAuthorAvatar(comment, 36, colors),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Text(
+                                          comment.authorName,
+                                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          _formatTimestamp(comment.timestamp),
+                                          style: TextStyle(color: colors.textTertiary, fontSize: 12),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      comment.content,
+                                      style: TextStyle(color: colors.textSecondary, height: 1.4),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+              ),
+              // Comment input
+              Container(
+                padding: EdgeInsets.only(
+                  left: 20,
+                  right: 20,
+                  top: 12,
+                  bottom: MediaQuery.of(ctx).viewInsets.bottom + 12,
+                ),
+                decoration: BoxDecoration(
+                  color: colors.surface,
+                  border: Border(top: BorderSide(color: colors.divider)),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: commentController,
+                        decoration: InputDecoration(
+                          hintText: 'Write a comment...',
+                          hintStyle: TextStyle(color: colors.textTertiary),
+                          filled: true,
+                          fillColor: colors.surfaceVariant,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(24),
+                            borderSide: BorderSide.none,
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    GestureDetector(
+                      onTap: () {
+                        if (commentController.text.trim().isNotEmpty) {
+                          HapticUtils.success();
+                          setModalState(() {
+                            post.comments.add(PostComment(
+                              id: DateTime.now().millisecondsSinceEpoch.toString(),
+                              authorName: singleton.name,
+                              authorImage: singleton.image,
+                              content: commentController.text.trim(),
+                              timestamp: DateTime.now(),
+                            ));
+                          });
+                          setState(() {});
+                          commentController.clear();
+                        }
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: colors.primary,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGroupsTab(AppColors colors) {
+    if (_groups.isEmpty) {
+      return _buildEmptyGroupsState(colors);
+    }
+    
+    final joinedGroups = _groups.where((g) => g.isJoined).toList();
+    final availableGroups = _groups.where((g) => !g.isJoined).toList();
+    
+    return ListView(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      children: [
+        if (joinedGroups.isNotEmpty) ...[
+          Text(
+            'Your Groups',
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: colors.textSecondary,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 12),
+          ...joinedGroups.map((group) => Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _buildGroupCard(group, colors),
+          )),
+          const SizedBox(height: 16),
+        ],
+        if (availableGroups.isNotEmpty) ...[
+          Text(
+            'Discover',
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: colors.textSecondary,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 12),
+          ...availableGroups.map((group) => Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _buildGroupCard(group, colors),
+          )),
+        ],
+        const SizedBox(height: 20),
+      ],
+    );
+  }
+
+  Widget _buildEmptyGroupsState(AppColors colors) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(40),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.group_outlined,
+              size: 40,
+              color: colors.textTertiary,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'No groups available',
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Support groups will appear here as they become available.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: colors.textTertiary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGroupCard(SupportGroup group, AppColors colors) {
+    return ModernCard(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(
+        children: [
+          Icon(group.icon, color: colors.textSecondary, size: 20),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  group.name,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${_formatMemberCount(group.memberCount)} members',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: colors.textTertiary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          GestureDetector(
+            onTap: () {
+              HapticUtils.lightImpact();
+              setState(() {
+                group.isJoined = !group.isJoined;
+              });
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(group.isJoined ? 'Joined ${group.name}' : 'Left ${group.name}'),
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                ),
+              );
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: group.isJoined ? colors.surfaceVariant : colors.primary,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                group.isJoined ? 'Joined' : 'Join',
+                style: TextStyle(
+                  color: group.isJoined ? colors.textSecondary : Colors.white,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildResourcesTab(AppColors colors) {
+    final resources = [
+      {'icon': Icons.article_outlined, 'title': 'Latest Research', 'subtitle': 'Recent studies and findings'},
+      {'icon': Icons.video_library_outlined, 'title': 'Educational Videos', 'subtitle': 'Learn about symptom management'},
+      {'icon': Icons.local_hospital_outlined, 'title': 'Find Specialists', 'subtitle': 'Connect with movement disorder experts'},
+      {'icon': Icons.event_outlined, 'title': 'Events Calendar', 'subtitle': 'Webinars, support groups & meetups'},
+      {'icon': Icons.phone_outlined, 'title': 'Helpline', 'subtitle': '24/7 support available'},
+      {'icon': Icons.menu_book_outlined, 'title': 'Guides & Tips', 'subtitle': 'Daily living resources'},
+    ];
+
+    return ListView(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      children: [
+        ...resources.map((resource) => Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: ModernCard(
+            onTap: () {
+              HapticUtils.lightImpact();
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('${resource['title']} - Coming soon'),
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                ),
+              );
+            },
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Row(
+              children: [
+                Icon(resource['icon'] as IconData, color: colors.textSecondary, size: 20),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        resource['title'] as String,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        resource['subtitle'] as String,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: colors.textTertiary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(Icons.chevron_right, size: 20, color: colors.textTertiary),
+              ],
+            ),
+          ),
+        )),
+        const SizedBox(height: 20),
+      ],
+    );
+  }
+
+  String _formatTimestamp(DateTime timestamp) {
+    final now = DateTime.now();
+    final diff = now.difference(timestamp);
+    
+    if (diff.inMinutes < 1) return 'Just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    if (diff.inDays < 7) return '${diff.inDays}d ago';
+    return '${timestamp.day}/${timestamp.month}/${timestamp.year}';
+  }
+
+  String _formatMemberCount(int count) {
+    if (count >= 1000) {
+      return '${(count / 1000).toStringAsFixed(1)}k';
+    }
+    return count.toString();
   }
 }

@@ -13,8 +13,7 @@ class ProfileScreen extends StatefulWidget {
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen>
-    with SingleTickerProviderStateMixin {
+class _ProfileScreenState extends State<ProfileScreen> {
   final singleton = Singleton();
   String name = "[Name]";
   String email = "[Email]";
@@ -22,9 +21,6 @@ class _ProfileScreenState extends State<ProfileScreen>
   final picker = ImagePicker();
   String posts = "0";
   String exercises = "0";
-
-  late AnimationController _animationController;
-  late Animation<double> _animation;
 
   Future<void> updateImage() async {
     HapticUtils.lightImpact();
@@ -35,7 +31,7 @@ class _ProfileScreenState extends State<ProfileScreen>
         image = pickedFile.path;
       });
       singleton.setImage(image);
-      HapticUtils.success();
+      HapticUtils.lightImpact();
     }
   }
 
@@ -47,33 +43,27 @@ class _ProfileScreenState extends State<ProfileScreen>
     email = singleton.email;
     posts = '${singleton.postNum}';
     exercises = '${singleton.exerNum}';
-
-    _animationController = AnimationController(
-      duration: const Duration(milliseconds: 600),
-      vsync: this,
-    );
-    _animation = CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeOutCubic,
-    );
-    _animationController.forward();
   }
 
-  @override
-  void dispose() {
-    _animationController.dispose();
-    super.dispose();
+  bool _hasCustomImage() {
+    return image.isNotEmpty && 
+        image != 'images/711128.png' &&
+        !image.contains('711128');
   }
 
   Widget _buildProfileImage(AppColors colors) {
+    if (!_hasCustomImage()) {
+      return _buildInitialsAvatar(colors);
+    }
+    
     if (image.startsWith('images/')) {
       return Image.asset(
         image,
         fit: BoxFit.cover,
-        width: 112,
-        height: 112,
+        width: 86,
+        height: 86,
         errorBuilder: (context, error, stackTrace) {
-          return _buildDefaultAvatar(colors);
+          return _buildInitialsAvatar(colors);
         },
       );
     } else {
@@ -82,26 +72,36 @@ class _ProfileScreenState extends State<ProfileScreen>
         return Image.file(
           file,
           fit: BoxFit.cover,
-          width: 112,
-          height: 112,
+          width: 86,
+          height: 86,
           errorBuilder: (context, error, stackTrace) {
-            return _buildDefaultAvatar(colors);
+            return _buildInitialsAvatar(colors);
           },
         );
       }
-      return _buildDefaultAvatar(colors);
+      return _buildInitialsAvatar(colors);
     }
   }
 
-  Widget _buildDefaultAvatar(AppColors colors) {
+  Widget _buildInitialsAvatar(AppColors colors) {
+    final displayName = name != '[Name]' && name.isNotEmpty ? name : 'User';
+    final initials = displayName.split(' ').take(2).map((s) => s.isNotEmpty ? s[0].toUpperCase() : '').join();
+    
     return Container(
-      width: 112,
-      height: 112,
-      color: colors.surfaceVariant,
-      child: Icon(
-        Icons.person_rounded,
-        size: 56,
-        color: colors.textTertiary,
+      width: 86,
+      height: 86,
+      decoration: BoxDecoration(
+        color: colors.surfaceVariant,
+      ),
+      child: Center(
+        child: Text(
+          initials.isNotEmpty ? initials : 'U',
+          style: TextStyle(
+            fontSize: 28,
+            fontWeight: FontWeight.w600,
+            color: colors.textSecondary,
+          ),
+        ),
       ),
     );
   }
@@ -111,94 +111,51 @@ class _ProfileScreenState extends State<ProfileScreen>
     final colors = context.colors;
 
     return SingleChildScrollView(
-      physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.all(20),
       child: Column(
         children: [
           // Profile header
-          FadeTransition(
-            opacity: _animation,
-            child: SlideTransition(
-              position: Tween<Offset>(
-                begin: const Offset(0, 0.1),
-                end: Offset.zero,
-              ).animate(_animation),
-              child: _buildProfileHeader(colors),
-            ),
-          ),
-          const SizedBox(height: 32),
+          _buildProfileHeader(colors),
+          const SizedBox(height: 24),
 
           // Stats section
-          _buildAnimatedCard(
-            delay: 0.1,
-            child: _buildStatsSection(colors),
-          ),
+          _buildStatsSection(colors),
           const SizedBox(height: 24),
 
           // Activity section
-          FadeTransition(
-            opacity: _animation,
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Your Activity',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          _buildAnimatedCard(
-            delay: 0.2,
-            child: _ActivityItem(
-              icon: Icons.favorite_rounded,
-              title: 'Symptoms Logged',
-              value: '${singleton.log.length}',
-              color: colors.primary,
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Activity',
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: colors.textSecondary,
+                    fontWeight: FontWeight.w500,
+                  ),
             ),
           ),
           const SizedBox(height: 12),
 
-          _buildAnimatedCard(
-            delay: 0.25,
-            child: _ActivityItem(
-              icon: Icons.medication_rounded,
-              title: 'Medications Tracked',
-              value: '${singleton.schedule.length}',
-              color: colors.secondary,
-            ),
+          _ActivityItem(
+            icon: Icons.favorite_outline,
+            title: 'Symptoms Logged',
+            value: '${singleton.log.length}',
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
 
-          _buildAnimatedCard(
-            delay: 0.3,
-            child: _ActivityItem(
-              icon: Icons.fitness_center_rounded,
-              title: 'Exercises Completed',
-              value: exercises,
-              color: colors.success,
-            ),
+          _ActivityItem(
+            icon: Icons.medication_outlined,
+            title: 'Medications Tracked',
+            value: '${singleton.schedule.length}',
+          ),
+          const SizedBox(height: 8),
+
+          _ActivityItem(
+            icon: Icons.fitness_center_outlined,
+            title: 'Exercises Completed',
+            value: exercises,
           ),
           const SizedBox(height: 24),
         ],
-      ),
-    );
-  }
-
-  Widget _buildAnimatedCard({required double delay, required Widget child}) {
-    return FadeTransition(
-      opacity: _animation,
-      child: SlideTransition(
-        position: Tween<Offset>(
-          begin: const Offset(0, 0.2),
-          end: Offset.zero,
-        ).animate(CurvedAnimation(
-          parent: _animationController,
-          curve: Interval(delay, 1.0, curve: Curves.easeOutCubic),
-        )),
-        child: child,
       ),
     );
   }
@@ -212,31 +169,19 @@ class _ProfileScreenState extends State<ProfileScreen>
           child: Stack(
             children: [
               Container(
-                width: 120,
-                height: 120,
+                width: 88,
+                height: 88,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      colors.primary,
-                      colors.primaryLight,
-                    ],
+                  border: Border.all(
+                    color: colors.border,
+                    width: 1,
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: colors.primary.withValues(alpha: 0.3),
-                      blurRadius: 20,
-                      offset: const Offset(0, 8),
-                    ),
-                  ],
                 ),
-                padding: const EdgeInsets.all(4),
                 child: ClipOval(
                   child: Container(
-                    width: 112,
-                    height: 112,
+                    width: 86,
+                    height: 86,
                     color: colors.surface,
                     child: _buildProfileImage(colors),
                   ),
@@ -246,54 +191,43 @@ class _ProfileScreenState extends State<ProfileScreen>
                 bottom: 0,
                 right: 0,
                 child: Container(
-                  padding: const EdgeInsets.all(8),
+                  padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
-                    color: colors.primary,
+                    color: colors.surface,
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: colors.surface,
-                      width: 3,
+                      color: colors.border,
+                      width: 1,
                     ),
                   ),
                   child: Icon(
-                    Icons.camera_alt_rounded,
-                    color: colors.textOnPrimary,
-                    size: 16,
+                    Icons.camera_alt_outlined,
+                    color: colors.textSecondary,
+                    size: 14,
                   ),
                 ),
               ),
             ],
           ),
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 16),
 
         // Name
         Text(
           name == "[Name]" ? "Your Name" : name,
-          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                fontWeight: FontWeight.bold,
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w600,
               ),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 4),
 
         // Email
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.email_outlined,
-              size: 16,
-              color: colors.textSecondary,
-            ),
-            const SizedBox(width: 6),
-            Text(
-              email,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: colors.textSecondary,
-                  ),
-            ),
-          ],
+        Text(
+          email,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: colors.textTertiary,
+              ),
         ),
       ],
     );
@@ -301,37 +235,31 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   Widget _buildStatsSection(AppColors colors) {
     return ModernCard(
-      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
           _StatItem(
-            icon: Icons.messenger_rounded,
             value: posts,
             label: 'Posts',
-            color: colors.info,
           ),
           Container(
             width: 1,
-            height: 48,
+            height: 32,
             color: colors.divider,
           ),
           _StatItem(
-            icon: Icons.directions_run_rounded,
             value: exercises,
             label: 'Exercises',
-            color: colors.success,
           ),
           Container(
             width: 1,
-            height: 48,
+            height: 32,
             color: colors.divider,
           ),
           _StatItem(
-            icon: Icons.calendar_today_rounded,
             value: '${singleton.log.length + singleton.schedule.length}',
             label: 'Total Logs',
-            color: colors.primary,
           ),
         ],
       ),
@@ -340,16 +268,12 @@ class _ProfileScreenState extends State<ProfileScreen>
 }
 
 class _StatItem extends StatelessWidget {
-  final IconData icon;
   final String value;
   final String label;
-  final Color color;
 
   const _StatItem({
-    required this.icon,
     required this.value,
     required this.label,
-    required this.color,
   });
 
   @override
@@ -358,25 +282,17 @@ class _StatItem extends StatelessWidget {
 
     return Column(
       children: [
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Icon(icon, color: color, size: 20),
-        ),
-        const SizedBox(height: 8),
         Text(
           value,
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
               ),
         ),
+        const SizedBox(height: 2),
         Text(
           label,
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: colors.textSecondary,
+                color: colors.textTertiary,
               ),
         ),
       ],
@@ -388,49 +304,34 @@ class _ActivityItem extends StatelessWidget {
   final IconData icon;
   final String title;
   final String value;
-  final Color color;
 
   const _ActivityItem({
     required this.icon,
     required this.title,
     required this.value,
-    required this.color,
   });
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
+    
     return ModernCard(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: color, size: 24),
-          ),
-          const SizedBox(width: 16),
+          Icon(icon, color: colors.textSecondary, size: 20),
+          const SizedBox(width: 14),
           Expanded(
             child: Text(
               title,
-              style: Theme.of(context).textTheme.titleSmall,
+              style: Theme.of(context).textTheme.bodyMedium,
             ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              value,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: color,
-                  ),
-            ),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
           ),
         ],
       ),

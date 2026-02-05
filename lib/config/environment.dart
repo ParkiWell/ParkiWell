@@ -1,9 +1,9 @@
-/// Environment configuration for the app.
-/// 
-/// Build with different environments using:
-/// - Development: flutter run
-/// - Staging: flutter run --dart-define=ENVIRONMENT=staging
-/// - Production: flutter run --dart-define=ENVIRONMENT=production
+// Environment configuration for the app.
+//
+// Build with different environments using:
+// - Development: flutter run
+// - Staging: flutter run --dart-define=ENVIRONMENT=staging
+// - Production: flutter run --dart-define=ENVIRONMENT=production
 
 enum Environment {
   development,

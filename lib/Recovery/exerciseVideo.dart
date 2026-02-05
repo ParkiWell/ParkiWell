@@ -107,7 +107,7 @@ class _ExerciseVideoState extends State<ExerciseVideo> {
                             Container(
                               padding: const EdgeInsets.all(10),
                               decoration: BoxDecoration(
-                                color: colors.info.withOpacity(0.1),
+                                color: colors.info.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Icon(
@@ -195,7 +195,7 @@ class _ExerciseVideoState extends State<ExerciseVideo> {
                               Container(
                                 padding: const EdgeInsets.all(16),
                                 decoration: BoxDecoration(
-                                  color: colors.error.withOpacity(0.1),
+                                  color: colors.error.withValues(alpha: 0.1),
                                   shape: BoxShape.circle,
                                 ),
                                 child: Icon(
@@ -288,7 +288,7 @@ class _ExerciseVideoState extends State<ExerciseVideo> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: colors.success.withOpacity(0.1),
+                  color: colors.success.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
@@ -352,7 +352,7 @@ class _ExerciseVideoState extends State<ExerciseVideo> {
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: colors.primary.withOpacity(0.1),
+                      color: colors.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Icon(
@@ -384,9 +384,9 @@ class _ExerciseVideoState extends State<ExerciseVideo> {
                     ),
               ),
               const SizedBox(height: 12),
-              _TipItem(text: 'Keep your movements slow and controlled'),
-              _TipItem(text: 'Focus on full range of motion'),
-              _TipItem(text: 'Remember to breathe steadily'),
+              const _TipItem(text: 'Keep your movements slow and controlled'),
+              const _TipItem(text: 'Focus on full range of motion'),
+              const _TipItem(text: 'Remember to breathe steadily'),
               const SizedBox(height: 24),
               SizedBox(
                 width: double.infinity,
@@ -421,7 +421,7 @@ class _AnalysisItem extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(

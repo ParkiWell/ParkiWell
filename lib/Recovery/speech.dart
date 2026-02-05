@@ -15,7 +15,7 @@ class _SpeechScreenState extends State<SpeechScreen>
     with SingleTickerProviderStateMixin {
   final singleton = Singleton();
   late Map<String, List<String>> speeches;
-  late List<String> urls;
+  late List<String> videoIds;
 
   late AnimationController _animationController;
   late Animation<double> _animation;
@@ -24,7 +24,7 @@ class _SpeechScreenState extends State<SpeechScreen>
   void initState() {
     super.initState();
     speeches = singleton.speeches;
-    urls = singleton.speeches.keys.toList();
+    videoIds = singleton.speeches.keys.toList();
 
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 600),
@@ -93,7 +93,7 @@ class _SpeechScreenState extends State<SpeechScreen>
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Audio-guided exercises to improve speech clarity',
+                      'Video-guided exercises from LSVT LOUD and speech therapists',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                             color: colors.textSecondary,
                           ),
@@ -114,7 +114,7 @@ class _SpeechScreenState extends State<SpeechScreen>
                     Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: colors.info.withOpacity(0.1),
+                        color: colors.info.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Icon(
@@ -126,7 +126,7 @@ class _SpeechScreenState extends State<SpeechScreen>
                     const SizedBox(width: 16),
                     Expanded(
                       child: Text(
-                        'Find a quiet space and practice these exercises daily for best results.',
+                        'Practice with LSVT LOUD certified therapists. Speak loudly and with intent!',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                               color: colors.textSecondary,
                             ),
@@ -138,12 +138,14 @@ class _SpeechScreenState extends State<SpeechScreen>
             ),
             const SizedBox(height: 24),
 
-            // Speech list
+            // Speech video list
             ListView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: speeches.length,
               itemBuilder: (BuildContext context, int index) {
+                final videoId = videoIds[index];
+                final speechData = singleton.speeches[videoId]!;
                 return FadeTransition(
                   opacity: _animation,
                   child: SlideTransition(
@@ -158,13 +160,14 @@ class _SpeechScreenState extends State<SpeechScreen>
                         curve: Curves.easeOutCubic,
                       ),
                     )),
-                    child: _SpeechCard(
-                      title: singleton.speeches[urls[index]]![0],
-                      description: singleton.speeches[urls[index]]![1],
-                      index: index + 1,
+                    child: _SpeechVideoCard(
+                      title: speechData[0],
+                      description: speechData[1],
+                      duration: speechData.length > 2 ? speechData[2] : '',
+                      thumbnailUrl: 'https://img.youtube.com/vi/$videoId/hqdefault.jpg',
                       onTap: () {
                         HapticUtils.cardTap();
-                        singleton.setCurrentUrl(urls[index]);
+                        singleton.setCurrentUrl(videoId);
                         Navigator.popAndPushNamed(context, '/speechAudio');
                       },
                     ),
@@ -179,85 +182,206 @@ class _SpeechScreenState extends State<SpeechScreen>
   }
 }
 
-class _SpeechCard extends StatelessWidget {
+class _SpeechVideoCard extends StatefulWidget {
   final String title;
   final String description;
-  final int index;
+  final String duration;
+  final String thumbnailUrl;
   final VoidCallback onTap;
 
-  const _SpeechCard({
+  const _SpeechVideoCard({
     required this.title,
     required this.description,
-    required this.index,
+    required this.duration,
+    required this.thumbnailUrl,
     required this.onTap,
   });
+
+  @override
+  State<_SpeechVideoCard> createState() => _SpeechVideoCardState();
+}
+
+class _SpeechVideoCardState extends State<_SpeechVideoCard> {
+  bool _isPressed = false;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
 
-    return ModernCard(
-      onTap: onTap,
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        children: [
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  colors.info,
-                  colors.info.withOpacity(0.7),
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _isPressed = true),
+      onTapUp: (_) => setState(() => _isPressed = false),
+      onTapCancel: () => setState(() => _isPressed = false),
+      onTap: widget.onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        transform: Matrix4.diagonal3Values(
+          _isPressed ? 0.98 : 1.0,
+          _isPressed ? 0.98 : 1.0,
+          1.0,
+        ),
+        margin: const EdgeInsets.only(bottom: 16),
+        decoration: BoxDecoration(
+          color: colors.cardBackground,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: colors.border.withValues(alpha: 0.3)),
+          boxShadow: [
+            BoxShadow(
+              color: colors.shadow.withValues(alpha: _isPressed ? 0.05 : 0.1),
+              blurRadius: _isPressed ? 8 : 16,
+              offset: Offset(0, _isPressed ? 2 : 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Thumbnail
+            ClipRRect(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+              child: Stack(
+                children: [
+                  AspectRatio(
+                    aspectRatio: 16 / 9,
+                    child: Image.network(
+                      widget.thumbnailUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          color: colors.info.withValues(alpha: 0.1),
+                          child: Center(
+                            child: Icon(
+                              Icons.record_voice_over_rounded,
+                              size: 48,
+                              color: colors.info,
+                            ),
+                          ),
+                        );
+                      },
+                      loadingBuilder: (context, child, loadingProgress) {
+                        if (loadingProgress == null) return child;
+                        return Container(
+                          color: colors.surfaceVariant,
+                          child: Center(
+                            child: CircularProgressIndicator(
+                              value: loadingProgress.expectedTotalBytes != null
+                                  ? loadingProgress.cumulativeBytesLoaded /
+                                      loadingProgress.expectedTotalBytes!
+                                  : null,
+                              strokeWidth: 2,
+                              color: colors.info,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  Positioned.fill(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.transparent,
+                            Colors.black.withValues(alpha: 0.4),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  // Duration badge
+                  if (widget.duration.isNotEmpty)
+                    Positioned(
+                      bottom: 12,
+                      left: 12,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.7),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          widget.duration,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
+                  // Play button
+                  Positioned(
+                    bottom: 12,
+                    right: 12,
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: colors.info,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: colors.info.withValues(alpha: 0.3),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        Icons.play_arrow_rounded,
+                        color: colors.textOnPrimary,
+                        size: 24,
+                      ),
+                    ),
+                  ),
                 ],
               ),
-              borderRadius: BorderRadius.circular(14),
             ),
-            child: Icon(
-              Icons.headphones_rounded,
-              color: Colors.white,
-              size: 28,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
+            // Content
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.record_voice_over_rounded,
+                        size: 16,
+                        color: colors.info,
                       ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  description,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: colors.textSecondary,
+                      const SizedBox(width: 6),
+                      Text(
+                        'Speech Therapy',
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              color: colors.info,
+                              fontWeight: FontWeight.w600,
+                            ),
                       ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    widget.title,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    widget.description,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: colors.textSecondary,
+                        ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
             ),
-          ),
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: colors.info.withOpacity(0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Icons.play_arrow_rounded,
-              color: colors.info,
-              size: 20,
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

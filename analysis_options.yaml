@@ -20,7 +20,6 @@ linter:
   rules:
     # Error prevention
     avoid_empty_else: true
-    avoid_returning_null_for_future: true
     cancel_subscriptions: true
     close_sinks: true
     empty_statements: true

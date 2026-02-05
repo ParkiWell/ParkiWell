@@ -38,7 +38,7 @@ class BarChartSample3State extends State<BarChartSample3> {
             horizontalInterval: 1,
             getDrawingHorizontalLine: (value) {
               return FlLine(
-                color: colors.divider.withOpacity(0.5),
+                color: colors.divider.withValues(alpha: 0.5),
                 strokeWidth: 1,
                 dashArray: [5, 5],
               );
@@ -185,7 +185,7 @@ class BarChartSample3State extends State<BarChartSample3> {
             gradient: LinearGradient(
               colors: [
                 colors.chartBar,
-                colors.chartBar.withOpacity(0.6),
+                colors.chartBar.withValues(alpha: 0.6),
               ],
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,

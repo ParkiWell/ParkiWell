@@ -1,4 +1,3 @@
-import 'package:levio/Main/editProfile.dart';
 import 'package:levio/Manage/editLog.dart';
 import 'package:levio/Manage/editSchedule.dart';
 import 'package:levio/Manage/log.dart';
@@ -8,11 +7,10 @@ import 'package:levio/Recovery/exerciseVideo.dart';
 import 'package:levio/Recovery/games.dart';
 import 'package:levio/Recovery/speech.dart';
 import 'package:levio/Recovery/speechAudio.dart';
-import 'package:levio/navbar.dart';
 import 'package:levio/settings.dart';
 
-var screenRoutes = {
-  '/': (context) => const Navbar(),
+// Named routes (excluding '/' since we use home parameter)
+var namedRoutes = {
   '/editLogScreen': (context) => const EditLogScreen(),
   '/editScheduleScreen': (context) => const EditScheduleScreen(),
   '/logScreen': (context) => const LogScreen(),
@@ -23,8 +21,4 @@ var screenRoutes = {
   '/gamesScreen': (context) => const GamesScreen(),
   '/speechScreen': (context) => const SpeechScreen(),
   '/settingsScreen': (context) => const SettingsScreen()
-};
-
-var editProfileRoutes = {
-  '/': (context) => const EditProfileScreen(),
 };

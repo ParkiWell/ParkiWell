@@ -126,6 +126,9 @@ class _ExerciseScreenState extends State<ExerciseScreen>
                     child: _ExerciseCard(
                       title: singleton.exercises[urls[index]]![0],
                       description: singleton.exercises[urls[index]]![1],
+                      duration: singleton.exercises[urls[index]]!.length > 2 
+                          ? singleton.exercises[urls[index]]![2] 
+                          : '',
                       thumbnailUrl:
                           'https://img.youtube.com/vi/${urls[index]}/hqdefault.jpg',
                       onTap: () {
@@ -148,12 +151,14 @@ class _ExerciseScreenState extends State<ExerciseScreen>
 class _ExerciseCard extends StatefulWidget {
   final String title;
   final String description;
+  final String duration;
   final String thumbnailUrl;
   final VoidCallback onTap;
 
   const _ExerciseCard({
     required this.title,
     required this.description,
+    required this.duration,
     required this.thumbnailUrl,
     required this.onTap,
   });
@@ -176,15 +181,15 @@ class _ExerciseCardState extends State<_ExerciseCard> {
       onTap: widget.onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        transform: Matrix4.identity()..scale(_isPressed ? 0.98 : 1.0, _isPressed ? 0.98 : 1.0),
+        transform: Matrix4.diagonal3Values(_isPressed ? 0.98 : 1.0, _isPressed ? 0.98 : 1.0, 1.0),
         margin: const EdgeInsets.only(bottom: 16),
         decoration: BoxDecoration(
           color: colors.cardBackground,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: colors.border.withOpacity(0.3)),
+          border: Border.all(color: colors.border.withValues(alpha: 0.3)),
           boxShadow: [
             BoxShadow(
-              color: colors.shadow.withOpacity(_isPressed ? 0.05 : 0.1),
+              color: colors.shadow.withValues(alpha: _isPressed ? 0.05 : 0.1),
               blurRadius: _isPressed ? 8 : 16,
               offset: Offset(0, _isPressed ? 2 : 4),
             ),
@@ -241,12 +246,34 @@ class _ExerciseCardState extends State<_ExerciseCard> {
                           end: Alignment.bottomCenter,
                           colors: [
                             Colors.transparent,
-                            Colors.black.withOpacity(0.3),
+                            Colors.black.withValues(alpha: 0.3),
                           ],
                         ),
                       ),
                     ),
                   ),
+                  // Duration badge
+                  if (widget.duration.isNotEmpty)
+                    Positioned(
+                      bottom: 12,
+                      left: 12,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.7),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          widget.duration,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
+                  // Play button
                   Positioned(
                     bottom: 12,
                     right: 12,
@@ -257,7 +284,7 @@ class _ExerciseCardState extends State<_ExerciseCard> {
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: colors.primary.withOpacity(0.3),
+                            color: colors.primary.withValues(alpha: 0.3),
                             blurRadius: 8,
                             offset: const Offset(0, 2),
                           ),

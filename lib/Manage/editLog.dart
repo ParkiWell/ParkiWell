@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:levio/Firebase/firebase_cloud.dart';
 
 import '../singleton.dart';
 import '../theme/app_theme.dart';
@@ -108,8 +107,9 @@ class _EditLogScreenState extends State<EditLogScreen>
 
     try {
       String time = "$hour:$minute, $day $month $year";
-      singleton.addLogList(time, _symptomController.text.trim(), _severityController.text.trim());
-      await FirebaseCloud().createLogs(
+      
+      // Save to local database
+      await singleton.saveLog(
         time,
         _symptomController.text.trim(),
         _severityController.text.trim(),
