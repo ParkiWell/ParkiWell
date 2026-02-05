@@ -88,8 +88,8 @@ class _ManageScreenState extends State<ManageScreen>
               statValue: '${singleton.log.length}',
               statLabel: 'entries logged',
               gradientColors: [
-                colors.primary.withOpacity(0.1),
-                colors.primary.withOpacity(0.05),
+                colors.primary.withValues(alpha: 0.1),
+                colors.primary.withValues(alpha: 0.05),
               ],
               onTap: () {
                 HapticUtils.cardTap();
@@ -110,8 +110,8 @@ class _ManageScreenState extends State<ManageScreen>
               statValue: '${singleton.schedule.length}',
               statLabel: 'medications scheduled',
               gradientColors: [
-                colors.secondary.withOpacity(0.1),
-                colors.secondary.withOpacity(0.05),
+                colors.secondary.withValues(alpha: 0.1),
+                colors.secondary.withValues(alpha: 0.05),
               ],
               onTap: () {
                 HapticUtils.cardTap();
@@ -217,7 +217,7 @@ class _ManageFeatureCardState extends State<_ManageFeatureCard> {
       onTap: widget.onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        transform: Matrix4.identity()..scale(_isPressed ? 0.98 : 1.0),
+        transform: Matrix4.identity()..scale(_isPressed ? 0.98 : 1.0, _isPressed ? 0.98 : 1.0),
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -227,11 +227,11 @@ class _ManageFeatureCardState extends State<_ManageFeatureCard> {
           ),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: widget.iconColor.withOpacity(0.2),
+            color: widget.iconColor.withValues(alpha: 0.2),
           ),
           boxShadow: [
             BoxShadow(
-              color: widget.iconColor.withOpacity(_isPressed ? 0.05 : 0.1),
+              color: widget.iconColor.withValues(alpha: _isPressed ? 0.05 : 0.1),
               blurRadius: _isPressed ? 8 : 20,
               offset: Offset(0, _isPressed ? 4 : 8),
             ),
@@ -245,7 +245,7 @@ class _ManageFeatureCardState extends State<_ManageFeatureCard> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: widget.iconColor.withOpacity(0.15),
+                    color: widget.iconColor.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: Icon(
@@ -349,7 +349,7 @@ class _TipCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: color.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(icon, color: color, size: 24),

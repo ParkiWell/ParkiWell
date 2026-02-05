@@ -1,5 +1,5 @@
-name: parkinson
-description: A new Flutter project.
+name: levio
+description: Levio - Your personal companion for managing Parkinson's disease. Track symptoms, manage medications, and access guided speech therapy and physical exercises.
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -53,6 +53,7 @@ dependencies:
 
 dependency_overrides:
   win32: ^5.5.0
+  archive: ^3.6.1
 
 dev_dependencies:
   flutter_test:
@@ -64,6 +65,25 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^3.0.1
+  flutter_launcher_icons: ^0.13.1
+
+# App icon configuration
+flutter_launcher_icons:
+  android: "ic_launcher"
+  ios: true
+  image_path: "images/app_icon.png"
+  min_sdk_android: 21
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "images/app_icon.png"
+  web:
+    generate: true
+    image_path: "images/app_icon.png"
+  windows:
+    generate: true
+    image_path: "images/app_icon.png"
+  macos:
+    generate: true
+    image_path: "images/app_icon.png"
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -92,7 +112,7 @@ flutter_native_splash:
 
   # The image parameter allows you to specify an image used in the splash screen.  It must be a
   # png file and should be sized for 4x pixel density.
-  image: images/logo.png
+  image: images/app_icon.png
 
   # The branding property allows you to specify an image used as branding in the splash screen.
   # It must be a png file. It is supported for Android, iOS and the Web.  For Android 12,
@@ -124,7 +144,7 @@ flutter_native_splash:
     # 640 pixels in diameter.
     # App icon without an icon background: This should be 1152×1152 pixels, and fit within a circle
     # 768 pixels in diameter.
-    image: images/logo.png
+    image: images/app_icon.png
 
     # Splash screen background color.
     color: "#F8FAFC"
@@ -220,10 +240,11 @@ flutter:
     - images/GOLD-6487-CareerGuide-Batch04-Images-GraphCharts-01-Line.jpg
     - images/711128.png
     - images/logo.png
-      # The following line ensures that the Material Icons font is
-      # included with your application, so that you can use the icons in
+    - images/app_icon.png
 
-    # the material Icons class.
+  # The following line ensures that the Material Icons font is
+  # included with your application, so that you can use the icons in
+  # the material Icons class.
   uses-material-design: true
 
   # To add assets to your application, add an assets section, like this:

@@ -104,8 +104,8 @@ class _RecoveryScreenState extends State<RecoveryScreen>
                 'Breathing techniques',
               ],
               gradientColors: [
-                colors.info.withOpacity(0.15),
-                colors.info.withOpacity(0.05),
+                colors.info.withValues(alpha: 0.15),
+                colors.info.withValues(alpha: 0.05),
               ],
               onTap: () {
                 HapticUtils.cardTap();
@@ -131,8 +131,8 @@ class _RecoveryScreenState extends State<RecoveryScreen>
                 'Strength exercises',
               ],
               gradientColors: [
-                colors.success.withOpacity(0.15),
-                colors.success.withOpacity(0.05),
+                colors.success.withValues(alpha: 0.15),
+                colors.success.withValues(alpha: 0.05),
               ],
               onTap: () {
                 HapticUtils.cardTap();
@@ -221,14 +221,14 @@ class _ProgressCard extends StatelessWidget {
                 Text(
                   'You\'ve completed $exercises exercises',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Colors.white.withOpacity(0.8),
+                        color: Colors.white.withValues(alpha: 0.8),
                       ),
                 ),
                 const SizedBox(height: 12),
                 Container(
                   height: 6,
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.3),
+                    color: Colors.white.withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(3),
                   ),
                   child: FractionallySizedBox(
@@ -249,7 +249,7 @@ class _ProgressCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
+              color: Colors.white.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(16),
             ),
             child: Column(
@@ -264,7 +264,7 @@ class _ProgressCard extends StatelessWidget {
                 Text(
                   'Total',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Colors.white.withOpacity(0.8),
+                        color: Colors.white.withValues(alpha: 0.8),
                       ),
                 ),
               ],
@@ -313,7 +313,7 @@ class _RecoveryFeatureCardState extends State<_RecoveryFeatureCard> {
       onTap: widget.onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        transform: Matrix4.identity()..scale(_isPressed ? 0.98 : 1.0),
+        transform: Matrix4.identity()..scale(_isPressed ? 0.98 : 1.0, _isPressed ? 0.98 : 1.0),
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -323,11 +323,11 @@ class _RecoveryFeatureCardState extends State<_RecoveryFeatureCard> {
           ),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: widget.iconColor.withOpacity(0.2),
+            color: widget.iconColor.withValues(alpha: 0.2),
           ),
           boxShadow: [
             BoxShadow(
-              color: widget.iconColor.withOpacity(_isPressed ? 0.05 : 0.1),
+              color: widget.iconColor.withValues(alpha: _isPressed ? 0.05 : 0.1),
               blurRadius: _isPressed ? 8 : 20,
               offset: Offset(0, _isPressed ? 4 : 8),
             ),
@@ -341,7 +341,7 @@ class _RecoveryFeatureCardState extends State<_RecoveryFeatureCard> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: widget.iconColor.withOpacity(0.15),
+                    color: widget.iconColor.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: Icon(
@@ -386,7 +386,7 @@ class _RecoveryFeatureCardState extends State<_RecoveryFeatureCard> {
                     color: colors.surface,
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                      color: widget.iconColor.withOpacity(0.3),
+                      color: widget.iconColor.withValues(alpha: 0.3),
                     ),
                   ),
                   child: Row(
@@ -430,7 +430,7 @@ class _MotivationCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: colors.warning.withOpacity(0.1),
+              color: colors.warning.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(

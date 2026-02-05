@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:parkinson/Firebase/firebase_cloud.dart';
+import 'package:levio/Firebase/firebase_cloud.dart';
 
 import '../singleton.dart';
 import '../theme/app_theme.dart';
@@ -157,7 +157,7 @@ class _EditLogScreenState extends State<EditLogScreen>
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: colors.success.withOpacity(0.1),
+                  color: colors.success.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(

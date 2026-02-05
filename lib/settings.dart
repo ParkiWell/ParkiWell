@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:parkinson/main.dart';
+import 'package:levio/main.dart';
 import 'package:restart_app/restart_app.dart';
 
 import 'singleton.dart';

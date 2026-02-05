@@ -35,7 +35,8 @@ class FirebaseCloud {
   }
 
   Future<void> getUser() async {
-    String documentId = await singleton.getUID();
+    String? documentId = await singleton.getUID();
+    if (documentId == null) return;
     try {
       DocumentSnapshot documentSnapshot = await FirebaseFirestore.instance
           .collection('users')
@@ -75,7 +76,8 @@ class FirebaseCloud {
 
   Future<void> updateUser(
       String name, String profileImage, String email) async {
-    String documentId = await singleton.getUID();
+    String? documentId = await singleton.getUID();
+    if (documentId == null) return;
     try {
       // Reference to the Firestore document
       DocumentReference documentReference =
@@ -98,7 +100,8 @@ class FirebaseCloud {
   }
 
   Future<void> updateNums(int p, int e) async {
-    String documentId = await singleton.getUID();
+    String? documentId = await singleton.getUID();
+    if (documentId == null) return;
     try {
       // Reference to the Firestore document
       DocumentReference documentReference =
@@ -117,7 +120,8 @@ class FirebaseCloud {
   }
 
   Future<void> idList(bool listType) async {
-    String documentId = await singleton.getUID();
+    String? documentId = await singleton.getUID();
+    if (documentId == null) return;
     try {
       DocumentSnapshot documentSnapshot = await FirebaseFirestore.instance
           .collection('users')
@@ -200,7 +204,8 @@ class FirebaseCloud {
   }
 
   void updateLogsList(String logsId) async {
-    String documentId = await singleton.getUID();
+    String? documentId = await singleton.getUID();
+    if (documentId == null) return;
     DocumentReference docRef = firestore.collection('users').doc(documentId);
 
     try {
@@ -263,7 +268,8 @@ class FirebaseCloud {
   }
 
   void updateSchedulesList(String schedulesId) async {
-    String documentId = await singleton.getUID();
+    String? documentId = await singleton.getUID();
+    if (documentId == null) return;
     DocumentReference docRef = firestore.collection('users').doc(documentId);
 
     try {
@@ -326,7 +332,8 @@ class FirebaseCloud {
   }
 
   Future<void> deleteCloudList(int index, String listName) async {
-    String documentId = await singleton.getUID();
+    String? documentId = await singleton.getUID();
+    if (documentId == null) return;
     try {
       // Get a reference to the Firestore document
       DocumentReference documentReference =

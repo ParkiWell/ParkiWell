@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:parkinson/singleton.dart';
+import 'package:levio/singleton.dart';
 import '../theme/app_theme.dart';
 import '../utils/haptic_utils.dart';
 
@@ -176,7 +176,7 @@ class _ExerciseCardState extends State<_ExerciseCard> {
       onTap: widget.onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        transform: Matrix4.identity()..scale(_isPressed ? 0.98 : 1.0),
+        transform: Matrix4.identity()..scale(_isPressed ? 0.98 : 1.0, _isPressed ? 0.98 : 1.0),
         margin: const EdgeInsets.only(bottom: 16),
         decoration: BoxDecoration(
           color: colors.cardBackground,

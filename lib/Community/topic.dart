@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:parkinson/Community/otherProfile.dart';
-import 'package:parkinson/navbar.dart';
+import 'package:levio/Community/otherProfile.dart';
+import 'package:levio/navbar.dart';
 
 class TopicScreen extends StatefulWidget {
   const TopicScreen({super.key});

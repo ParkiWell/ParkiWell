@@ -54,7 +54,31 @@ app.*.map.json
 .env
 .env.*
 
-# Credentials
+# Credentials and signing
 *.keystore
 *.jks
+*.p12
+*.pem
 key.properties
+ios/ExportOptions.plist
+
+# Test coverage
+coverage/
+*.lcov
+
+# Generated files
+*.g.dart
+*.freezed.dart
+
+# Local development
+.flutter-debug
+.flutter-profile
+local.properties
+
+# IDE specific
+*.code-workspace
+
+# Secrets (never commit)
+secrets/
+*.secret
+

@@ -65,6 +65,47 @@ class _ProfileScreenState extends State<ProfileScreen>
     super.dispose();
   }
 
+  Widget _buildProfileImage(AppColors colors) {
+    if (image.startsWith('images/')) {
+      return Image.asset(
+        image,
+        fit: BoxFit.cover,
+        width: 112,
+        height: 112,
+        errorBuilder: (context, error, stackTrace) {
+          return _buildDefaultAvatar(colors);
+        },
+      );
+    } else {
+      final file = File(image);
+      if (file.existsSync()) {
+        return Image.file(
+          file,
+          fit: BoxFit.cover,
+          width: 112,
+          height: 112,
+          errorBuilder: (context, error, stackTrace) {
+            return _buildDefaultAvatar(colors);
+          },
+        );
+      }
+      return _buildDefaultAvatar(colors);
+    }
+  }
+
+  Widget _buildDefaultAvatar(AppColors colors) {
+    return Container(
+      width: 112,
+      height: 112,
+      color: colors.surfaceVariant,
+      child: Icon(
+        Icons.person_rounded,
+        size: 56,
+        color: colors.textTertiary,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
@@ -185,26 +226,19 @@ class _ProfileScreenState extends State<ProfileScreen>
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: colors.primary.withOpacity(0.3),
+                      color: colors.primary.withValues(alpha: 0.3),
                       blurRadius: 20,
                       offset: const Offset(0, 8),
                     ),
                   ],
                 ),
                 padding: const EdgeInsets.all(4),
-                child: Container(
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
+                child: ClipOval(
+                  child: Container(
+                    width: 112,
+                    height: 112,
                     color: colors.surface,
-                    image: image.startsWith('images/')
-                        ? DecorationImage(
-                            image: AssetImage(image),
-                            fit: BoxFit.cover,
-                          )
-                        : DecorationImage(
-                            image: FileImage(File(image)),
-                            fit: BoxFit.cover,
-                          ),
+                    child: _buildProfileImage(colors),
                   ),
                 ),
               ),
@@ -235,7 +269,7 @@ class _ProfileScreenState extends State<ProfileScreen>
 
         // Name
         Text(
-          name,
+          name == "[Name]" ? "Your Name" : name,
           style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                 fontWeight: FontWeight.bold,
               ),

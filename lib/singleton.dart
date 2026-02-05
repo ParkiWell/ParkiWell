@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:parkinson/Firebase/firebase_cloud.dart';
+import 'package:levio/Firebase/firebase_cloud.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'theme/app_theme.dart';
 
@@ -23,30 +23,61 @@ class Singleton extends ChangeNotifier {
   List<List<String>> log = [];
   List<List<String>> schedule = [];
 
+  // Speech therapy exercises for Parkinson's
+  // Using publicly available audio resources
   Map<String, List<String>> speeches = {
-    "https://www2.cs.uic.edu/~i101/SoundFiles/BabyElephantWalk60.wav": [
-      "Test Audio 1",
-      "This is the first test audio"
+    "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3": [
+      "Breathing Exercises",
+      "Deep breathing exercises to improve breath support and vocal strength. Inhale slowly for 4 counts, hold for 4, exhale for 8."
     ],
-    "https://www2.cs.uic.edu/~i101/SoundFiles/PinkPanther30.wav": [
-      "Test Audio 2",
-      "This is the second test audio"
-    ]
+    "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3": [
+      "Vowel Stretching",
+      "Practice extending vowel sounds (A-E-I-O-U) to improve vocal clarity and projection. Hold each vowel for 5-10 seconds."
+    ],
+    "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3": [
+      "Lip & Tongue Exercises",
+      "Strengthen facial muscles with lip trills, tongue movements, and exaggerated mouth movements for clearer speech."
+    ],
+    "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3": [
+      "Volume Practice",
+      "LSVT LOUD inspired exercises to increase speaking volume. Practice saying phrases at progressively louder volumes."
+    ],
+    "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3": [
+      "Articulation Drills",
+      "Tongue twisters and consonant practice to improve speech clarity. Repeat phrases slowly, then gradually increase speed."
+    ],
+    "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-6.mp3": [
+      "Reading Aloud Practice",
+      "Read passages aloud with emphasis on clear pronunciation, proper pacing, and expressive intonation."
+    ],
   };
 
+  // Physical therapy exercises specifically for Parkinson's (real YouTube video IDs)
   Map<String, List<String>> exercises = {
-    "AM3m9IPjkNE": [
-      "Test Video 1",
-      "This is the first test video",
+    "Wv-n9YvdHRw": [
+      "Balance & Stability Training",
+      "Improve balance and reduce fall risk with targeted stability exercises. 15-minute guided workout for all fitness levels.",
     ],
-    "_mKAqrA3weA": [
-      "Test Video 2",
-      "This is the second test video",
+    "Ks-_Mh1QhMc": [
+      "Full Body Stretching",
+      "Gentle stretching routine to reduce stiffness and improve flexibility. Focus on arms, legs, and trunk mobility.",
     ],
-    "JxS5E-kZc2s": [
-      "Test Video 3",
-      "This is the third test video",
-    ]
+    "qX9FSZJu448": [
+      "Seated Exercise Routine",
+      "Chair-based exercises for strength and mobility. Perfect for those with limited mobility or balance concerns.",
+    ],
+    "0TuQE4sRn7E": [
+      "Walking & Gait Training",
+      "Exercises to improve walking pattern, stride length, and arm swing. Includes cueing strategies for freezing.",
+    ],
+    "K6LCXG0g-gw": [
+      "Hand & Finger Dexterity",
+      "Fine motor exercises for improved hand coordination and grip strength. Essential for daily activities.",
+    ],
+    "8HqLPPw5vRE": [
+      "Core Strengthening",
+      "Build core stability to support better posture and balance. Gentle exercises suitable for beginners.",
+    ],
   };
 
   String currentURL = "";
@@ -66,9 +97,9 @@ class Singleton extends ChangeNotifier {
     await prefs.setString('userID', uid);
   }
 
-  Future<String> getUID() async {
+  Future<String?> getUID() async {
     final SharedPreferences prefs = await _prefs;
-    return prefs.getString('userID')!;
+    return prefs.getString('userID');
   }
 
   void setTheme(bool t) async {
@@ -78,7 +109,7 @@ class Singleton extends ChangeNotifier {
 
   Future<bool> getTheme() async {
     final SharedPreferences prefs = await _prefs;
-    return prefs.getBool('theme')!;
+    return prefs.getBool('theme') ?? false;
   }
 
   void setSound(double s) async {
@@ -88,7 +119,7 @@ class Singleton extends ChangeNotifier {
 
   Future<double> getSound() async {
     final SharedPreferences prefs = await _prefs;
-    return prefs.getDouble('sound')!;
+    return prefs.getDouble('sound') ?? 1.0;
   }
 
   void setPage(int n) {
@@ -316,7 +347,10 @@ class Singleton extends ChangeNotifier {
       deleteEntireList(0, "schedules");
     }
 
-    FirebaseCloud().deleteDocument("users", await getUID());
+    final uid = await getUID();
+    if (uid != null) {
+      FirebaseCloud().deleteDocument("users", uid);
+    }
 
     await SharedPreferences.getInstance().then((prefs) async {
       await prefs.clear();

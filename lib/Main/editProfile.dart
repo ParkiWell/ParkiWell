@@ -236,21 +236,28 @@ class _EditProfileScreenState extends State<EditProfileScreen>
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          SizedBox(height: size.height * 0.1),
-          // Welcome illustration
-          Container(
-            padding: const EdgeInsets.all(32),
-            decoration: BoxDecoration(
-              color: colors.primary.withOpacity(0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Icons.health_and_safety_rounded,
-              size: 80,
-              color: colors.primary,
-            ),
+          SizedBox(height: size.height * 0.05),
+          // App logo
+          Image.asset(
+            'images/app_icon.png',
+            width: 140,
+            height: 140,
+            errorBuilder: (context, error, stackTrace) {
+              return Container(
+                padding: const EdgeInsets.all(32),
+                decoration: BoxDecoration(
+                  color: colors.primary.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.health_and_safety_rounded,
+                  size: 80,
+                  color: colors.primary,
+                ),
+              );
+            },
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 24),
           Text(
             'Welcome to Levio',
             style: Theme.of(context).textTheme.headlineMedium?.copyWith(
@@ -258,18 +265,18 @@ class _EditProfileScreenState extends State<EditProfileScreen>
                 ),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Text(
-              'Your personal companion for managing your health journey with care and precision.',
+              'Your personal companion for managing Parkinson\'s with care and precision.',
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                     color: colors.textSecondary,
                   ),
               textAlign: TextAlign.center,
             ),
           ),
-          const SizedBox(height: 48),
+          const SizedBox(height: 40),
           // Feature highlights
           _buildFeatureItem(
             colors,
@@ -277,19 +284,26 @@ class _EditProfileScreenState extends State<EditProfileScreen>
             'Track Symptoms',
             'Monitor and log your daily symptoms',
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           _buildFeatureItem(
             colors,
             Icons.medication_rounded,
             'Medication Management',
-            'Never miss a dose with reminders',
+            'Keep track of your medication schedule',
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
+          _buildFeatureItem(
+            colors,
+            Icons.record_voice_over_rounded,
+            'Speech Therapy',
+            'Audio-guided exercises for voice clarity',
+          ),
+          const SizedBox(height: 12),
           _buildFeatureItem(
             colors,
             Icons.fitness_center_rounded,
-            'Exercise & Therapy',
-            'Access guided exercises and speech therapy',
+            'Physical Exercises',
+            'Video-guided workouts for mobility',
           ),
         ],
       ),
@@ -302,17 +316,17 @@ class _EditProfileScreenState extends State<EditProfileScreen>
       decoration: BoxDecoration(
         color: colors.cardBackground,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: colors.border.withOpacity(0.3)),
+        border: Border.all(color: colors.border.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: colors.primary.withOpacity(0.1),
+              color: colors.primary.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(icon, color: colors.primary),
+            child: Icon(icon, color: colors.primary, size: 22),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -321,8 +335,11 @@ class _EditProfileScreenState extends State<EditProfileScreen>
               children: [
                 Text(
                   title,
-                  style: Theme.of(context).textTheme.titleSmall,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
                 ),
+                const SizedBox(height: 2),
                 Text(
                   subtitle,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -333,6 +350,54 @@ class _EditProfileScreenState extends State<EditProfileScreen>
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildProfileImage(double size, AppColors colors) {
+    if (image.startsWith('images/')) {
+      return ClipOval(
+        child: Image.asset(
+          image,
+          fit: BoxFit.cover,
+          width: size,
+          height: size,
+          errorBuilder: (context, error, stackTrace) {
+            return _buildDefaultAvatar(size, colors);
+          },
+        ),
+      );
+    } else {
+      final file = File(image);
+      if (file.existsSync()) {
+        return ClipOval(
+          child: Image.file(
+            file,
+            fit: BoxFit.cover,
+            width: size,
+            height: size,
+            errorBuilder: (context, error, stackTrace) {
+              return _buildDefaultAvatar(size, colors);
+            },
+          ),
+        );
+      }
+      return _buildDefaultAvatar(size, colors);
+    }
+  }
+
+  Widget _buildDefaultAvatar(double size, AppColors colors) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: colors.surfaceVariant,
+        shape: BoxShape.circle,
+      ),
+      child: Icon(
+        Icons.person_rounded,
+        size: size * 0.5,
+        color: colors.textTertiary,
       ),
     );
   }
@@ -367,19 +432,10 @@ class _EditProfileScreenState extends State<EditProfileScreen>
                   width: 150,
                   height: 150,
                   decoration: BoxDecoration(
-                    color: colors.surfaceVariant,
                     shape: BoxShape.circle,
                     border: Border.all(color: colors.border, width: 3),
-                    image: image.startsWith('images/')
-                        ? DecorationImage(
-                            image: AssetImage(image),
-                            fit: BoxFit.cover,
-                          )
-                        : DecorationImage(
-                            image: FileImage(File(image)),
-                            fit: BoxFit.cover,
-                          ),
                   ),
+                  child: _buildProfileImage(144, colors),
                 ),
                 Positioned(
                   bottom: 0,
@@ -391,7 +447,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: colors.primary.withOpacity(0.3),
+                          color: colors.primary.withValues(alpha: 0.3),
                           blurRadius: 8,
                           offset: const Offset(0, 4),
                         ),
@@ -421,26 +477,11 @@ class _EditProfileScreenState extends State<EditProfileScreen>
             decoration: BoxDecoration(
               color: colors.cardBackground,
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: colors.border.withOpacity(0.3)),
+              border: Border.all(color: colors.border.withValues(alpha: 0.3)),
             ),
             child: Row(
               children: [
-                Container(
-                  width: 60,
-                  height: 60,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    image: image.startsWith('images/')
-                        ? DecorationImage(
-                            image: AssetImage(image),
-                            fit: BoxFit.cover,
-                          )
-                        : DecorationImage(
-                            image: FileImage(File(image)),
-                            fit: BoxFit.cover,
-                          ),
-                  ),
-                ),
+                _buildProfileImage(60, colors),
                 const SizedBox(width: 16),
                 Expanded(
                   child: Column(
@@ -524,9 +565,9 @@ class _EditProfileScreenState extends State<EditProfileScreen>
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: colors.info.withOpacity(0.1),
+              color: colors.info.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: colors.info.withOpacity(0.3)),
+              border: Border.all(color: colors.info.withValues(alpha: 0.3)),
             ),
             child: Row(
               children: [

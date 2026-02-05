@@ -1,10 +1,11 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:parkinson/Firebase/firebase_cloud.dart';
-import 'package:parkinson/routes.dart';
-import 'package:parkinson/singleton.dart';
-import 'package:parkinson/theme/app_theme.dart';
+import 'package:levio/Firebase/firebase_cloud.dart';
+import 'package:levio/routes.dart';
+import 'package:levio/singleton.dart';
+import 'package:levio/theme/app_theme.dart';
+import 'package:levio/screens/splash_screen.dart';
 
 import 'Firebase/firebase_options.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -50,6 +51,7 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   final singleton = Singleton();
+  bool _showSplash = true;
 
   @override
   void initState() {
@@ -69,6 +71,14 @@ class _MyAppState extends State<MyApp> {
     }
   }
 
+  void _onSplashComplete() {
+    if (mounted) {
+      setState(() {
+        _showSplash = false;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // Update system UI overlay style based on theme
@@ -83,6 +93,17 @@ class _MyAppState extends State<MyApp> {
               systemNavigationBarColor: AppTheme.darkColors.navBackground,
             ),
     );
+
+    if (_showSplash) {
+      return MaterialApp(
+        title: 'Levio',
+        theme: AppTheme.lightTheme(),
+        darkTheme: AppTheme.darkTheme(),
+        themeMode: singleton.colorMode == 0 ? ThemeMode.light : ThemeMode.dark,
+        debugShowCheckedModeBanner: false,
+        home: SplashScreen(onComplete: _onSplashComplete),
+      );
+    }
 
     return MaterialApp(
       title: 'Levio',

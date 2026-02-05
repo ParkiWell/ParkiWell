@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:parkinson/Firebase/firebase_cloud.dart';
+import 'package:levio/Firebase/firebase_cloud.dart';
 
 import '../singleton.dart';
 import '../theme/app_theme.dart';

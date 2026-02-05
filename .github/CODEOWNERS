@@ -1,0 +1,16 @@
+# Code Owners
+# These owners will be requested for review when someone opens a pull request.
+
+# Default owners for everything
+* @Jc-965
+
+# Workflow files require admin review
+.github/ @Jc-965
+
+# Core app files
+/lib/ @Jc-965
+
+# Build configurations
+/android/ @Jc-965
+/ios/ @Jc-965
+pubspec.yaml @Jc-965

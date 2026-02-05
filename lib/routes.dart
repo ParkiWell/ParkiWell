@@ -1,15 +1,15 @@
-import 'package:parkinson/Main/editProfile.dart';
-import 'package:parkinson/Manage/editLog.dart';
-import 'package:parkinson/Manage/editSchedule.dart';
-import 'package:parkinson/Manage/log.dart';
-import 'package:parkinson/Manage/schedule.dart';
-import 'package:parkinson/Recovery/exercise.dart';
-import 'package:parkinson/Recovery/exerciseVideo.dart';
-import 'package:parkinson/Recovery/games.dart';
-import 'package:parkinson/Recovery/speech.dart';
-import 'package:parkinson/Recovery/speechAudio.dart';
-import 'package:parkinson/navbar.dart';
-import 'package:parkinson/settings.dart';
+import 'package:levio/Main/editProfile.dart';
+import 'package:levio/Manage/editLog.dart';
+import 'package:levio/Manage/editSchedule.dart';
+import 'package:levio/Manage/log.dart';
+import 'package:levio/Manage/schedule.dart';
+import 'package:levio/Recovery/exercise.dart';
+import 'package:levio/Recovery/exerciseVideo.dart';
+import 'package:levio/Recovery/games.dart';
+import 'package:levio/Recovery/speech.dart';
+import 'package:levio/Recovery/speechAudio.dart';
+import 'package:levio/navbar.dart';
+import 'package:levio/settings.dart';
 
 var screenRoutes = {
   '/': (context) => const Navbar(),

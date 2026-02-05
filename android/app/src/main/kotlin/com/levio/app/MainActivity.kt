@@ -1,4 +1,4 @@
-package com.example.parkinson
+package com.levio.app
 
 import io.flutter.embedding.android.FlutterActivity
 

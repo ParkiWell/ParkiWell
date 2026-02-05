@@ -1,5 +1,5 @@
 // import 'package:flutter/material.dart';
-// import 'package:parkinson/Main/editProfile.dart';
+// import 'package:levio/Main/editProfile.dart';
 // import 'navbar.dart';
 // import 'singleton.dart';
 

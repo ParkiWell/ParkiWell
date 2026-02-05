@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:parkinson/linechart.dart';
+import 'package:levio/linechart.dart';
 import 'dart:io';
 
 import 'Firebase/firebase_cloud.dart';
