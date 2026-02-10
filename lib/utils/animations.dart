@@ -48,11 +48,11 @@ class SlidePageRoute<T> extends PageRouteBuilder<T> {
             }
             const end = Offset.zero;
             const curve = Curves.easeOutCubic;
-            
+
             var tween = Tween(begin: begin, end: end).chain(
               CurveTween(curve: curve),
             );
-            
+
             return SlideTransition(
               position: animation.drive(tween),
               child: child,
@@ -175,16 +175,16 @@ class _FadeInWidgetState extends State<FadeInWidget>
       duration: widget.duration,
       vsync: this,
     );
-    
+
     _opacity = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _controller, curve: widget.curve),
     );
-    
+
     _offset = Tween<Offset>(
       begin: const Offset(0, 0.1),
       end: Offset.zero,
     ).animate(CurvedAnimation(parent: _controller, curve: widget.curve));
-    
+
     Future.delayed(widget.delay, () {
       if (mounted) _controller.forward();
     });
@@ -241,7 +241,7 @@ class _ScaleAnimationWidgetState extends State<ScaleAnimationWidget>
       duration: widget.duration,
       vsync: this,
     );
-    
+
     _scale = Tween<double>(
       begin: widget.beginScale,
       end: widget.endScale,
@@ -249,7 +249,7 @@ class _ScaleAnimationWidgetState extends State<ScaleAnimationWidget>
       parent: _controller,
       curve: Curves.easeOutBack,
     ));
-    
+
     Future.delayed(widget.delay, () {
       if (mounted) _controller.forward();
     });
@@ -301,7 +301,7 @@ class _PulseAnimationState extends State<PulseAnimation>
       duration: widget.duration,
       vsync: this,
     )..repeat(reverse: true);
-    
+
     _scale = Tween<double>(
       begin: widget.minScale,
       end: widget.maxScale,
@@ -355,7 +355,7 @@ class _ShimmerLoadingState extends State<ShimmerLoading>
       duration: const Duration(milliseconds: 1500),
       vsync: this,
     )..repeat();
-    
+
     _animation = Tween<double>(begin: -2, end: 2).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
     );
@@ -370,9 +370,9 @@ class _ShimmerLoadingState extends State<ShimmerLoading>
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final baseColor = widget.baseColor ?? 
-        (isDark ? Colors.grey[800]! : Colors.grey[300]!);
-    final highlightColor = widget.highlightColor ?? 
+    final baseColor =
+        widget.baseColor ?? (isDark ? Colors.grey[800]! : Colors.grey[300]!);
+    final highlightColor = widget.highlightColor ??
         (isDark ? Colors.grey[700]! : Colors.grey[100]!);
 
     return AnimatedBuilder(

@@ -15,63 +15,9 @@ class LogScreen extends StatefulWidget {
 
 class _LogScreenState extends State<LogScreen> {
   final singleton = Singleton();
-  late List<List<String>> log;
-
-  String time(int index) => log[index][0];
-  String symptom(int index) => log[index][1];
-  String severity(int index) => log[index][2];
-
-  Map<String, String> monthMap = {
-    'January': "01",
-    'February': "02",
-    'March': "03",
-    'April': "04",
-    'May': "05",
-    'June': "06",
-    'July': "07",
-    'August': "08",
-    'September': "09",
-    'October': "10",
-    'November': "11",
-    'December': "12"
-  };
-
-  void sortTime() {
-    List<List<String>> dTime = [];
-    for (int i = 0; i < log.length; i++) {
-      List<String> time = log[i][0].split(' ');
-      dTime.add([
-        "${time[3]}-${monthMap[time[2]]}-${time[1]} ${time[0].substring(0, time[0].length - 1)}:00",
-        '$i'
-      ]);
-    }
-    dTime.sort((a, b) {
-      DateTime dateTimeA = DateTime.parse(a[0]);
-      DateTime dateTimeB = DateTime.parse(b[0]);
-      return dateTimeA.compareTo(dateTimeB);
-    });
-
-    sortLog(dTime.reversed.toList());
-  }
-
-  void sortLog(t) {
-    List<List<String>> tempList = [];
-    tempList.addAll(log);
-    setState(() {
-      log.clear();
-      for (int i = 0; i < tempList.length; i++) {
-        log.add(tempList[int.parse(t[i][1])]);
-      }
-    });
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    // Data is loaded from local database via singleton
-    log = singleton.log;
-    if (log.isNotEmpty) sortTime();
-  }
+  String time(int index) => singleton.log[index][0];
+  String symptom(int index) => singleton.log[index][1];
+  String severity(int index) => singleton.log[index][2];
 
   void _showLogDetails(int index) {
     final colors = context.colors;
@@ -105,7 +51,7 @@ class _LogScreenState extends State<LogScreen> {
                   ),
                 ),
                 const SizedBox(height: 20),
-                
+
                 // Header
                 Text(
                   'Symptom Details',
@@ -121,7 +67,7 @@ class _LogScreenState extends State<LogScreen> {
                       ),
                 ),
                 const SizedBox(height: 20),
-                
+
                 // Details
                 _DetailRow(
                   label: 'Symptom',
@@ -135,7 +81,7 @@ class _LogScreenState extends State<LogScreen> {
                   colors: colors,
                 ),
                 const SizedBox(height: 24),
-                
+
                 // Actions
                 Row(
                   children: [
@@ -150,11 +96,12 @@ class _LogScreenState extends State<LogScreen> {
                     ModernIconButton(
                       icon: Icons.delete_outline,
                       backgroundColor: colors.error,
-                      onPressed: () {
+                      onPressed: () async {
                         HapticUtils.lightImpact();
-                        singleton.deleteEntireList(index, "logs");
+                        await singleton.deleteEntireList(index, "logs");
+                        if (!mounted || !c.mounted) return;
                         Navigator.pop(c);
-                        Navigator.pushNamed(context, '/logScreen');
+                        await Navigator.pushNamed(context, '/logScreen');
                       },
                     ),
                   ],

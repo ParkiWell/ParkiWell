@@ -22,7 +22,8 @@ class ModerationResult {
         sanitizedContent: content,
       );
 
-  factory ModerationResult.rejected(String reason, {List<ModerationViolation>? violations}) =>
+  factory ModerationResult.rejected(String reason,
+          {List<ModerationViolation>? violations}) =>
       ModerationResult(
         isApproved: false,
         rejectionReason: reason,
@@ -58,7 +59,7 @@ class ModerationViolation {
 }
 
 /// Production-grade content moderation service
-/// 
+///
 /// Features:
 /// - Multi-language profanity detection using LDNOOBW word list
 /// - Spam pattern detection (URLs, emails, phone numbers)
@@ -69,12 +70,13 @@ class ModerationViolation {
 /// - Repetitive content detection
 /// - Detailed violation reporting
 class ContentModerationService {
-  static final ContentModerationService _instance = ContentModerationService._internal();
+  static final ContentModerationService _instance =
+      ContentModerationService._internal();
   factory ContentModerationService() => _instance;
 
   final AppLogger _logger = AppLogger();
   late final ProfanityFilter _profanityFilter;
-  
+
   // Configuration
   static const int minContentLength = 1;
   static const int maxContentLength = 2000;
@@ -84,29 +86,36 @@ class ContentModerationService {
 
   // Additional blocked patterns for healthcare app context
   static const List<String> _healthcareBlockedTerms = [
-    'suicide', 'kill myself', 'end my life', 'want to die',
-    'self harm', 'hurt myself', 'overdose',
+    'suicide',
+    'kill myself',
+    'end my life',
+    'want to die',
+    'self harm',
+    'hurt myself',
+    'overdose',
   ];
 
   // Crisis resources to show when concerning content is detected
-  static const String crisisMessage = 
+  static const String crisisMessage =
       'If you are in crisis, please contact emergency services or a mental health helpline immediately.';
 
   ContentModerationService._internal() {
     // Initialize with default LDNOOBW word list plus custom additions
-    _profanityFilter = ProfanityFilter.filterAdditionally(_healthcareBlockedTerms);
+    _profanityFilter =
+        ProfanityFilter.filterAdditionally(_healthcareBlockedTerms);
   }
 
   /// Moderate content with comprehensive checks
-  /// 
+  ///
   /// Returns a [ModerationResult] with approval status and details
-  ModerationResult moderateContent(String content, {
+  ModerationResult moderateContent(
+    String content, {
     bool allowLinks = false,
     bool strictMode = true,
     String? userId,
   }) {
     final violations = <ModerationViolation>[];
-    
+
     // 1. Check for empty content
     if (content.trim().isEmpty) {
       return ModerationResult.rejected(
@@ -130,7 +139,7 @@ class ContentModerationService {
     final profanityResult = _checkProfanity(content);
     if (profanityResult != null) {
       violations.add(profanityResult);
-      
+
       // Log moderation event
       _logger.moderation(
         'profanity_detected',
@@ -142,7 +151,7 @@ class ContentModerationService {
     final concerningResult = _checkConcerningContent(content);
     if (concerningResult != null) {
       violations.add(concerningResult);
-      
+
       _logger.moderation(
         'concerning_content',
         reason: 'Mental health concern detected',
@@ -166,12 +175,11 @@ class ContentModerationService {
     }
 
     // Determine final result
-    final hasBlockingViolation = violations.any((v) => 
-      v.type == ViolationType.profanity ||
-      v.type == ViolationType.harassment ||
-      v.type == ViolationType.tooLong ||
-      v.type == ViolationType.emptyContent
-    );
+    final hasBlockingViolation = violations.any((v) =>
+        v.type == ViolationType.profanity ||
+        v.type == ViolationType.harassment ||
+        v.type == ViolationType.tooLong ||
+        v.type == ViolationType.emptyContent);
 
     if (hasBlockingViolation) {
       final primaryViolation = violations.first;
@@ -225,7 +233,8 @@ class ContentModerationService {
     if (content.length > maxContentLength) {
       return ModerationViolation(
         type: ViolationType.tooLong,
-        description: 'Content exceeds maximum length of $maxContentLength characters',
+        description:
+            'Content exceeds maximum length of $maxContentLength characters',
       );
     }
     return null;
@@ -237,7 +246,9 @@ class ContentModerationService {
       return ModerationViolation(
         type: ViolationType.profanity,
         description: 'Content contains inappropriate language',
-        matchedContent: profaneWords.isNotEmpty ? '${profaneWords.length} word(s) flagged' : null,
+        matchedContent: profaneWords.isNotEmpty
+            ? '${profaneWords.length} word(s) flagged'
+            : null,
       );
     }
     return null;
@@ -257,9 +268,10 @@ class ContentModerationService {
     return null;
   }
 
-  List<ModerationViolation> _checkSpamPatterns(String content, {bool allowLinks = false}) {
+  List<ModerationViolation> _checkSpamPatterns(String content,
+      {bool allowLinks = false}) {
     final violations = <ModerationViolation>[];
-    
+
     // URL detection
     final urlPattern = RegExp(
       r'https?:\/\/[^\s]+|www\.[^\s]+',
@@ -296,9 +308,15 @@ class ContentModerationService {
 
     // Spam keywords
     final spamKeywords = [
-      'buy now', 'click here', 'free money', 'act now',
-      'limited time', 'congratulations you won', 'winner',
-      'earn money fast', 'make money online',
+      'buy now',
+      'click here',
+      'free money',
+      'act now',
+      'limited time',
+      'congratulations you won',
+      'winner',
+      'earn money fast',
+      'make money online',
     ];
     final lowerContent = content.toLowerCase();
     for (final keyword in spamKeywords) {
@@ -317,10 +335,10 @@ class ContentModerationService {
   ModerationViolation? _checkExcessiveCaps(String content) {
     final letters = content.replaceAll(RegExp(r'[^a-zA-Z]'), '');
     if (letters.length < 10) return null; // Too short to judge
-    
+
     final upperCount = letters.replaceAll(RegExp(r'[^A-Z]'), '').length;
     final ratio = upperCount / letters.length;
-    
+
     if (ratio > maxCapsRatio) {
       return ModerationViolation(
         type: ViolationType.excessiveCaps,
@@ -348,7 +366,7 @@ class ContentModerationService {
         wordCounts[word] = (wordCounts[word] ?? 0) + 1;
       }
     }
-    
+
     final totalWords = words.length;
     for (final entry in wordCounts.entries) {
       // If a word appears more than 30% of the time and at least 4 times

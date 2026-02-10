@@ -39,7 +39,9 @@ class _SpeechAudioState extends State<SpeechAudio> {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final speechData = singleton.speeches[singleton.currentURL];
-    
+    final source =
+        speechData != null && speechData.length > 3 ? speechData[3] : '';
+
     if (speechData == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Speech Therapy')),
@@ -94,6 +96,16 @@ class _SpeechAudioState extends State<SpeechAudio> {
                         color: colors.textSecondary,
                       ),
                 ),
+                if (source.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    source,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: colors.textTertiary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                ],
                 const SizedBox(height: 24),
 
                 // Video player
@@ -127,7 +139,10 @@ class _SpeechAudioState extends State<SpeechAudio> {
                           Expanded(
                             child: Text(
                               'LSVT LOUD Tips',
-                              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleSmall
+                                  ?.copyWith(
                                     fontWeight: FontWeight.w600,
                                   ),
                             ),
@@ -180,14 +195,20 @@ class _SpeechAudioState extends State<SpeechAudio> {
                           children: [
                             Text(
                               'Daily Practice',
-                              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleSmall
+                                  ?.copyWith(
                                     fontWeight: FontWeight.w600,
                                   ),
                             ),
                             const SizedBox(height: 4),
                             Text(
                               'Follow along with the video and repeat exercises 3-5 times each.',
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(
                                     color: colors.textSecondary,
                                   ),
                             ),

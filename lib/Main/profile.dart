@@ -15,50 +15,69 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final singleton = Singleton();
-  String name = "[Name]";
-  String email = "[Email]";
-  String image = "images/711128.png";
   final picker = ImagePicker();
-  String posts = "0";
-  String exercises = "0";
+
+  void _onSingletonUpdate() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
 
   Future<void> updateImage() async {
     HapticUtils.lightImpact();
     final pickedFile = await picker.pickImage(source: ImageSource.gallery);
 
     if (pickedFile != null) {
-      setState(() {
-        image = pickedFile.path;
-      });
-      singleton.setImage(image);
-      HapticUtils.lightImpact();
+      final previousImage = singleton.image;
+      singleton.setImage(pickedFile.path);
+
+      final updated = await singleton.updateUser(profileImage: pickedFile.path);
+      if (!updated) {
+        singleton.setImage(previousImage);
+        if (mounted) {
+          HapticUtils.error();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Could not save profile image'),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+            ),
+          );
+        }
+        return;
+      }
+
+      HapticUtils.success();
     }
   }
 
   @override
   void initState() {
     super.initState();
-    image = singleton.image;
-    name = singleton.name;
-    email = singleton.email;
-    posts = '${singleton.postNum}';
-    exercises = '${singleton.exerNum}';
+    singleton.addListener(_onSingletonUpdate);
+  }
+
+  @override
+  void dispose() {
+    singleton.removeListener(_onSingletonUpdate);
+    super.dispose();
   }
 
   bool _hasCustomImage() {
-    return image.isNotEmpty && 
-        image != 'images/711128.png' &&
-        !image.contains('711128');
+    return singleton.image.isNotEmpty &&
+        singleton.image != 'images/711128.png' &&
+        !singleton.image.contains('711128');
   }
 
   Widget _buildProfileImage(AppColors colors) {
     if (!_hasCustomImage()) {
       return _buildInitialsAvatar(colors);
     }
-    
-    if (image.startsWith('images/')) {
+
+    if (singleton.image.startsWith('images/')) {
       return Image.asset(
-        image,
+        singleton.image,
         fit: BoxFit.cover,
         width: 86,
         height: 86,
@@ -67,7 +86,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         },
       );
     } else {
-      final file = File(image);
+      final file = File(singleton.image);
       if (file.existsSync()) {
         return Image.file(
           file,
@@ -84,9 +103,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildInitialsAvatar(AppColors colors) {
-    final displayName = name != '[Name]' && name.isNotEmpty ? name : 'User';
-    final initials = displayName.split(' ').take(2).map((s) => s.isNotEmpty ? s[0].toUpperCase() : '').join();
-    
+    final displayName = singleton.name != '[Name]' && singleton.name.isNotEmpty
+        ? singleton.name
+        : 'User';
+    final initials = displayName
+        .split(' ')
+        .take(2)
+        .map((s) => s.isNotEmpty ? s[0].toUpperCase() : '')
+        .join();
+
     return Container(
       width: 86,
       height: 86,
@@ -152,7 +177,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _ActivityItem(
             icon: Icons.fitness_center_outlined,
             title: 'Exercises Completed',
-            value: exercises,
+            value: '${singleton.exerNum}',
           ),
           const SizedBox(height: 24),
         ],
@@ -214,7 +239,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
         // Name
         Text(
-          name == "[Name]" ? "Your Name" : name,
+          singleton.name == "[Name]" ? "Your Name" : singleton.name,
           style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.w600,
               ),
@@ -224,7 +249,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
         // Email
         Text(
-          email,
+          singleton.email,
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: colors.textTertiary,
               ),
@@ -240,7 +265,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
           _StatItem(
-            value: posts,
+            value: '${singleton.postNum}',
             label: 'Posts',
           ),
           Container(
@@ -249,7 +274,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             color: colors.divider,
           ),
           _StatItem(
-            value: exercises,
+            value: '${singleton.exerNum}',
             label: 'Exercises',
           ),
           Container(
@@ -314,7 +339,7 @@ class _ActivityItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    
+
     return ModernCard(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       child: Row(

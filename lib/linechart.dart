@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'barchart.dart';
@@ -15,18 +17,16 @@ class LineChartSample1 extends StatefulWidget {
 
 class LineChartSample1State extends State<LineChartSample1>
     with SingleTickerProviderStateMixin {
-  late List<FlSpot> pointList;
-  double lineBarY = 0;
+  List<FlSpot> pointList = [];
+  double lineBarY = 1;
   String chosenTime = "Month";
   final singleton = Singleton();
-  late int symptomLength;
-  List<String> time = ["Month", "Year"];
-  late List<List<String>> log;
+  final List<String> time = ["Month", "Year"];
 
   late AnimationController _animationController;
   late Animation<double> _animation;
 
-  List<String> month = [
+  final List<String> month = [
     'January',
     'February',
     'March',
@@ -41,93 +41,99 @@ class LineChartSample1State extends State<LineChartSample1>
     'December'
   ];
 
-  Map<String, double> symptomsPerMonth = {
-    'January': 0,
-    'February': 0,
-    'March': 0,
-    'April': 0,
-    'May': 0,
-    'June': 0,
-    'July': 0,
-    'August': 0,
-    'September': 0,
-    'October': 0,
-    'November': 0,
-    'December': 0
+  final Map<String, int> monthToIndex = const {
+    'January': 1,
+    'February': 2,
+    'March': 3,
+    'April': 4,
+    'May': 5,
+    'June': 6,
+    'July': 7,
+    'August': 8,
+    'September': 9,
+    'October': 10,
+    'November': 11,
+    'December': 12,
   };
 
-  List<String> year = ['2023', '2024', '2025', '2026', '2027', '2028'];
-
-  void incrementMonth(m) {
-    symptomsPerMonth[m] = symptomsPerMonth[m]! + 1;
+  List<String> get _yearWindow {
+    final currentYear = DateTime.now().year;
+    return List.generate(6, (index) => (currentYear - 5 + index).toString());
   }
 
-  List<FlSpot> createPoints() {
-    double t = 0;
-    List<FlSpot> points = [];
+  DateTime? _parseLogTimestamp(String value) {
+    final parts = value.split(',');
+    if (parts.length != 2) return null;
 
-    for (int i = 0; i < log.length; i++) {
-      if (chosenTime == "Month") {
-        t = (month.indexOf(log[i][0].split(' ')[2])) / 1;
-      } else {
-        t = (year.indexOf(log[i][0].split(' ')[3])) / 1;
+    final timePart = parts.first.trim().split(':');
+    final datePart = parts.last.trim().split(' ');
+    if (timePart.length != 2 || datePart.length != 3) return null;
+
+    final hour = int.tryParse(timePart[0]);
+    final minute = int.tryParse(timePart[1]);
+    final day = int.tryParse(datePart[0]);
+    final month = monthToIndex[datePart[1]];
+    final year = int.tryParse(datePart[2]);
+
+    if (hour == null ||
+        minute == null ||
+        day == null ||
+        month == null ||
+        year == null) {
+      return null;
+    }
+
+    return DateTime(year, month, day, hour, minute);
+  }
+
+  void _rebuildChartData() {
+    final logs = singleton.log;
+    final buckets = chosenTime == "Month"
+        ? List<double>.filled(12, 0)
+        : List<double>.filled(_yearWindow.length, 0);
+
+    if (chosenTime == "Month") {
+      for (final entry in logs) {
+        if (entry.isEmpty) continue;
+        final date = _parseLogTimestamp(entry[0]);
+        if (date == null) continue;
+        buckets[date.month - 1] += 1;
       }
+    } else {
+      final years = _yearWindow;
+      final startYear = int.parse(years.first);
+      final endYear = int.parse(years.last);
 
-      switch (t.floor()) {
-        case 0:
-          incrementMonth("January");
-          break;
-        case 1:
-          incrementMonth("February");
-          break;
-        case 2:
-          incrementMonth("March");
-          break;
-        case 3:
-          incrementMonth("April");
-          break;
-        case 4:
-          incrementMonth("May");
-          break;
-        case 5:
-          incrementMonth("June");
-          break;
-        case 6:
-          incrementMonth("July");
-          break;
-        case 7:
-          incrementMonth("August");
-          break;
-        case 8:
-          incrementMonth("September");
-          break;
-        case 9:
-          incrementMonth("October");
-          break;
-        case 10:
-          incrementMonth("November");
-          break;
-        case 11:
-          incrementMonth("December");
-          break;
+      for (final entry in logs) {
+        if (entry.isEmpty) continue;
+        final date = _parseLogTimestamp(entry[0]);
+        if (date == null || date.year < startYear || date.year > endYear) {
+          continue;
+        }
+        buckets[date.year - startYear] += 1;
       }
     }
 
-    for (int i = 0; i < 12; i++) {
-      points.add(FlSpot(i / 1, symptomsPerMonth[month[i]]!));
-      if (symptomsPerMonth[month[i]]! > lineBarY) {
-        lineBarY = symptomsPerMonth[month[i]]!;
-      }
-    }
-    return points;
+    pointList = List.generate(
+      buckets.length,
+      (index) => FlSpot(index.toDouble(), buckets[index]),
+    );
+
+    final maxValue =
+        buckets.isEmpty ? 0.0 : buckets.reduce(math.max).toDouble();
+    lineBarY = maxValue > 0 ? maxValue : 1;
+  }
+
+  void _handleSingletonUpdate() {
+    if (!mounted) return;
+    setState(_rebuildChartData);
   }
 
   @override
   void initState() {
     super.initState();
-    log = singleton.log;
-    pointList = createPoints();
-    symptomLength = pointList.length;
+    _rebuildChartData();
+    singleton.addListener(_handleSingletonUpdate);
 
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 800),
@@ -142,6 +148,7 @@ class LineChartSample1State extends State<LineChartSample1>
 
   @override
   void dispose() {
+    singleton.removeListener(_handleSingletonUpdate);
     _animationController.dispose();
     super.dispose();
   }
@@ -153,7 +160,7 @@ class LineChartSample1State extends State<LineChartSample1>
         borderData: borderData,
         lineBarsData: lineBarsData1,
         minX: 0,
-        maxX: 12,
+        maxX: chosenTime == "Month" ? 11 : (_yearWindow.length - 1).toDouble(),
         maxY: lineBarY + 1,
         minY: 0,
       );
@@ -247,23 +254,23 @@ class LineChartSample1State extends State<LineChartSample1>
       }
     } else {
       switch (value.toInt()) {
+        case 0:
+          text = Text(_yearWindow[0], style: style);
+          break;
         case 1:
-          text = Text('2023', style: style);
+          text = Text(_yearWindow[1], style: style);
+          break;
+        case 2:
+          text = Text(_yearWindow[2], style: style);
           break;
         case 3:
-          text = Text('2024', style: style);
+          text = Text(_yearWindow[3], style: style);
+          break;
+        case 4:
+          text = Text(_yearWindow[4], style: style);
           break;
         case 5:
-          text = Text('2025', style: style);
-          break;
-        case 7:
-          text = Text('2026', style: style);
-          break;
-        case 9:
-          text = Text('2027', style: style);
-          break;
-        case 11:
-          text = Text('2028', style: style);
+          text = Text(_yearWindow[5], style: style);
           break;
         default:
           text = const Text('');
@@ -436,9 +443,10 @@ class LineChartSample1State extends State<LineChartSample1>
                         const SizedBox(width: 12),
                         Text(
                           'Symptoms',
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
-                              ),
+                          style:
+                              Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
                         ),
                       ],
                     ),
@@ -460,18 +468,21 @@ class LineChartSample1State extends State<LineChartSample1>
                             color: colors.textSecondary,
                             size: 20,
                           ),
-                          style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                                color: colors.textPrimary,
-                              ),
+                          style:
+                              Theme.of(context).textTheme.labelMedium?.copyWith(
+                                    color: colors.textPrimary,
+                                  ),
                           dropdownColor: colors.surface,
                           borderRadius: BorderRadius.circular(12),
                           onChanged: (String? newValue) {
                             HapticUtils.selectionClick();
                             setState(() {
                               chosenTime = newValue!;
+                              _rebuildChartData();
                             });
                           },
-                          items: time.map<DropdownMenuItem<String>>((String item) {
+                          items:
+                              time.map<DropdownMenuItem<String>>((String item) {
                             return DropdownMenuItem<String>(
                               value: item,
                               child: Text(item),

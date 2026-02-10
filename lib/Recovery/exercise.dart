@@ -86,9 +86,10 @@ class _ExerciseScreenState extends State<ExerciseScreen>
                   children: [
                     Text(
                       'Physical Exercises',
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
+                      style:
+                          Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
                     ),
                     const SizedBox(height: 8),
                     Text(
@@ -126,15 +127,19 @@ class _ExerciseScreenState extends State<ExerciseScreen>
                     child: _ExerciseCard(
                       title: singleton.exercises[urls[index]]![0],
                       description: singleton.exercises[urls[index]]![1],
-                      duration: singleton.exercises[urls[index]]!.length > 2 
-                          ? singleton.exercises[urls[index]]![2] 
+                      duration: singleton.exercises[urls[index]]!.length > 2
+                          ? singleton.exercises[urls[index]]![2]
+                          : '',
+                      source: singleton.exercises[urls[index]]!.length > 3
+                          ? singleton.exercises[urls[index]]![3]
                           : '',
                       thumbnailUrl:
                           'https://img.youtube.com/vi/${urls[index]}/hqdefault.jpg',
                       onTap: () {
                         HapticUtils.cardTap();
                         singleton.setCurrentUrl(urls[index]);
-                        Navigator.popAndPushNamed(context, '/exerciseVideoScreen');
+                        Navigator.popAndPushNamed(
+                            context, '/exerciseVideoScreen');
                       },
                     ),
                   ),
@@ -152,6 +157,7 @@ class _ExerciseCard extends StatefulWidget {
   final String title;
   final String description;
   final String duration;
+  final String source;
   final String thumbnailUrl;
   final VoidCallback onTap;
 
@@ -159,6 +165,7 @@ class _ExerciseCard extends StatefulWidget {
     required this.title,
     required this.description,
     required this.duration,
+    required this.source,
     required this.thumbnailUrl,
     required this.onTap,
   });
@@ -181,7 +188,8 @@ class _ExerciseCardState extends State<_ExerciseCard> {
       onTap: widget.onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        transform: Matrix4.diagonal3Values(_isPressed ? 0.98 : 1.0, _isPressed ? 0.98 : 1.0, 1.0),
+        transform: Matrix4.diagonal3Values(
+            _isPressed ? 0.98 : 1.0, _isPressed ? 0.98 : 1.0, 1.0),
         margin: const EdgeInsets.only(bottom: 16),
         decoration: BoxDecoration(
           color: colors.cardBackground,
@@ -200,7 +208,8 @@ class _ExerciseCardState extends State<_ExerciseCard> {
           children: [
             // Thumbnail
             ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(16)),
               child: Stack(
                 children: [
                   AspectRatio(
@@ -258,7 +267,8 @@ class _ExerciseCardState extends State<_ExerciseCard> {
                       bottom: 12,
                       left: 12,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
                           color: Colors.black.withValues(alpha: 0.7),
                           borderRadius: BorderRadius.circular(6),
@@ -321,6 +331,17 @@ class _ExerciseCardState extends State<_ExerciseCard> {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
+                  if (widget.source.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      widget.source,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: colors.textTertiary,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 11,
+                          ),
+                    ),
+                  ],
                 ],
               ),
             ),

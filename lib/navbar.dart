@@ -25,8 +25,6 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
   bool addPost = false;
   bool editProfile = false;
   IconData iconButton = Icons.edit_outlined;
-  String name = "[Name]";
-  String email = "[Email]";
 
   late AnimationController _fabAnimationController;
   late Animation<double> _fabScaleAnimation;
@@ -41,10 +39,20 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
 
   final List<_NavItem> navItems = [
     _NavItem(icon: Icons.home_outlined, activeIcon: Icons.home, label: 'Home'),
-    _NavItem(icon: Icons.bar_chart_outlined, activeIcon: Icons.bar_chart, label: 'Manage'),
-    _NavItem(icon: Icons.favorite_outline, activeIcon: Icons.favorite, label: 'Recovery'),
-    _NavItem(icon: Icons.people_outline, activeIcon: Icons.people, label: 'Community'),
-    _NavItem(icon: Icons.person_outline, activeIcon: Icons.person, label: 'Profile'),
+    _NavItem(
+        icon: Icons.bar_chart_outlined,
+        activeIcon: Icons.bar_chart,
+        label: 'Manage'),
+    _NavItem(
+        icon: Icons.favorite_outline,
+        activeIcon: Icons.favorite,
+        label: 'Recovery'),
+    _NavItem(
+        icon: Icons.people_outline,
+        activeIcon: Icons.people,
+        label: 'Community'),
+    _NavItem(
+        icon: Icons.person_outline, activeIcon: Icons.person, label: 'Profile'),
   ];
 
   void checkTab() {
@@ -87,11 +95,32 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
     super.dispose();
   }
 
-  void updateAccount() async {
-    singleton.setEmail(email);
-    singleton.setName(name);
-    // Update user in local database
-    await singleton.updateUser(userName: name);
+  Future<void> updateAccount({
+    required String rawName,
+    required String rawEmail,
+  }) async {
+    final updatedName =
+        rawName.trim().isEmpty ? singleton.name : rawName.trim();
+    final updatedEmail =
+        rawEmail.trim().isEmpty ? singleton.email : rawEmail.trim();
+
+    singleton.setEmail(updatedEmail);
+    singleton.setName(updatedName);
+
+    final updated = await singleton.updateUser(
+      userName: updatedName,
+      userEmail: updatedEmail,
+    );
+    if (!updated && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Unable to update profile right now'),
+          behavior: SnackBarBehavior.floating,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+    }
   }
 
   void _onTabTapped(int index) {
@@ -110,7 +139,7 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
   }
 
   bool _hasCustomImage() {
-    return singleton.image.isNotEmpty && 
+    return singleton.image.isNotEmpty &&
         singleton.image != 'images/711128.png' &&
         !singleton.image.contains('711128');
   }
@@ -138,11 +167,11 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
   }
 
   Widget _buildInitialsAvatar(AppColors colors) {
-    final displayName = singleton.name != '[Name]' && singleton.name.isNotEmpty 
-        ? singleton.name 
+    final displayName = singleton.name != '[Name]' && singleton.name.isNotEmpty
+        ? singleton.name
         : 'User';
     final initial = displayName.isNotEmpty ? displayName[0].toUpperCase() : 'U';
-    
+
     return Container(
       width: 36,
       height: 36,
@@ -162,7 +191,13 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
 
   void _showEditProfileDialog() {
     final colors = context.colors;
-    
+    final nameController = TextEditingController(
+      text: singleton.name == '[Name]' ? '' : singleton.name,
+    );
+    final emailController = TextEditingController(
+      text: singleton.email == '[Email]' ? '' : singleton.email,
+    );
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -202,22 +237,18 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
                 ),
                 const SizedBox(height: 20),
                 ModernTextField(
+                  controller: nameController,
                   label: 'Name',
                   hint: 'Enter your name',
                   prefixIcon: Icons.person_outline,
-                  onChanged: (text) {
-                    name = text;
-                  },
                 ),
                 const SizedBox(height: 12),
                 ModernTextField(
+                  controller: emailController,
                   label: 'Email',
                   hint: 'Enter your email',
                   prefixIcon: Icons.email_outlined,
                   keyboardType: TextInputType.emailAddress,
-                  onChanged: (text) {
-                    email = text;
-                  },
                 ),
                 const SizedBox(height: 24),
                 Row(
@@ -244,12 +275,19 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
                     const SizedBox(width: 12),
                     Expanded(
                       child: ElevatedButton(
-                        onPressed: () {
+                        onPressed: () async {
                           HapticUtils.lightImpact();
-                          updateAccount();
+                          await updateAccount(
+                            rawName: nameController.text,
+                            rawEmail: emailController.text,
+                          );
+                          if (!mounted || !c.mounted) return;
                           Navigator.pop(c);
-                          Navigator.pushNamedAndRemoveUntil(
-                              context, '/', (r) => false);
+                          await Navigator.pushNamedAndRemoveUntil(
+                            context,
+                            '/',
+                            (r) => false,
+                          );
                         },
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 12),
@@ -265,7 +303,10 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
           ),
         );
       },
-    );
+    ).whenComplete(() {
+      nameController.dispose();
+      emailController.dispose();
+    });
   }
 
   @override

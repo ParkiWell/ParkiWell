@@ -220,7 +220,8 @@ class ModernChipSelector extends StatelessWidget {
             child: Text(
               option,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: isSelected ? colors.textOnPrimary : colors.textPrimary,
+                    color:
+                        isSelected ? colors.textOnPrimary : colors.textPrimary,
                     fontWeight: FontWeight.w500,
                   ),
             ),

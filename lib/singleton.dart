@@ -1,13 +1,15 @@
 import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:levio/services/local_database.dart';
 import 'package:levio/services/app_logger.dart';
+import 'package:levio/services/cloud_backend_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import 'theme/app_theme.dart';
 
 /// Main application state manager
-/// 
+///
 /// Singleton pattern for centralized state management with:
 /// - Local database persistence
 /// - Secure data handling
@@ -16,6 +18,7 @@ class Singleton extends ChangeNotifier {
   static final Singleton _instance = Singleton._internal();
   final Future<SharedPreferences> _prefs = SharedPreferences.getInstance();
   final LocalDatabase _db = LocalDatabase();
+  final CloudBackendService _cloud = CloudBackendService();
   final AppLogger _logger = AppLogger();
   final Uuid _uuid = const Uuid();
 
@@ -28,7 +31,7 @@ class Singleton extends ChangeNotifier {
   }
 
   Singleton._internal();
-  
+
   // App state
   bool _initialized = false;
   bool firstTime = true;
@@ -42,27 +45,32 @@ class Singleton extends ChangeNotifier {
     "0ndTdBnVwFY": [
       "LSVT LOUD Introduction",
       "Official LSVT LOUD voice exercise introduction by Dr. Cynthia Fox. Learn the fundamentals of voice therapy for Parkinson's.",
-      "9:55"
+      "9:55",
+      "Source: LSVTGLOBAL (YouTube)"
     ],
     "dzKy4vKp5_I": [
       "Voice Exercises with Rachel",
       "Power for Parkinson's voice exercises led by speech therapist Rachel Stern. Daily vocal warm-ups and strengthening.",
-      "25:00"
+      "25:00",
+      "Source: Power for Parkinsons (YouTube)"
     ],
     "0TKUdR5Nisk": [
       "Beatles Sing Along",
       "Fun vocal strength class with sing-alongs, warm-ups, and tongue twisters to improve vocal power and range.",
-      "45:00"
+      "45:00",
+      "Source: Power for Parkinsons (YouTube)"
     ],
     "zO5KQb4mUFA": [
       "Speaking with INTENT",
       "SPEAK OUT! therapy presentation on speaking and swallowing strategies for Parkinson's by certified provider.",
-      "53:00"
+      "53:00",
+      "Source: UT Southwestern Medical Center (YouTube)"
     ],
     "RmWOwGvyVZI": [
       "LSVT BIG & LOUD Combined",
       "Complete LSVT program combining voice (LOUD) and movement (BIG) exercises for comprehensive therapy.",
-      "15:00"
+      "15:00",
+      "Source: Parkinson's Foundation (YouTube)"
     ],
   };
 
@@ -72,38 +80,45 @@ class Singleton extends ChangeNotifier {
     "QbWyxn8XE-I": [
       "Exercise Essentials: Intro",
       "Davis Phinney Foundation's introduction to exercise for Parkinson's. Learn why exercise is essential.",
-      "10:00"
+      "10:00",
+      "Source: Davis Phinney Foundation (YouTube)"
     ],
     "AZV3_NfcpVs": [
       "Sit 'n' Fit Workout",
       "Parkinson's Association chair-based aerobic exercises. 12-minute seated workout for all fitness levels.",
-      "12:00"
+      "12:00",
+      "Source: Parkinson's Foundation (YouTube)"
     ],
     "HHtgtNmBivo": [
       "Chair Workout for Balance",
       "Power for Parkinson's 35-minute chair workout to improve gait, balance, cognition, and mobility.",
-      "35:00"
+      "35:00",
+      "Source: Power for Parkinsons (YouTube)"
     ],
     "4wB43bbSdm8": [
       "Seated Workout",
       "Ageless Grace method seated workout focusing on brain health and body movement coordination.",
-      "12:00"
+      "12:00",
+      "Source: Parkinson's Foundation (YouTube)"
     ],
     "No2EIvShhP0": [
       "Reach Your Peak Chair Class",
       "Parkinson's UK chair workout with both physical and mental exercises to manage symptoms.",
-      "30:00"
+      "30:00",
+      "Source: Parkinson's UK (YouTube)"
     ],
     "RfI_v-HQb5I": [
       "Managing Symptoms Exercises",
       "Great seated exercises specifically designed for managing Parkinson's symptoms safely at home.",
-      "20:00"
+      "20:00",
+      "Source: Power for Parkinsons (YouTube)"
     ],
   };
 
   String currentURL = "";
   String name = "[Name]";
   String email = "[Email]";
+  int age = 0;
   String image = "images/711128.png";
   int postNum = 0;
   int exerNum = 0;
@@ -112,12 +127,17 @@ class Singleton extends ChangeNotifier {
   List<String> logIDs = [];
   List<String> scheduleIDs = [];
 
+  // Community cache
+  final List<Map<String, dynamic>> communityPosts = [];
+  final Map<String, List<Map<String, dynamic>>> communityComments = {};
+
   /// Initialize the singleton and database
   Future<void> initialize({bool isProduction = false}) async {
     if (_initialized) return;
-    
+
     _logger.init(isProduction: isProduction);
     await _db.initialize();
+    await _cloud.initialize();
     _initialized = true;
     _logger.info('Singleton initialized');
   }
@@ -202,49 +222,86 @@ class Singleton extends ChangeNotifier {
     'December': "12"
   };
 
-  void sortTime() {
-    if (log.isEmpty) return;
-    
+  DateTime? _parseLogTimestamp(String value) {
+    final parts = value.split(',');
+    if (parts.length != 2) return null;
+
+    final timePart = parts.first.trim();
+    final datePart = parts.last.trim();
+
+    final timeSegments = timePart.split(':');
+    final dateSegments = datePart.split(' ');
+
+    if (timeSegments.length != 2 || dateSegments.length != 3) return null;
+
+    final hour = int.tryParse(timeSegments[0]);
+    final minute = int.tryParse(timeSegments[1]);
+    final day = int.tryParse(dateSegments[0]);
+    final month = int.tryParse(monthMap[dateSegments[1]] ?? '');
+    final year = int.tryParse(dateSegments[2]);
+
+    if (hour == null ||
+        minute == null ||
+        day == null ||
+        month == null ||
+        year == null) {
+      return null;
+    }
+
+    return DateTime(year, month, day, hour, minute);
+  }
+
+  void sortTime({bool descending = true}) {
+    if (log.length <= 1) return;
+
     try {
-      List<List<String>> dTime = [];
-      for (int i = 0; i < log.length; i++) {
-        List<String> time = log[i][0].split(' ');
-        if (time.length >= 4) {
-          dTime.add([
-            "${time[3]}-${monthMap[time[2]] ?? '01'}-${time[1]} ${time[0].substring(0, time[0].length - 1)}:00",
-            '$i'
-          ]);
-        }
-      }
-      dTime.sort((a, b) {
-        DateTime dateTimeA = DateTime.parse(a[0]);
-        DateTime dateTimeB = DateTime.parse(b[0]);
-        return dateTimeA.compareTo(dateTimeB);
+      final order = List<int>.generate(log.length, (i) => i);
+      order.sort((a, b) {
+        final dateA = _parseLogTimestamp(log[a][0]);
+        final dateB = _parseLogTimestamp(log[b][0]);
+
+        if (dateA == null && dateB == null) return a.compareTo(b);
+        if (dateA == null) return 1;
+        if (dateB == null) return -1;
+
+        return descending ? dateB.compareTo(dateA) : dateA.compareTo(dateB);
       });
 
-      sortLog(dTime.toList());
+      sortLog(order);
     } catch (e) {
       _logger.error('Error sorting time', e);
     }
+
     notifyListenersSafe();
   }
 
-  void sortLog(t) {
-    List<List<String>> tempList = [];
-    tempList.addAll(log);
-    log.clear();
-    for (int i = 0; i < tempList.length; i++) {
-      final index = int.tryParse(t[i][1]);
-      if (index != null && index < tempList.length) {
-        log.add(tempList[index]);
-      }
+  void sortLog(List<int> order) {
+    final oldLogs = List<List<String>>.from(
+      log.map((entry) => List<String>.from(entry)),
+    );
+    final oldLogIds = List<String>.from(logIDs);
+
+    final sortedLogs = <List<String>>[];
+    final sortedLogIds = <String>[];
+
+    for (final index in order) {
+      if (index < 0 || index >= oldLogs.length) continue;
+      sortedLogs.add(oldLogs[index]);
+      sortedLogIds.add(index < oldLogIds.length ? oldLogIds[index] : '');
     }
-    notifyListenersSafe();
+
+    log
+      ..clear()
+      ..addAll(sortedLogs);
+    logIDs
+      ..clear()
+      ..addAll(sortedLogIds);
   }
 
   void addLogList(String time, String symptom, String severity) {
     List<String> logList = [time, symptom, severity];
     log.add(logList);
+    logIDs.add('');
     sortTime();
     notifyListenersSafe();
   }
@@ -252,19 +309,35 @@ class Singleton extends ChangeNotifier {
   void addScheduleList(String name, String details, String days) {
     List<String> scheduleList = [name, details, days];
     schedule.add(scheduleList);
+    scheduleIDs.add('');
     notifyListenersSafe();
   }
 
   List<String> month = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December'
   ];
 
   List<String> year = ['2023', '2024', '2025', '2026', '2027', '2028'];
 
   Map<String, double> medsPerDay = {
-    'Monday': 0, 'Tuesday': 0, 'Wednesday': 0, 'Thursday': 0,
-    'Friday': 0, 'Saturday': 0, 'Sunday': 0
+    'Monday': 0,
+    'Tuesday': 0,
+    'Wednesday': 0,
+    'Thursday': 0,
+    'Friday': 0,
+    'Saturday': 0,
+    'Sunday': 0
   };
 
   Set<String> medicationNames = {};
@@ -279,13 +352,19 @@ class Singleton extends ChangeNotifier {
   void calcMeds() {
     // Reset before calculating
     medsPerDay = {
-      'Monday': 0, 'Tuesday': 0, 'Wednesday': 0, 'Thursday': 0,
-      'Friday': 0, 'Saturday': 0, 'Sunday': 0
+      'Monday': 0,
+      'Tuesday': 0,
+      'Wednesday': 0,
+      'Thursday': 0,
+      'Friday': 0,
+      'Saturday': 0,
+      'Sunday': 0
     };
     medicationNames.clear();
-    
+
     for (int i = 0; i < schedule.length; i++) {
-      if (schedule[i].length >= 3 && !medicationNames.contains(schedule[i][0])) {
+      if (schedule[i].length >= 3 &&
+          !medicationNames.contains(schedule[i][0])) {
         if (schedule[i][2] == "Everyday") {
           for (var key in medsPerDay.keys) {
             medsPerDay[key] = (medsPerDay[key] ?? 0) + 1;
@@ -340,8 +419,10 @@ class Singleton extends ChangeNotifier {
 
       final userData = userResult.data!;
       name = userData['name'] ?? '[Name]';
+      email = userData['email'] ?? '[Email]';
+      age = (userData['age'] as num?)?.toInt() ?? 0;
       image = userData['profile_image'] ?? 'images/711128.png';
-      
+
       // Load logs
       final logsResult = await _db.getLogs(uid);
       if (logsResult.success) {
@@ -350,12 +431,17 @@ class Singleton extends ChangeNotifier {
         for (final logEntry in logsResult.dataOrThrow) {
           try {
             final data = jsonDecode(logEntry['data']);
-            log.add([data['time'] ?? '', data['symptom'] ?? '', data['severity'] ?? '']);
+            log.add([
+              data['time'] ?? '',
+              data['symptom'] ?? '',
+              data['severity'] ?? ''
+            ]);
             logIDs.add(logEntry['id']);
           } catch (e) {
             _logger.error('Error parsing log entry', e);
           }
         }
+        sortTime();
       }
 
       // Load schedules
@@ -366,7 +452,11 @@ class Singleton extends ChangeNotifier {
         for (final scheduleEntry in schedulesResult.dataOrThrow) {
           try {
             final data = jsonDecode(scheduleEntry['data']);
-            schedule.add([data['name'] ?? '', data['details'] ?? '', data['days'] ?? '']);
+            schedule.add([
+              data['name'] ?? '',
+              data['details'] ?? '',
+              data['days'] ?? ''
+            ]);
             scheduleIDs.add(scheduleEntry['id']);
           } catch (e) {
             _logger.error('Error parsing schedule entry', e);
@@ -388,11 +478,28 @@ class Singleton extends ChangeNotifier {
   Future<bool> createUser(String userName, int age) async {
     try {
       final uid = _uuid.v4();
-      final result = await _db.createUser(uid, userName, age, null);
-      
+      final result = await _db.createUser(
+        uid,
+        userName,
+        age,
+        null,
+        email == '[Email]' ? null : email,
+      );
+
       if (result.success) {
-        setUID(uid);
+        final prefs = await _prefs;
+        await prefs.setString('userID', uid);
         name = userName;
+        this.age = age;
+
+        await _cloud.upsertUser(
+          id: uid,
+          name: userName,
+          age: age,
+          profileImage: image,
+          email: email == '[Email]' ? null : email,
+        );
+
         notifyListenersSafe();
         _logger.info('User created successfully');
         return true;
@@ -405,16 +512,35 @@ class Singleton extends ChangeNotifier {
   }
 
   /// Update user data in local database
-  Future<bool> updateUser({String? userName, int? age, String? profileImage}) async {
+  Future<bool> updateUser(
+      {String? userName,
+      int? age,
+      String? profileImage,
+      String? userEmail}) async {
     try {
       final uid = await getUID();
       if (uid == null) return false;
 
-      final result = await _db.updateUser(uid, name: userName, age: age, profileImage: profileImage);
-      
+      final result = await _db.updateUser(uid,
+          name: userName,
+          age: age,
+          profileImage: profileImage,
+          email: userEmail);
+
       if (result.success) {
         if (userName != null) name = userName;
+        if (userEmail != null) email = userEmail;
+        if (age != null) this.age = age;
         if (profileImage != null) image = profileImage;
+
+        await _cloud.upsertUser(
+          id: uid,
+          name: name,
+          age: this.age,
+          profileImage: image,
+          email: email == '[Email]' ? null : email,
+        );
+
         notifyListenersSafe();
         return true;
       }
@@ -439,10 +565,21 @@ class Singleton extends ChangeNotifier {
       });
 
       final result = await _db.saveLog(logId, uid, symptom, 0, 0, data);
-      
+
       if (result.success) {
         log.add([time, symptom, severity]);
         logIDs.add(logId);
+
+        await _cloud.saveLog(
+          id: logId,
+          userId: uid,
+          title: symptom,
+          data: data,
+          time: time,
+          symptom: symptom,
+          severity: severity,
+        );
+
         sortTime();
         notifyListenersSafe();
         return true;
@@ -455,11 +592,13 @@ class Singleton extends ChangeNotifier {
   }
 
   /// Update an existing log entry
-  Future<bool> updateLogEntry(int index, String time, String symptom, String severity) async {
+  Future<bool> updateLogEntry(
+      int index, String time, String symptom, String severity) async {
     try {
       if (index < 0 || index >= logIDs.length) return false;
 
       final logId = logIDs[index];
+      if (logId.isEmpty) return false;
       final data = jsonEncode({
         'time': time,
         'symptom': symptom,
@@ -467,9 +606,23 @@ class Singleton extends ChangeNotifier {
       });
 
       final result = await _db.updateLog(logId, title: symptom, data: data);
-      
+
       if (result.success) {
         log[index] = [time, symptom, severity];
+
+        final uid = await getUID();
+        if (uid != null) {
+          await _cloud.saveLog(
+            id: logId,
+            userId: uid,
+            title: symptom,
+            data: data,
+            time: time,
+            symptom: symptom,
+            severity: severity,
+          );
+        }
+
         sortTime();
         notifyListenersSafe();
         return true;
@@ -487,11 +640,13 @@ class Singleton extends ChangeNotifier {
       if (index < 0 || index >= logIDs.length) return false;
 
       final logId = logIDs[index];
+      if (logId.isEmpty) return false;
       final result = await _db.deleteLog(logId);
-      
+
       if (result.success) {
         log.removeAt(index);
         logIDs.removeAt(index);
+        await _cloud.deleteLog(logId);
         notifyListenersSafe();
         return true;
       }
@@ -515,11 +670,22 @@ class Singleton extends ChangeNotifier {
         'days': days,
       });
 
-      final result = await _db.saveSchedule(scheduleId, uid, medName, 0, 0, data);
-      
+      final result =
+          await _db.saveSchedule(scheduleId, uid, medName, 0, 0, data);
+
       if (result.success) {
         schedule.add([medName, details, days]);
         scheduleIDs.add(scheduleId);
+
+        await _cloud.saveSchedule(
+          id: scheduleId,
+          userId: uid,
+          title: medName,
+          data: data,
+          days: days,
+          details: details,
+        );
+
         calcMeds();
         notifyListenersSafe();
         return true;
@@ -532,21 +698,37 @@ class Singleton extends ChangeNotifier {
   }
 
   /// Update an existing schedule entry
-  Future<bool> updateScheduleEntry(int index, String medName, String details, String days) async {
+  Future<bool> updateScheduleEntry(
+      int index, String medName, String details, String days) async {
     try {
       if (index < 0 || index >= scheduleIDs.length) return false;
 
       final scheduleId = scheduleIDs[index];
+      if (scheduleId.isEmpty) return false;
       final data = jsonEncode({
         'name': medName,
         'details': details,
         'days': days,
       });
 
-      final result = await _db.updateSchedule(scheduleId, title: medName, data: data);
-      
+      final result =
+          await _db.updateSchedule(scheduleId, title: medName, data: data);
+
       if (result.success) {
         schedule[index] = [medName, details, days];
+
+        final uid = await getUID();
+        if (uid != null) {
+          await _cloud.saveSchedule(
+            id: scheduleId,
+            userId: uid,
+            title: medName,
+            data: data,
+            days: days,
+            details: details,
+          );
+        }
+
         calcMeds();
         notifyListenersSafe();
         return true;
@@ -564,11 +746,13 @@ class Singleton extends ChangeNotifier {
       if (index < 0 || index >= scheduleIDs.length) return false;
 
       final scheduleId = scheduleIDs[index];
+      if (scheduleId.isEmpty) return false;
       final result = await _db.deleteSchedule(scheduleId);
-      
+
       if (result.success) {
         schedule.removeAt(index);
         scheduleIDs.removeAt(index);
+        await _cloud.deleteSchedule(scheduleId);
         calcMeds();
         notifyListenersSafe();
         return true;
@@ -589,6 +773,7 @@ class Singleton extends ChangeNotifier {
         if (!result.success) {
           _logger.error('Failed to delete user from database');
         }
+        await _cloud.deleteUser(uid);
       }
 
       // Clear local state
@@ -602,6 +787,7 @@ class Singleton extends ChangeNotifier {
       postNum = 0;
       exerNum = 0;
       firstTime = true;
+      age = 0;
 
       // Clear preferences
       final prefs = await SharedPreferences.getInstance();
@@ -616,12 +802,185 @@ class Singleton extends ChangeNotifier {
     }
   }
 
+  // ==================== Community Operations ====================
+
+  String _communityDisplayName() {
+    if (name.trim().isNotEmpty && name != '[Name]') {
+      return name.trim();
+    }
+    return 'Member-${Random().nextInt(9000) + 1000}';
+  }
+
+  Future<List<Map<String, dynamic>>> loadCommunityPosts({
+    int limit = 50,
+  }) async {
+    try {
+      if (_cloud.isEnabled) {
+        final cloudPosts = await _cloud.getCommunityPosts(limit: limit);
+        if (cloudPosts.isNotEmpty) {
+          communityPosts
+            ..clear()
+            ..addAll(cloudPosts);
+          postNum = communityPosts.length;
+          notifyListenersSafe();
+          return communityPosts;
+        }
+      }
+
+      final localPosts = await _db.getCommunityPosts(limit: limit);
+      if (localPosts.success) {
+        communityPosts
+          ..clear()
+          ..addAll(localPosts.dataOrThrow);
+        postNum = communityPosts.length;
+        notifyListenersSafe();
+      }
+      return communityPosts;
+    } catch (e, stackTrace) {
+      _logger.error('Error loading community posts', e, stackTrace);
+      return communityPosts;
+    }
+  }
+
+  Future<bool> createCommunityPost({
+    required String content,
+    String? category,
+  }) async {
+    try {
+      final uid = await getUID();
+      if (uid == null || content.trim().isEmpty) return false;
+
+      final postId = _uuid.v4();
+      final displayName = _communityDisplayName();
+      final result =
+          await _db.createPost(postId, uid, displayName, content, category);
+
+      if (!result.success) return false;
+
+      final createdAt = DateTime.now().toIso8601String();
+      communityPosts.insert(0, <String, dynamic>{
+        'id': postId,
+        'user_id': uid,
+        'user_name': displayName,
+        'content': content.trim(),
+        'category': category,
+        'likes': 0,
+        'created_at': createdAt,
+        'updated_at': createdAt,
+      });
+      postNum = communityPosts.length;
+
+      await _cloud.saveCommunityPost(
+        id: postId,
+        userId: uid,
+        userName: displayName,
+        content: content.trim(),
+        category: category,
+      );
+
+      notifyListenersSafe();
+      return true;
+    } catch (e, stackTrace) {
+      _logger.error('Error creating community post', e, stackTrace);
+      return false;
+    }
+  }
+
+  Future<bool> likeCommunityPost(String postId) async {
+    try {
+      final local = await _db.likePost(postId);
+      if (local.success) {
+        final idx = communityPosts.indexWhere((p) => p['id'] == postId);
+        if (idx != -1) {
+          final likes = (communityPosts[idx]['likes'] as num?)?.toInt() ?? 0;
+          communityPosts[idx]['likes'] = likes + 1;
+        }
+        await _cloud.incrementPostLike(postId);
+        notifyListenersSafe();
+        return true;
+      }
+      return false;
+    } catch (e, stackTrace) {
+      _logger.error('Error liking post', e, stackTrace);
+      return false;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> loadCommunityComments(
+      String postId) async {
+    try {
+      if (_cloud.isEnabled) {
+        final cloudComments = await _cloud.getCommunityComments(postId);
+        if (cloudComments.isNotEmpty) {
+          communityComments[postId] = cloudComments;
+          notifyListenersSafe();
+          return cloudComments;
+        }
+      }
+
+      final localComments = await _db.getComments(postId);
+      if (localComments.success) {
+        communityComments[postId] = localComments.dataOrThrow;
+        notifyListenersSafe();
+      }
+      return communityComments[postId] ?? <Map<String, dynamic>>[];
+    } catch (e, stackTrace) {
+      _logger.error('Error loading comments', e, stackTrace);
+      return communityComments[postId] ?? <Map<String, dynamic>>[];
+    }
+  }
+
+  Future<bool> createCommunityComment({
+    required String postId,
+    required String content,
+  }) async {
+    try {
+      final uid = await getUID();
+      if (uid == null || content.trim().isEmpty) return false;
+
+      final commentId = _uuid.v4();
+      final displayName = _communityDisplayName();
+      final result =
+          await _db.createComment(commentId, postId, uid, displayName, content);
+
+      if (!result.success) return false;
+
+      final createdAt = DateTime.now().toIso8601String();
+      final cache = communityComments.putIfAbsent(
+        postId,
+        () => <Map<String, dynamic>>[],
+      );
+      cache.add(<String, dynamic>{
+        'id': commentId,
+        'post_id': postId,
+        'user_id': uid,
+        'user_name': displayName,
+        'content': content.trim(),
+        'created_at': createdAt,
+      });
+
+      await _cloud.saveCommunityComment(
+        id: commentId,
+        postId: postId,
+        userId: uid,
+        userName: displayName,
+        content: content.trim(),
+      );
+
+      notifyListenersSafe();
+      return true;
+    } catch (e, stackTrace) {
+      _logger.error('Error creating comment', e, stackTrace);
+      return false;
+    }
+  }
+
   // Legacy method for compatibility
-  void deleteEntireList(int index, String listName) {
+  Future<void> deleteEntireList(int index, String listName) async {
     if (listName == "logs") {
-      deleteLog(index);
+      await deleteLog(index);
     } else if (listName == "schedules") {
-      deleteScheduleEntry(index);
+      await deleteScheduleEntry(index);
     }
   }
 

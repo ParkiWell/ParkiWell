@@ -9,35 +9,37 @@ import 'package:levio/theme/app_theme.dart';
 import 'package:levio/screens/splash_screen.dart';
 import 'package:levio/screens/intro_screen.dart';
 import 'package:levio/services/app_logger.dart';
+import 'package:levio/config/environment.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:terminate_restart/terminate_restart.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Determine if running in production
-  const bool isProduction = kReleaseMode;
-  
+  final bool isProduction = kReleaseMode || EnvironmentConfig.isProduction;
+
   // Initialize logger
   final logger = AppLogger();
   logger.init(isProduction: isProduction);
-  logger.info('App starting in ${isProduction ? "production" : "development"} mode');
-  
+  logger.info(
+      'App starting in ${isProduction ? "production" : "development"} mode');
+
   // Initialize restart functionality
   TerminateRestart.instance.initialize();
-  
+
   // Set preferred orientations
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
-  
+
   // Initialize singleton and database
   final singleton = Singleton();
-  
+
   try {
     await singleton.initialize(isProduction: isProduction);
-    
+
     await SharedPreferences.getInstance().then((prefs) async {
       if (prefs.containsKey('userID')) {
         try {
@@ -59,7 +61,7 @@ void main() async {
         }
       }
       // firstTime remains true by default if no valid user found
-      
+
       if (prefs.containsKey('theme')) {
         singleton.switchColorTheme(await singleton.getTheme());
       } else {
@@ -69,19 +71,19 @@ void main() async {
   } catch (e, stackTrace) {
     logger.fatal('Critical initialization error', e, stackTrace);
   }
-  
+
   // Set up error handling for production
   if (isProduction) {
     FlutterError.onError = (details) {
       logger.fatal('Flutter error', details.exception, details.stack);
     };
-    
+
     PlatformDispatcher.instance.onError = (error, stack) {
       logger.fatal('Platform error', error, stack);
       return true;
     };
   }
-  
+
   runApp(const MyApp());
 }
 

@@ -27,8 +27,13 @@ class _EditScheduleScreenState extends State<EditScheduleScreen>
   late Animation<double> _animation;
 
   final List<String> daysOfWeek = [
-    'Monday', 'Tuesday', 'Wednesday', 'Thursday',
-    'Friday', 'Saturday', 'Sunday'
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+    'Sunday'
   ];
 
   @override
@@ -89,7 +94,8 @@ class _EditScheduleScreenState extends State<EditScheduleScreen>
           content: const Text('Please enter medication name'),
           behavior: SnackBarBehavior.floating,
           backgroundColor: context.colors.error,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       );
       return;
@@ -102,7 +108,8 @@ class _EditScheduleScreenState extends State<EditScheduleScreen>
           content: const Text('Please select at least one day'),
           behavior: SnackBarBehavior.floating,
           backgroundColor: context.colors.error,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       );
       return;
@@ -117,11 +124,14 @@ class _EditScheduleScreenState extends State<EditScheduleScreen>
           : 'Every ${selectedDays.join(", ")}';
 
       // Save to local database
-      await singleton.saveSchedule(
+      final saved = await singleton.saveSchedule(
         _nameController.text.trim(),
         _detailsController.text.trim(),
         days,
       );
+      if (!saved) {
+        throw Exception('Unable to save medication schedule');
+      }
 
       HapticUtils.success();
 
@@ -136,7 +146,8 @@ class _EditScheduleScreenState extends State<EditScheduleScreen>
             content: Text('Error saving medication: $e'),
             behavior: SnackBarBehavior.floating,
             backgroundColor: context.colors.error,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         );
       }
@@ -267,9 +278,10 @@ class _EditScheduleScreenState extends State<EditScheduleScreen>
                   children: [
                     Text(
                       'Medication Details',
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
+                      style:
+                          Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
                     ),
                     const SizedBox(height: 8),
                     Text(

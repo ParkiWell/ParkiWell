@@ -87,9 +87,10 @@ class _SpeechScreenState extends State<SpeechScreen>
                   children: [
                     Text(
                       'Speech Exercises',
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
+                      style:
+                          Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
                     ),
                     const SizedBox(height: 8),
                     Text(
@@ -164,7 +165,9 @@ class _SpeechScreenState extends State<SpeechScreen>
                       title: speechData[0],
                       description: speechData[1],
                       duration: speechData.length > 2 ? speechData[2] : '',
-                      thumbnailUrl: 'https://img.youtube.com/vi/$videoId/hqdefault.jpg',
+                      source: speechData.length > 3 ? speechData[3] : '',
+                      thumbnailUrl:
+                          'https://img.youtube.com/vi/$videoId/hqdefault.jpg',
                       onTap: () {
                         HapticUtils.cardTap();
                         singleton.setCurrentUrl(videoId);
@@ -186,6 +189,7 @@ class _SpeechVideoCard extends StatefulWidget {
   final String title;
   final String description;
   final String duration;
+  final String source;
   final String thumbnailUrl;
   final VoidCallback onTap;
 
@@ -193,6 +197,7 @@ class _SpeechVideoCard extends StatefulWidget {
     required this.title,
     required this.description,
     required this.duration,
+    required this.source,
     required this.thumbnailUrl,
     required this.onTap,
   });
@@ -238,7 +243,8 @@ class _SpeechVideoCardState extends State<_SpeechVideoCard> {
           children: [
             // Thumbnail
             ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(16)),
               child: Stack(
                 children: [
                   AspectRatio(
@@ -296,7 +302,8 @@ class _SpeechVideoCardState extends State<_SpeechVideoCard> {
                       bottom: 12,
                       left: 12,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
                           color: Colors.black.withValues(alpha: 0.7),
                           borderRadius: BorderRadius.circular(6),
@@ -377,6 +384,17 @@ class _SpeechVideoCardState extends State<_SpeechVideoCard> {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
+                  if (widget.source.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      widget.source,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: colors.textTertiary,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 11,
+                          ),
+                    ),
+                  ],
                 ],
               ),
             ),

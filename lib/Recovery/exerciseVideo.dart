@@ -38,6 +38,9 @@ class _ExerciseVideoState extends State<ExerciseVideo> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final exerciseData = singleton.exercises[singleton.currentURL];
+    final source =
+        exerciseData != null && exerciseData.length > 3 ? exerciseData[3] : '';
 
     return YoutubePlayerScaffold(
       controller: _controller,
@@ -86,6 +89,16 @@ class _ExerciseVideoState extends State<ExerciseVideo> {
                         color: colors.textSecondary,
                       ),
                 ),
+                if (source.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    source,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: colors.textTertiary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                ],
                 const SizedBox(height: 24),
 
                 // Video player
@@ -120,7 +133,10 @@ class _ExerciseVideoState extends State<ExerciseVideo> {
                             Expanded(
                               child: Text(
                                 'Watch the video and follow along at your own pace.',
-                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodyMedium
+                                    ?.copyWith(
                                       color: colors.textSecondary,
                                     ),
                               ),

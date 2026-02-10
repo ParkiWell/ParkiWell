@@ -1,72 +1,72 @@
 # Privacy Policy for Levio
 
-**Last Updated: February 2026**
+**Last Updated: February 10, 2026**
 
-## Introduction
+## 1. Overview
 
-Levio ("we," "our," or "us") is committed to protecting your privacy. This Privacy Policy explains how your personal information is collected, used, and disclosed by Levio when you use our mobile application.
+Levio helps users track Parkinson's-related symptoms, medication schedules, and recovery activity.  
+This policy explains what data is stored and how it is handled.
 
-## Information We Collect
+## 2. Data Collected
 
-### Information You Provide
-- **Profile Information**: Name, age, and profile picture (optional)
-- **Health Data**: Symptom logs, medication schedules, and exercise history
-- **Device Information**: Device type, operating system version
+Data entered by users:
+- profile data (name, optional email, optional profile image, age if provided)
+- symptom logs
+- medication schedules
+- community posts and comments
 
-### Information Collected Automatically
-- **Usage Data**: App features used, session duration
-- **Technical Data**: App version, crash reports
+Technical data:
+- app version and basic diagnostic logs
 
-## How We Use Your Information
+## 3. Data Storage
 
-We use the information we collect to:
-- Provide and maintain the app's functionality
-- Store your symptom logs and medication schedules
-- Improve and personalize your experience
-- Analyze usage patterns to improve the app
-- Send important updates about the app (if you opt in)
+Levio supports two storage modes:
 
-## Data Storage
+1. Local-only mode (default)
+- Data is stored on-device using SQLite.
 
-Your health data is stored securely using Firebase Cloud Firestore. We implement appropriate technical and organizational measures to protect your personal data against unauthorized access, alteration, disclosure, or destruction.
+2. Cloud sync mode (optional)
+- When enabled by app configuration, data is synced to a Supabase backend.
 
-## Data Sharing
+## 4. How Data Is Used
 
-We do **NOT**:
-- Sell your personal information to third parties
-- Share your health data with advertisers
-- Share your data with insurance companies
+Data is used only to:
+- provide app functionality
+- sync user-entered records (if cloud mode is enabled)
+- improve app reliability and performance
 
-We may share data:
-- With service providers who help us operate the app (e.g., Firebase)
-- If required by law or legal process
-- To protect our rights or the safety of users
+Levio does not sell personal data.
 
-## Your Rights
+## 5. Data Sharing
 
-You have the right to:
-- Access your personal data
-- Correct inaccurate data
-- Delete your account and associated data
-- Export your health data
-- Opt out of non-essential data collection
+Levio does not share personal health data with advertisers.  
+Data may be disclosed only if legally required.
 
-## Data Retention
+## 6. Community Content
 
-We retain your data for as long as your account is active. You can delete your account and all associated data at any time through the app settings.
+Posts and comments created in the community feature may be visible to other users in the app experience where community is enabled.
 
-## Children's Privacy
+## 7. Your Controls
 
-Levio is not intended for children under 13 years of age. We do not knowingly collect personal information from children under 13.
+Users can:
+- edit profile data
+- delete logs/schedules/posts/comments
+- delete account data from within the app (where supported by configured backend)
 
-## Changes to This Policy
+## 8. Third-Party Content
 
-We may update this Privacy Policy from time to time. We will notify you of any changes by posting the new Privacy Policy on this page and updating the "Last Updated" date.
+Recovery videos are embedded from YouTube.  
+Viewing this content may be subject to YouTube's privacy terms and policies.
 
-## Consent
+## 9. Children's Privacy
 
-By using Levio, you consent to the collection and use of your information as described in this Privacy Policy.
+Levio is not intended for children under 13.
 
----
+## 10. Contact
 
-*This privacy policy is a template and should be reviewed by a legal professional before publishing.*
+For privacy requests, contact the repository owner/maintainer.
+
+## 11. Legal Note
+
+This policy text is a product document and does not replace legal counsel.  
+Before public launch, review with a qualified attorney for your target jurisdictions.

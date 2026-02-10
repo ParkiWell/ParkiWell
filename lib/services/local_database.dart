@@ -22,7 +22,8 @@ class DbResult<T> {
   DbResult._({this.data, this.error, required this.success});
 
   factory DbResult.success(T data) => DbResult._(data: data, success: true);
-  factory DbResult.failure(String error) => DbResult._(error: error, success: false);
+  factory DbResult.failure(String error) =>
+      DbResult._(error: error, success: false);
 
   T get dataOrThrow {
     if (!success || data == null) {
@@ -33,7 +34,7 @@ class DbResult<T> {
 }
 
 /// Production-grade local database service using SQLite
-/// 
+///
 /// Features:
 /// - Encrypted sensitive data storage
 /// - Database migrations support
@@ -46,7 +47,7 @@ class LocalDatabase {
   static final LocalDatabase _instance = LocalDatabase._internal();
   static Database? _database;
   static const String _dbName = 'levio_v2.db';
-  static const int _currentVersion = 2;
+  static const int _currentVersion = 3;
 
   final AppLogger _logger = AppLogger();
   final FlutterSecureStorage _secureStorage = const FlutterSecureStorage(
@@ -84,9 +85,11 @@ class LocalDatabase {
       _encryptionKey = await _secureStorage.read(key: 'db_encryption_key');
       if (_encryptionKey == null) {
         // Generate new key
-        final keyBytes = List<int>.generate(32, (i) => DateTime.now().microsecondsSinceEpoch % 256);
+        final keyBytes = List<int>.generate(
+            32, (i) => DateTime.now().microsecondsSinceEpoch % 256);
         _encryptionKey = base64Encode(keyBytes);
-        await _secureStorage.write(key: 'db_encryption_key', value: _encryptionKey);
+        await _secureStorage.write(
+            key: 'db_encryption_key', value: _encryptionKey);
         _logger.security('encryption_key_generated');
       }
     } catch (e) {
@@ -161,6 +164,7 @@ class LocalDatabase {
       CREATE TABLE IF NOT EXISTS users (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL DEFAULT '[Name]',
+        email TEXT,
         age INTEGER NOT NULL DEFAULT 0,
         profile_image TEXT,
         data_hash TEXT,
@@ -203,6 +207,7 @@ class LocalDatabase {
         user_id TEXT NOT NULL,
         user_name TEXT NOT NULL,
         content TEXT NOT NULL,
+        category TEXT,
         content_hash TEXT,
         likes INTEGER NOT NULL DEFAULT 0,
         reports INTEGER NOT NULL DEFAULT 0,
@@ -243,25 +248,35 @@ class LocalDatabase {
     ''');
 
     // Create indexes for performance
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_logs_user ON logs(user_id)');
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_schedules_user ON schedules(user_id)');
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_posts_user ON community_posts(user_id)');
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_posts_created ON community_posts(created_at)');
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_comments_post ON community_comments(post_id)');
+    await db
+        .execute('CREATE INDEX IF NOT EXISTS idx_logs_user ON logs(user_id)');
+    await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_schedules_user ON schedules(user_id)');
+    await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_posts_user ON community_posts(user_id)');
+    await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_posts_created ON community_posts(created_at)');
+    await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_comments_post ON community_comments(post_id)');
 
-    _logger.database('create', details: 'All tables and indexes created successfully');
+    _logger.database('create',
+        details: 'All tables and indexes created successfully');
   }
 
   /// Handle database upgrades
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    _logger.database('upgrade', details: 'Upgrading from $oldVersion to $newVersion');
+    _logger.database('upgrade',
+        details: 'Upgrading from $oldVersion to $newVersion');
 
     if (oldVersion < 2) {
       // Migration to version 2: Add reports tracking
-      await db.execute('ALTER TABLE community_posts ADD COLUMN reports INTEGER NOT NULL DEFAULT 0');
-      await db.execute('ALTER TABLE community_posts ADD COLUMN is_hidden INTEGER NOT NULL DEFAULT 0');
-      await db.execute('ALTER TABLE community_comments ADD COLUMN reports INTEGER NOT NULL DEFAULT 0');
-      
+      await db.execute(
+          'ALTER TABLE community_posts ADD COLUMN reports INTEGER NOT NULL DEFAULT 0');
+      await db.execute(
+          'ALTER TABLE community_posts ADD COLUMN is_hidden INTEGER NOT NULL DEFAULT 0');
+      await db.execute(
+          'ALTER TABLE community_comments ADD COLUMN reports INTEGER NOT NULL DEFAULT 0');
+
       await db.execute('''
         CREATE TABLE IF NOT EXISTS user_reports (
           id TEXT PRIMARY KEY,
@@ -272,6 +287,11 @@ class LocalDatabase {
           created_at TEXT NOT NULL
         )
       ''');
+    }
+
+    if (oldVersion < 3) {
+      await db.execute('ALTER TABLE users ADD COLUMN email TEXT');
+      await db.execute('ALTER TABLE community_posts ADD COLUMN category TEXT');
     }
 
     _logger.database('upgrade', details: 'Migration completed');
@@ -301,7 +321,8 @@ class LocalDatabase {
     }
   }
 
-  Future<DbResult<void>> createUser(String id, String name, int age, String? profileImage) async {
+  Future<DbResult<void>> createUser(String id, String name, int age,
+      String? profileImage, String? email) async {
     try {
       final db = await database;
       final now = DateTime.now().toIso8601String();
@@ -312,6 +333,9 @@ class LocalDatabase {
         {
           'id': id,
           'name': _sanitizeInput(name),
+          'email': email == null || email.trim().isEmpty
+              ? null
+              : _sanitizeInput(email),
           'age': age.clamp(0, 150),
           'profile_image': profileImage,
           'data_hash': dataHash,
@@ -329,13 +353,17 @@ class LocalDatabase {
     }
   }
 
-  Future<DbResult<void>> updateUser(String id, {String? name, int? age, String? profileImage}) async {
+  Future<DbResult<void>> updateUser(String id,
+      {String? name, int? age, String? profileImage, String? email}) async {
     try {
       final db = await database;
       final updates = <String, dynamic>{
         'updated_at': DateTime.now().toIso8601String(),
       };
       if (name != null) updates['name'] = _sanitizeInput(name);
+      if (email != null) {
+        updates['email'] = email.trim().isEmpty ? null : _sanitizeInput(email);
+      }
       if (age != null) updates['age'] = age.clamp(0, 150);
       if (profileImage != null) updates['profile_image'] = profileImage;
 
@@ -357,17 +385,20 @@ class LocalDatabase {
   Future<DbResult<void>> deleteUser(String id) async {
     try {
       final db = await database;
-      
+
       // Use transaction for cascade delete
       await db.transaction((txn) async {
-        await txn.delete('community_comments', where: 'user_id = ?', whereArgs: [id]);
-        await txn.delete('community_posts', where: 'user_id = ?', whereArgs: [id]);
+        await txn.delete('community_comments',
+            where: 'user_id = ?', whereArgs: [id]);
+        await txn
+            .delete('community_posts', where: 'user_id = ?', whereArgs: [id]);
         await txn.delete('schedules', where: 'user_id = ?', whereArgs: [id]);
         await txn.delete('logs', where: 'user_id = ?', whereArgs: [id]);
         await txn.delete('users', where: 'id = ?', whereArgs: [id]);
       });
 
-      _logger.database('delete', table: 'users', details: 'Deleted user $id and all related data');
+      _logger.database('delete',
+          table: 'users', details: 'Deleted user $id and all related data');
       _logger.security('user_deleted', metadata: {'user_id': id});
       return DbResult.success(null);
     } catch (e, stackTrace) {
@@ -387,7 +418,8 @@ class LocalDatabase {
         whereArgs: [userId],
         orderBy: 'created_at DESC',
       );
-      _logger.database('read', table: 'logs', details: 'Get ${results.length} logs for user');
+      _logger.database('read',
+          table: 'logs', details: 'Get ${results.length} logs for user');
       return DbResult.success(results);
     } catch (e, stackTrace) {
       _logger.error('Failed to get logs', e, stackTrace);
@@ -395,7 +427,8 @@ class LocalDatabase {
     }
   }
 
-  Future<DbResult<void>> saveLog(String id, String userId, String title, int icon, int color, String data) async {
+  Future<DbResult<void>> saveLog(String id, String userId, String title,
+      int icon, int color, String data) async {
     try {
       final db = await database;
       final dataHash = _generateHash(data);
@@ -423,7 +456,8 @@ class LocalDatabase {
     }
   }
 
-  Future<DbResult<void>> updateLog(String id, {String? title, int? icon, int? color, String? data}) async {
+  Future<DbResult<void>> updateLog(String id,
+      {String? title, int? icon, int? color, String? data}) async {
     try {
       final db = await database;
       final updates = <String, dynamic>{};
@@ -460,7 +494,8 @@ class LocalDatabase {
 
   // ==================== Schedules Operations ====================
 
-  Future<DbResult<List<Map<String, dynamic>>>> getSchedules(String userId) async {
+  Future<DbResult<List<Map<String, dynamic>>>> getSchedules(
+      String userId) async {
     try {
       final db = await database;
       final results = await db.query(
@@ -469,7 +504,8 @@ class LocalDatabase {
         whereArgs: [userId],
         orderBy: 'created_at DESC',
       );
-      _logger.database('read', table: 'schedules', details: 'Get ${results.length} schedules');
+      _logger.database('read',
+          table: 'schedules', details: 'Get ${results.length} schedules');
       return DbResult.success(results);
     } catch (e, stackTrace) {
       _logger.error('Failed to get schedules', e, stackTrace);
@@ -477,7 +513,8 @@ class LocalDatabase {
     }
   }
 
-  Future<DbResult<void>> saveSchedule(String id, String userId, String title, int icon, int color, String data) async {
+  Future<DbResult<void>> saveSchedule(String id, String userId, String title,
+      int icon, int color, String data) async {
     try {
       final db = await database;
       final dataHash = _generateHash(data);
@@ -497,7 +534,8 @@ class LocalDatabase {
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
 
-      _logger.database('insert', table: 'schedules', details: 'Saved schedule $id');
+      _logger.database('insert',
+          table: 'schedules', details: 'Saved schedule $id');
       return DbResult.success(null);
     } catch (e, stackTrace) {
       _logger.error('Failed to save schedule', e, stackTrace);
@@ -505,7 +543,8 @@ class LocalDatabase {
     }
   }
 
-  Future<DbResult<void>> updateSchedule(String id, {String? title, int? icon, int? color, String? data}) async {
+  Future<DbResult<void>> updateSchedule(String id,
+      {String? title, int? icon, int? color, String? data}) async {
     try {
       final db = await database;
       final updates = <String, dynamic>{};
@@ -519,7 +558,8 @@ class LocalDatabase {
 
       if (updates.isNotEmpty) {
         await db.update('schedules', updates, where: 'id = ?', whereArgs: [id]);
-        _logger.database('update', table: 'schedules', details: 'Updated schedule $id');
+        _logger.database('update',
+            table: 'schedules', details: 'Updated schedule $id');
       }
       return DbResult.success(null);
     } catch (e, stackTrace) {
@@ -532,7 +572,8 @@ class LocalDatabase {
     try {
       final db = await database;
       await db.delete('schedules', where: 'id = ?', whereArgs: [id]);
-      _logger.database('delete', table: 'schedules', details: 'Deleted schedule $id');
+      _logger.database('delete',
+          table: 'schedules', details: 'Deleted schedule $id');
       return DbResult.success(null);
     } catch (e, stackTrace) {
       _logger.error('Failed to delete schedule', e, stackTrace);
@@ -542,7 +583,8 @@ class LocalDatabase {
 
   // ==================== Community Operations ====================
 
-  Future<DbResult<List<Map<String, dynamic>>>> getCommunityPosts({int limit = 50, int offset = 0}) async {
+  Future<DbResult<List<Map<String, dynamic>>>> getCommunityPosts(
+      {int limit = 50, int offset = 0}) async {
     try {
       final db = await database;
       final results = await db.query(
@@ -552,7 +594,8 @@ class LocalDatabase {
         limit: limit,
         offset: offset,
       );
-      _logger.database('read', table: 'community_posts', details: 'Get ${results.length} posts');
+      _logger.database('read',
+          table: 'community_posts', details: 'Get ${results.length} posts');
       return DbResult.success(results);
     } catch (e, stackTrace) {
       _logger.error('Failed to get community posts', e, stackTrace);
@@ -560,7 +603,8 @@ class LocalDatabase {
     }
   }
 
-  Future<DbResult<void>> createPost(String id, String userId, String userName, String content) async {
+  Future<DbResult<void>> createPost(String id, String userId, String userName,
+      String content, String? category) async {
     try {
       final db = await database;
       final now = DateTime.now().toIso8601String();
@@ -574,6 +618,9 @@ class LocalDatabase {
           'user_id': userId,
           'user_name': _sanitizeInput(userName),
           'content': sanitizedContent,
+          'category': category == null || category.trim().isEmpty
+              ? null
+              : _sanitizeInput(category),
           'content_hash': contentHash,
           'likes': 0,
           'reports': 0,
@@ -584,7 +631,8 @@ class LocalDatabase {
         },
       );
 
-      _logger.database('insert', table: 'community_posts', details: 'Created post $id');
+      _logger.database('insert',
+          table: 'community_posts', details: 'Created post $id');
       return DbResult.success(null);
     } catch (e, stackTrace) {
       _logger.error('Failed to create post', e, stackTrace);
@@ -599,7 +647,8 @@ class LocalDatabase {
         'UPDATE community_posts SET likes = likes + 1, updated_at = ? WHERE id = ?',
         [DateTime.now().toIso8601String(), postId],
       );
-      _logger.database('update', table: 'community_posts', details: 'Liked post $postId');
+      _logger.database('update',
+          table: 'community_posts', details: 'Liked post $postId');
       return DbResult.success(null);
     } catch (e, stackTrace) {
       _logger.error('Failed to like post', e, stackTrace);
@@ -607,10 +656,11 @@ class LocalDatabase {
     }
   }
 
-  Future<DbResult<void>> reportPost(String postId, String reporterId, String reason) async {
+  Future<DbResult<void>> reportPost(
+      String postId, String reporterId, String reason) async {
     try {
       final db = await database;
-      
+
       await db.transaction((txn) async {
         // Increment report count
         await txn.rawUpdate(
@@ -619,7 +669,8 @@ class LocalDatabase {
         );
 
         // Check if should auto-flag (3+ reports)
-        final post = await txn.query('community_posts', where: 'id = ?', whereArgs: [postId]);
+        final post = await txn
+            .query('community_posts', where: 'id = ?', whereArgs: [postId]);
         if (post.isNotEmpty && (post.first['reports'] as int) >= 3) {
           await txn.update(
             'community_posts',
@@ -632,7 +683,8 @@ class LocalDatabase {
 
         // Record the report
         await txn.insert('user_reports', {
-          'id': '${reporterId}_${postId}_${DateTime.now().millisecondsSinceEpoch}',
+          'id':
+              '${reporterId}_${postId}_${DateTime.now().millisecondsSinceEpoch}',
           'reporter_id': reporterId,
           'target_type': 'post',
           'target_id': postId,
@@ -652,13 +704,16 @@ class LocalDatabase {
   Future<DbResult<void>> deletePost(String postId) async {
     try {
       final db = await database;
-      
+
       await db.transaction((txn) async {
-        await txn.delete('community_comments', where: 'post_id = ?', whereArgs: [postId]);
-        await txn.delete('community_posts', where: 'id = ?', whereArgs: [postId]);
+        await txn.delete('community_comments',
+            where: 'post_id = ?', whereArgs: [postId]);
+        await txn
+            .delete('community_posts', where: 'id = ?', whereArgs: [postId]);
       });
 
-      _logger.database('delete', table: 'community_posts', details: 'Deleted post $postId');
+      _logger.database('delete',
+          table: 'community_posts', details: 'Deleted post $postId');
       return DbResult.success(null);
     } catch (e, stackTrace) {
       _logger.error('Failed to delete post', e, stackTrace);
@@ -666,7 +721,8 @@ class LocalDatabase {
     }
   }
 
-  Future<DbResult<List<Map<String, dynamic>>>> getComments(String postId) async {
+  Future<DbResult<List<Map<String, dynamic>>>> getComments(
+      String postId) async {
     try {
       final db = await database;
       final results = await db.query(
@@ -675,7 +731,9 @@ class LocalDatabase {
         whereArgs: [postId],
         orderBy: 'created_at ASC',
       );
-      _logger.database('read', table: 'community_comments', details: 'Get ${results.length} comments');
+      _logger.database('read',
+          table: 'community_comments',
+          details: 'Get ${results.length} comments');
       return DbResult.success(results);
     } catch (e, stackTrace) {
       _logger.error('Failed to get comments', e, stackTrace);
@@ -683,7 +741,8 @@ class LocalDatabase {
     }
   }
 
-  Future<DbResult<void>> createComment(String id, String postId, String userId, String userName, String content) async {
+  Future<DbResult<void>> createComment(String id, String postId, String userId,
+      String userName, String content) async {
     try {
       final db = await database;
       final sanitizedContent = _sanitizeInput(content);
@@ -704,7 +763,8 @@ class LocalDatabase {
         },
       );
 
-      _logger.database('insert', table: 'community_comments', details: 'Created comment $id');
+      _logger.database('insert',
+          table: 'community_comments', details: 'Created comment $id');
       return DbResult.success(null);
     } catch (e, stackTrace) {
       _logger.error('Failed to create comment', e, stackTrace);
@@ -712,24 +772,28 @@ class LocalDatabase {
     }
   }
 
-  Future<DbResult<void>> reportComment(String commentId, String reporterId, String reason) async {
+  Future<DbResult<void>> reportComment(
+      String commentId, String reporterId, String reason) async {
     try {
       final db = await database;
-      
+
       await db.transaction((txn) async {
         await txn.rawUpdate(
           'UPDATE community_comments SET reports = reports + 1 WHERE id = ?',
           [commentId],
         );
 
-        final comment = await txn.query('community_comments', where: 'id = ?', whereArgs: [commentId]);
+        final comment = await txn.query('community_comments',
+            where: 'id = ?', whereArgs: [commentId]);
         if (comment.isNotEmpty && (comment.first['reports'] as int) >= 3) {
-          await txn.update('community_comments', {'is_flagged': 1}, where: 'id = ?', whereArgs: [commentId]);
+          await txn.update('community_comments', {'is_flagged': 1},
+              where: 'id = ?', whereArgs: [commentId]);
           _logger.moderation('auto_flagged_comment', reason: '3+ reports');
         }
 
         await txn.insert('user_reports', {
-          'id': '${reporterId}_${commentId}_${DateTime.now().millisecondsSinceEpoch}',
+          'id':
+              '${reporterId}_${commentId}_${DateTime.now().millisecondsSinceEpoch}',
           'reporter_id': reporterId,
           'target_type': 'comment',
           'target_id': commentId,
@@ -760,7 +824,7 @@ class LocalDatabase {
   Future<DbResult<void>> clearAllData() async {
     try {
       final db = await database;
-      
+
       await db.transaction((txn) async {
         await txn.delete('user_reports');
         await txn.delete('community_comments');
@@ -792,12 +856,19 @@ class LocalDatabase {
     try {
       final db = await database;
       final stats = <String, int>{};
-      
-      for (final table in ['users', 'logs', 'schedules', 'community_posts', 'community_comments']) {
-        final result = await db.rawQuery('SELECT COUNT(*) as count FROM $table');
+
+      for (final table in [
+        'users',
+        'logs',
+        'schedules',
+        'community_posts',
+        'community_comments'
+      ]) {
+        final result =
+            await db.rawQuery('SELECT COUNT(*) as count FROM $table');
         stats[table] = Sqflite.firstIntValue(result) ?? 0;
       }
-      
+
       return stats;
     } catch (e) {
       _logger.error('Failed to get statistics', e);

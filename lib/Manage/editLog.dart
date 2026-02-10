@@ -19,7 +19,7 @@ class _EditLogScreenState extends State<EditLogScreen>
   final singleton = Singleton();
   final _severityController = TextEditingController();
   final _symptomController = TextEditingController();
-  
+
   String month = 'January';
   String day = '01';
   String year = '2024';
@@ -32,11 +32,22 @@ class _EditLogScreenState extends State<EditLogScreen>
 
   List<String> hours = List.generate(24, (i) => i.toString().padLeft(2, '0'));
   List<String> minutes = List.generate(60, (i) => i.toString().padLeft(2, '0'));
-  List<String> days = List.generate(31, (i) => (i + 1).toString().padLeft(2, '0'));
+  List<String> days =
+      List.generate(31, (i) => (i + 1).toString().padLeft(2, '0'));
 
   List<String> months = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December'
   ];
 
   List<String> years = List.generate(10, (i) => (2024 + i).toString());
@@ -96,7 +107,8 @@ class _EditLogScreenState extends State<EditLogScreen>
           content: const Text('Please enter a symptom description'),
           behavior: SnackBarBehavior.floating,
           backgroundColor: context.colors.error,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       );
       return;
@@ -107,13 +119,16 @@ class _EditLogScreenState extends State<EditLogScreen>
 
     try {
       String time = "$hour:$minute, $day $month $year";
-      
+
       // Save to local database
-      await singleton.saveLog(
+      final saved = await singleton.saveLog(
         time,
         _symptomController.text.trim(),
         _severityController.text.trim(),
       );
+      if (!saved) {
+        throw Exception('Unable to save symptom log');
+      }
 
       HapticUtils.success();
 
@@ -128,7 +143,8 @@ class _EditLogScreenState extends State<EditLogScreen>
             content: Text('Error saving log: $e'),
             behavior: SnackBarBehavior.floating,
             backgroundColor: context.colors.error,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         );
       }
@@ -258,9 +274,10 @@ class _EditLogScreenState extends State<EditLogScreen>
                   children: [
                     Text(
                       'Symptom Details',
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
+                      style:
+                          Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
                     ),
                     const SizedBox(height: 8),
                     Text(
@@ -394,7 +411,8 @@ class _EditLogScreenState extends State<EditLogScreen>
                               ),
                             ),
                             Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 8),
                               child: Text(
                                 ':',
                                 style: Theme.of(context).textTheme.titleLarge,

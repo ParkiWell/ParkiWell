@@ -27,7 +27,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
   final picker = ImagePicker();
   bool _isLoading = false;
   int _currentStep = 0;
-  
+
   late AnimationController _fadeController;
   late AnimationController _slideController;
   late Animation<double> _fadeAnimation;
@@ -44,15 +44,16 @@ class _EditProfileScreenState extends State<EditProfileScreen>
       duration: const Duration(milliseconds: 500),
       vsync: this,
     );
-    
+
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _fadeController, curve: Curves.easeOut),
     );
     _slideAnimation = Tween<Offset>(
       begin: const Offset(0, 0.3),
       end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _slideController, curve: Curves.easeOutCubic));
-    
+    ).animate(
+        CurvedAnimation(parent: _slideController, curve: Curves.easeOutCubic));
+
     _fadeController.forward();
     _slideController.forward();
   }
@@ -86,7 +87,8 @@ class _EditProfileScreenState extends State<EditProfileScreen>
           content: const Text('Please enter your name'),
           behavior: SnackBarBehavior.floating,
           backgroundColor: context.colors.error,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       );
       return;
@@ -96,18 +98,25 @@ class _EditProfileScreenState extends State<EditProfileScreen>
     HapticUtils.mediumImpact();
 
     try {
-      singleton.setEmail(_emailController.text.trim().isEmpty 
-          ? 'Not provided' 
+      singleton.setEmail(_emailController.text.trim().isEmpty
+          ? 'Not provided'
           : _emailController.text.trim());
       singleton.setName(_nameController.text.trim());
       singleton.setImage(image);
-      
+
       // Create user in local database
-      await singleton.createUser(_nameController.text.trim(), 0);
-      
+      final created =
+          await singleton.createUser(_nameController.text.trim(), 0);
+      if (!created) {
+        throw Exception('Unable to create your account right now');
+      }
+
       // Update image if custom image was selected
       if (image != "images/711128.png") {
-        await singleton.updateUser(profileImage: image);
+        final updated = await singleton.updateUser(profileImage: image);
+        if (!updated) {
+          throw Exception('Unable to save your profile image');
+        }
       }
 
       HapticUtils.success();
@@ -130,7 +139,8 @@ class _EditProfileScreenState extends State<EditProfileScreen>
             content: Text('Error creating account: $e'),
             behavior: SnackBarBehavior.floating,
             backgroundColor: context.colors.error,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         );
       }
@@ -173,7 +183,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
                   // Progress indicator
                   _buildProgressIndicator(colors),
                   const SizedBox(height: 32),
-                  
+
                   // Content
                   Expanded(
                     child: AnimatedSwitcher(
@@ -193,7 +203,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
                       child: _buildStepContent(colors, size),
                     ),
                   ),
-                  
+
                   // Navigation buttons
                   _buildNavigationButtons(colors),
                 ],
@@ -246,7 +256,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
           SizedBox(height: size.height * 0.05),
           // App logo
           Image.asset(
-            'images/app_icon.png',
+            'images/logo.png',
             width: 140,
             height: 140,
             errorBuilder: (context, error, stackTrace) {
@@ -317,7 +327,8 @@ class _EditProfileScreenState extends State<EditProfileScreen>
     );
   }
 
-  Widget _buildFeatureItem(AppColors colors, IconData icon, String title, String subtitle) {
+  Widget _buildFeatureItem(
+      AppColors colors, IconData icon, String title, String subtitle) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -362,7 +373,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
   }
 
   bool _hasCustomImage() {
-    return image.isNotEmpty && 
+    return image.isNotEmpty &&
         image != 'images/711128.png' &&
         !image.contains('711128');
   }
@@ -371,7 +382,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
     if (!_hasCustomImage()) {
       return _buildInitialsAvatar(size, colors);
     }
-    
+
     if (image.startsWith('images/')) {
       return ClipOval(
         child: Image.asset(
@@ -404,11 +415,10 @@ class _EditProfileScreenState extends State<EditProfileScreen>
   }
 
   Widget _buildInitialsAvatar(double size, AppColors colors) {
-    final displayName = _nameController.text.isNotEmpty 
-        ? _nameController.text 
-        : 'User';
+    final displayName =
+        _nameController.text.isNotEmpty ? _nameController.text : 'User';
     final initial = displayName.isNotEmpty ? displayName[0].toUpperCase() : 'U';
-    
+
     return Container(
       width: size,
       height: size,
@@ -528,8 +538,8 @@ class _EditProfileScreenState extends State<EditProfileScreen>
                             ),
                       ),
                       Text(
-                        _nameController.text.isEmpty 
-                            ? 'Your Name' 
+                        _nameController.text.isEmpty
+                            ? 'Your Name'
                             : _nameController.text,
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
@@ -642,7 +652,9 @@ class _EditProfileScreenState extends State<EditProfileScreen>
             child: ModernButton(
               text: _currentStep == 2 ? 'Get Started' : 'Continue',
               isLoading: _isLoading,
-              icon: _currentStep == 2 ? Icons.check_rounded : Icons.arrow_forward_rounded,
+              icon: _currentStep == 2
+                  ? Icons.check_rounded
+                  : Icons.arrow_forward_rounded,
               onPressed: () {
                 if (_currentStep == 2) {
                   _createAccount();

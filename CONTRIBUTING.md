@@ -6,7 +6,7 @@ Thank you for your interest in contributing to Levio.
 
 ### Prerequisites
 
-- Flutter SDK 3.0.0 or higher
+- Flutter SDK 3.24.0 or higher
 - Dart SDK 3.0.0 or higher
 - Android Studio or Xcode
 - Git
@@ -77,15 +77,15 @@ git checkout -b bugfix/issue-description
 
 ```
 lib/
-├── config/          # Configuration files
-├── Firebase/        # Firebase integration
-├── Main/           # Main screens
-├── Manage/         # Health management screens
-├── Recovery/       # Recovery/therapy screens
-├── screens/        # Shared screens
-├── theme/          # Theme configuration
-├── utils/          # Utility functions
-└── widgets/        # Reusable widgets
+├── config/          # Environment/backend configuration
+├── Main/            # Main tab screens
+├── Manage/          # Symptom + medication flows
+├── Recovery/        # Recovery exercise flows
+├── screens/         # Intro/splash and shared entry screens
+├── services/        # Local DB, cloud sync, logging, filtering
+├── theme/           # Theme and color system
+├── utils/           # Utility functions
+└── widgets/         # Reusable UI components
 ```
 
 ## Pull Request Process
@@ -98,6 +98,8 @@ lib/
    ```
 
 2. Update documentation if needed
+   - Backend changes: update `docs/BACKEND_SETUP.md` and `supabase/schema.sql`
+   - Content source updates: update `docs/CONTENT_SOURCES.md`
 
 3. Create a pull request with:
    - Clear title describing the change

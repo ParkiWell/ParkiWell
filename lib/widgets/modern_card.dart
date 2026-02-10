@@ -37,16 +37,16 @@ class _ModernCardState extends State<ModernCard> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    
+
     return GestureDetector(
-      onTapDown: widget.onTap != null 
-          ? (_) => setState(() => _isHovered = true) 
+      onTapDown: widget.onTap != null
+          ? (_) => setState(() => _isHovered = true)
           : null,
-      onTapUp: widget.onTap != null 
-          ? (_) => setState(() => _isHovered = false) 
+      onTapUp: widget.onTap != null
+          ? (_) => setState(() => _isHovered = false)
           : null,
-      onTapCancel: widget.onTap != null 
-          ? () => setState(() => _isHovered = false) 
+      onTapCancel: widget.onTap != null
+          ? () => setState(() => _isHovered = false)
           : null,
       onTap: widget.onTap != null
           ? () {
@@ -59,16 +59,15 @@ class _ModernCardState extends State<ModernCard> {
         curve: Curves.easeOut,
         margin: widget.margin ?? const EdgeInsets.symmetric(vertical: 6),
         decoration: BoxDecoration(
-          color: widget.gradient == null 
-              ? (_isHovered 
-                  ? colors.surfaceVariant 
+          color: widget.gradient == null
+              ? (_isHovered
+                  ? colors.surfaceVariant
                   : widget.backgroundColor ?? colors.cardBackground)
               : null,
           gradient: widget.gradient,
           borderRadius: BorderRadius.circular(widget.borderRadius),
-          border: widget.border ?? (widget.showBorder 
-              ? Border.all(color: colors.border)
-              : null),
+          border: widget.border ??
+              (widget.showBorder ? Border.all(color: colors.border) : null),
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(widget.borderRadius),
@@ -104,7 +103,7 @@ class FeatureCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    
+
     return ModernCard(
       onTap: onTap,
       gradient: gradient,
@@ -131,15 +130,15 @@ class FeatureCard extends StatelessWidget {
                 Text(
                   title,
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w500,
-                  ),
+                        fontWeight: FontWeight.w500,
+                      ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   description,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: colors.textSecondary,
-                  ),
+                        color: colors.textSecondary,
+                      ),
                 ),
               ],
             ),
@@ -176,7 +175,7 @@ class StatCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final cardColor = color ?? colors.primary;
-    
+
     return ModernCard(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -196,24 +195,24 @@ class StatCard extends StatelessWidget {
           Text(
             value,
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
+                  fontWeight: FontWeight.w600,
+                ),
           ),
           const SizedBox(height: 2),
           Text(
             title,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: colors.textSecondary,
-            ),
+                  color: colors.textSecondary,
+                ),
           ),
           if (subtitle != null) ...[
             const SizedBox(height: 4),
             Text(
               subtitle!,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: cardColor,
-                fontWeight: FontWeight.w500,
-              ),
+                    color: cardColor,
+                    fontWeight: FontWeight.w500,
+                  ),
             ),
           ],
         ],

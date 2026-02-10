@@ -150,7 +150,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 12),
 
             _SettingsTile(
-              icon: theme ? Icons.dark_mode_outlined : Icons.light_mode_outlined,
+              icon:
+                  theme ? Icons.dark_mode_outlined : Icons.light_mode_outlined,
               title: 'Theme',
               subtitle: theme ? 'Dark mode' : 'Light mode',
               trailing: _buildThemeSwitch(colors),
@@ -167,7 +168,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const SizedBox(height: 12),
 
-            _SettingsTile(
+            const _SettingsTile(
               icon: Icons.info_outlined,
               title: 'App Version',
               subtitle: '1.0.0',

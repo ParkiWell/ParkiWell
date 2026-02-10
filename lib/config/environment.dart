@@ -53,7 +53,10 @@ class EnvironmentConfig {
   static bool get enableCrashReporting => isStaging || isProduction;
 
   /// Show environment banner in non-production builds
-  static bool get showEnvironmentBanner => !isProduction;
+  static bool get showEnvironmentBanner => const bool.fromEnvironment(
+        'SHOW_ENV_BANNER',
+        defaultValue: false,
+      );
 
   /// Log level based on environment
   static LogLevel get logLevel {

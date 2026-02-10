@@ -148,7 +148,7 @@ class _ModernIconButtonState extends State<ModernIconButton> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    
+
     return GestureDetector(
       onTapDown: (_) => setState(() => _isPressed = true),
       onTapUp: (_) => setState(() => _isPressed = false),
@@ -162,8 +162,9 @@ class _ModernIconButtonState extends State<ModernIconButton> {
         width: widget.size,
         height: widget.size,
         decoration: BoxDecoration(
-          color: _isPressed 
-              ? (widget.backgroundColor ?? colors.primary).withValues(alpha: 0.9)
+          color: _isPressed
+              ? (widget.backgroundColor ?? colors.primary)
+                  .withValues(alpha: 0.9)
               : widget.backgroundColor ?? colors.primary,
           shape: widget.isCircle ? BoxShape.circle : BoxShape.rectangle,
           borderRadius: widget.isCircle ? null : BorderRadius.circular(6),
@@ -207,7 +208,7 @@ class _ModernFABState extends State<ModernFAB> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    
+
     return GestureDetector(
       onTapDown: (_) => setState(() => _isPressed = true),
       onTapUp: (_) => setState(() => _isPressed = false),
@@ -224,7 +225,8 @@ class _ModernFABState extends State<ModernFAB> {
         ),
         decoration: BoxDecoration(
           color: _isPressed
-              ? (widget.backgroundColor ?? colors.primary).withValues(alpha: 0.9)
+              ? (widget.backgroundColor ?? colors.primary)
+                  .withValues(alpha: 0.9)
               : widget.backgroundColor ?? colors.primary,
           borderRadius: BorderRadius.circular(8),
         ),

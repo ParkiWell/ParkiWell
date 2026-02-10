@@ -20,17 +20,20 @@ class _IntroScreenState extends State<IntroScreen> {
     _IntroPage(
       icon: Icons.bar_chart_outlined,
       title: 'Track Symptoms',
-      description: 'Log symptoms and medications to understand patterns and share insights with your care team.',
+      description:
+          'Log symptoms and medications to understand patterns and share insights with your care team.',
     ),
     _IntroPage(
       icon: Icons.mic_outlined,
       title: 'Speech Therapy',
-      description: 'Video-guided exercises from certified therapists to improve voice clarity and communication.',
+      description:
+          'Video-guided exercises from certified therapists to improve voice clarity and communication.',
     ),
     _IntroPage(
       icon: Icons.directions_walk_outlined,
       title: 'Physical Exercises',
-      description: 'Evidence-based workouts to improve balance, flexibility, and mobility.',
+      description:
+          'Evidence-based workouts to improve balance, flexibility, and mobility.',
     ),
   ];
 
@@ -81,7 +84,7 @@ class _IntroScreenState extends State<IntroScreen> {
                   onPressed: _skip,
                   child: Text(
                     'Skip',
-                    style: GoogleFonts.inter(
+                    style: GoogleFonts.plusJakartaSans(
                       color: colors.textTertiary,
                       fontWeight: FontWeight.w400,
                       fontSize: 14,
@@ -137,8 +140,10 @@ class _IntroScreenState extends State<IntroScreen> {
                     padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
                   child: Text(
-                    _currentPage == _pages.length - 1 ? 'Get Started' : 'Continue',
-                    style: GoogleFonts.inter(
+                    _currentPage == _pages.length - 1
+                        ? 'Get Started'
+                        : 'Continue',
+                    style: GoogleFonts.plusJakartaSans(
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
                     ),
@@ -178,7 +183,7 @@ class _IntroScreenState extends State<IntroScreen> {
           // Title
           Text(
             page.title,
-            style: GoogleFonts.inter(
+            style: GoogleFonts.plusJakartaSans(
               fontSize: 24,
               fontWeight: FontWeight.w600,
               color: colors.textPrimary,
@@ -191,7 +196,7 @@ class _IntroScreenState extends State<IntroScreen> {
           // Description
           Text(
             page.description,
-            style: GoogleFonts.inter(
+            style: GoogleFonts.plusJakartaSans(
               fontSize: 15,
               fontWeight: FontWeight.w400,
               color: colors.textSecondary,

@@ -58,7 +58,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                   ),
                 ),
                 const SizedBox(height: 20),
-                
+
                 // Header
                 Text(
                   name(index),
@@ -74,7 +74,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                       ),
                 ),
                 const SizedBox(height: 20),
-                
+
                 // Details
                 _DetailRow(
                   label: 'Details',
@@ -88,7 +88,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                   colors: colors,
                 ),
                 const SizedBox(height: 24),
-                
+
                 // Actions
                 Row(
                   children: [
@@ -103,11 +103,12 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                     ModernIconButton(
                       icon: Icons.delete_outline,
                       backgroundColor: colors.error,
-                      onPressed: () {
+                      onPressed: () async {
                         HapticUtils.lightImpact();
-                        singleton.deleteEntireList(index, "schedules");
+                        await singleton.deleteEntireList(index, "schedules");
+                        if (!mounted || !c.mounted) return;
                         Navigator.pop(c);
-                        Navigator.pushNamed(context, '/scheduleScreen');
+                        await Navigator.pushNamed(context, '/scheduleScreen');
                       },
                     ),
                   ],

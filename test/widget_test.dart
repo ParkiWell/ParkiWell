@@ -1,30 +1,147 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
+import 'package:levio/Main/manage.dart';
+import 'package:levio/Main/recovery.dart';
 import 'package:levio/main.dart';
+import 'package:levio/navbar.dart';
+import 'package:levio/routes.dart';
+import 'package:levio/screens/splash_screen.dart';
+import 'package:levio/singleton.dart';
+import 'package:levio/theme/app_theme.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  late Singleton singleton;
+
+  Future<void> pumpTestApp(
+    WidgetTester tester, {
+    required Widget home,
+  }) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme(),
+        darkTheme: AppTheme.darkTheme(),
+        themeMode: ThemeMode.light,
+        routes: namedRoutes,
+        home: home,
+      ),
+    );
+  }
+
+  setUpAll(() async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    singleton = Singleton();
+  });
+
+  setUp(() {
+    singleton.log.clear();
+    singleton.logIDs.clear();
+    singleton.schedule.clear();
+    singleton.scheduleIDs.clear();
+    singleton.name = '[Name]';
+    singleton.email = '[Email]';
+    singleton.firstTime = true;
+    singleton.page = 0;
+    singleton.currentURL = '';
+    singleton.exerNum = 0;
+    singleton.postNum = 0;
+  });
+
+  testWidgets('Enhanced splash renders branded UI elements', (tester) async {
+    await pumpTestApp(
+      tester,
+      home: SplashScreen(
+        onComplete: () {},
+      ),
+    );
+
+    expect(find.text('Levio'), findsOneWidget);
+    expect(find.text('Preparing your care workspace'), findsOneWidget);
+    expect(find.text('Personalized Parkinson\'s care,\norganized every day.'),
+        findsOneWidget);
+
+    // Flush the delayed start timer used by splash animation bootstrap.
+    await tester.pump(const Duration(milliseconds: 200));
+  });
+
+  testWidgets('App starts on splash for first-time users', (tester) async {
     await tester.pumpWidget(const MyApp());
+    expect(find.text('Preparing your care workspace'), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 200));
+  });
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+  test('Named routes contain all feature entry points', () {
+    expect(
+      namedRoutes.keys,
+      containsAll(<String>{
+        '/editLogScreen',
+        '/editScheduleScreen',
+        '/logScreen',
+        '/scheduleScreen',
+        '/exerciseScreen',
+        '/exerciseVideoScreen',
+        '/speechAudio',
+        '/gamesScreen',
+        '/speechScreen',
+        '/settingsScreen',
+      }),
+    );
+  });
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+  test('Log sorting keeps log IDs aligned with entries', () {
+    singleton.log.addAll(<List<String>>[
+      <String>['09:00, 01 January 2024', 'Tremor', 'Mild'],
+      <String>['10:00, 05 January 2024', 'Balance', 'Moderate'],
+    ]);
+    singleton.logIDs.addAll(<String>['id-old', 'id-new']);
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    singleton.sortTime(descending: true);
+
+    expect(singleton.log.first[1], equals('Balance'));
+    expect(singleton.logIDs.first, equals('id-new'));
+    expect(singleton.log.last[1], equals('Tremor'));
+    expect(singleton.logIDs.last, equals('id-old'));
+  });
+
+  test('Medication aggregation calculates daily totals', () {
+    singleton.schedule.addAll(<List<String>>[
+      <String>['Levodopa', '100mg', 'Everyday'],
+      <String>['Carbidopa', '25mg', 'Every Monday, Wednesday, Friday'],
+    ]);
+
+    singleton.calcMeds();
+
+    expect(singleton.medsPerDay['Monday'], equals(2));
+    expect(singleton.medsPerDay['Tuesday'], equals(1));
+    expect(singleton.medsPerDay['Wednesday'], equals(2));
+    expect(singleton.medsPerDay['Friday'], equals(2));
+    expect(singleton.medsPerDay['Sunday'], equals(1));
+  });
+
+  testWidgets('Manage and recovery screens expose core feature cards', (
+    tester,
+  ) async {
+    await pumpTestApp(tester, home: const ManageScreen());
+    expect(find.text('Symptom Log'), findsOneWidget);
+    expect(find.text('Medications'), findsOneWidget);
+
+    await pumpTestApp(tester, home: const RecoveryScreen());
+    expect(find.text('Speech Therapy'), findsOneWidget);
+    expect(find.text('Physical Exercises'), findsOneWidget);
+  });
+
+  testWidgets('Navbar renders all primary tabs', (tester) async {
+    singleton.firstTime = false;
+    singleton.name = 'Test User';
+
+    await pumpTestApp(tester, home: const Navbar());
+
+    expect(find.text('Home'), findsWidgets);
+    expect(find.text('Manage'), findsWidgets);
+    expect(find.text('Recovery'), findsWidgets);
+    expect(find.text('Community'), findsWidgets);
+    expect(find.text('Profile'), findsWidgets);
   });
 }

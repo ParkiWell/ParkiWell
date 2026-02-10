@@ -107,15 +107,20 @@ Create these environments in Settings > Environments:
 7. Verify draft release in GitHub Releases
 8. Edit release notes and publish
 
-## Firebase Environments
+## Backend Environments (Supabase)
 
-Create separate Firebase projects for each environment:
+For cloud sync, create separate Supabase projects:
 
 - `levio-dev` - Development
 - `levio-staging` - Staging
 - `levio-prod` - Production
 
-Configure each with appropriate Firebase options files:
-- `lib/Firebase/firebase_options_dev.dart`
-- `lib/Firebase/firebase_options_staging.dart`
-- `lib/Firebase/firebase_options_prod.dart`
+Set environment-specific Dart defines in your build and run commands:
+
+```bash
+--dart-define=BACKEND_PROVIDER=supabase \
+--dart-define=SUPABASE_URL=... \
+--dart-define=SUPABASE_ANON_KEY=...
+```
+
+When these values are not provided, Levio runs in local-only mode (SQLite on-device).
