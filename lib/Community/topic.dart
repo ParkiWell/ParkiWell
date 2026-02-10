@@ -12,6 +12,15 @@ class TopicScreen extends StatefulWidget {
 class _TopicScreenState extends State<TopicScreen> {
   String image = "images/711128.png";
 
+  void _showLegacyNotice() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('This legacy topic view is read-only.'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -56,7 +65,7 @@ class _TopicScreenState extends State<TopicScreen> {
                                   iconSize: 15,
                                   icon: const Icon(Icons.thumb_up_rounded),
                                   color: Colors.black,
-                                  onPressed: () {}),
+                                  onPressed: _showLegacyNotice),
                             ],
                           ),
                           const Text(
@@ -158,13 +167,13 @@ class _TopicScreenState extends State<TopicScreen> {
                                           icon: const Icon(Icons.add),
                                           //When the add icon is pressed, the user can add comments to the original response
                                           color: Colors.black,
-                                          onPressed: () {}),
+                                          onPressed: _showLegacyNotice),
                                       const SizedBox(height: 5),
                                       IconButton(
                                           iconSize: 20,
                                           icon: const Icon(Icons.arrow_forward),
                                           color: Colors.black,
-                                          onPressed: () {}),
+                                          onPressed: _showLegacyNotice),
                                     ]),
                               ],
                             ),
@@ -182,6 +191,6 @@ class _TopicScreenState extends State<TopicScreen> {
                 icon: const Icon(Icons.add),
                 color: Colors.white,
                 //When this add button is pressed, the user can add a new response to the topic.
-                onPressed: () async {})));
+                onPressed: _showLegacyNotice)));
   }
 }

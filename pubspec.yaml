@@ -35,12 +35,9 @@ dependencies:
   cupertino_icons: ^1.0.2
   shared_preferences: ^2.2.2
   uuid: ^4.0.0
-  path: ^1.8.3
   
-  # Database & Storage (Production-grade)
-  sqflite: ^2.3.0
-  flutter_secure_storage: ^9.2.2
-  crypto: ^3.0.3
+  # Cloud Backend
+  supabase_flutter: ^2.9.1
   
   # Content Moderation (Production-grade)
   profanity_filter: ^2.0.0
@@ -52,18 +49,19 @@ dependencies:
   google_fonts: ^6.1.0
   flutter_animate: ^4.5.0
   shimmer: ^3.0.0
-  cached_network_image: ^3.3.1
   
   # Media
   youtube_player_iframe: ^4.0.4
   audioplayers: ^5.2.1
+  video_player: ^2.9.2
+  url_launcher: ^6.3.1
+  share_plus: ^11.1.0
   
   # Utilities
   terminate_restart: ^1.0.11
   logger: ^2.4.0
   connectivity_plus: ^6.0.5
   package_info_plus: ^8.0.2
-  supabase_flutter: ^2.9.1
 
 dependency_overrides:
   win32: ^5.5.0
@@ -196,8 +194,6 @@ flutter_native_splash:
 # The following section is specific to Flutter packages.
 flutter:
   assets:
-    - images/ecddfe31-e5bf-4385-ba75-64b241852e0b.png
-    - images/GOLD-6487-CareerGuide-Batch04-Images-GraphCharts-01-Line.jpg
     - images/711128.png
     - images/logo.png
     - images/app_icon.png

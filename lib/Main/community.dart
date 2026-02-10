@@ -1,5 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../theme/app_theme.dart';
 import '../widgets/modern_card.dart';
 import '../singleton.dart';
@@ -8,23 +10,27 @@ import '../utils/haptic_utils.dart';
 // Data models for community features
 class CommunityPost {
   final String id;
+  final String authorId;
   final String authorName;
   final String authorImage;
-  final String content;
+  String content;
   final DateTime timestamp;
-  final String? category;
+  String? category;
   int likes;
+  int commentCount;
   bool isLiked;
   final List<PostComment> comments;
 
   CommunityPost({
     required this.id,
+    required this.authorId,
     required this.authorName,
     required this.authorImage,
     required this.content,
     required this.timestamp,
     this.category,
     this.likes = 0,
+    this.commentCount = 0,
     this.isLiked = false,
     List<PostComment>? comments,
   }) : comments = comments ?? [];
@@ -105,12 +111,21 @@ class _CommunityScreenState extends State<CommunityScreen>
     ),
   ];
   bool _isLoadingFeed = true;
+  bool _isLoadingGroups = true;
+  final List<String> _postCategories = const <String>[
+    'General',
+    'Exercise Tips',
+    'Speech Therapy',
+    'Daily Living',
+    'Questions',
+  ];
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
     _loadFeedData();
+    _loadGroupMemberships();
   }
 
   DateTime _parseTimestamp(dynamic value) {
@@ -125,25 +140,163 @@ class _CommunityScreenState extends State<CommunityScreen>
     if (!mounted) return;
     setState(() => _isLoadingFeed = true);
 
-    final rawPosts = await singleton.loadCommunityPosts(limit: 100);
+    try {
+      final rawPosts = await singleton.loadCommunityPosts(limit: 100);
+      final posts = rawPosts.map((row) {
+        return CommunityPost(
+          id: row['id']?.toString() ?? '',
+          authorId: row['user_id']?.toString() ?? '',
+          authorName: row['user_name']?.toString() ?? 'Community Member',
+          authorImage: row['profile_image']?.toString() ?? 'images/711128.png',
+          content: row['content']?.toString() ?? '',
+          timestamp: _parseTimestamp(row['created_at']),
+          category: row['category']?.toString(),
+          likes: (row['likes'] as num?)?.toInt() ?? 0,
+          commentCount: (row['comment_count'] as num?)?.toInt() ?? 0,
+          isLiked: row['liked_by_me'] == true,
+        );
+      }).toList();
 
-    final posts = rawPosts.map((row) {
-      return CommunityPost(
-        id: row['id']?.toString() ?? '',
-        authorName: row['user_name']?.toString() ?? 'Community Member',
-        authorImage: row['profile_image']?.toString() ?? 'images/711128.png',
-        content: row['content']?.toString() ?? '',
-        timestamp: _parseTimestamp(row['created_at']),
-        category: row['category']?.toString(),
-        likes: (row['likes'] as num?)?.toInt() ?? 0,
+      if (!mounted) return;
+      setState(() {
+        _posts = posts;
+        _isLoadingFeed = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _isLoadingFeed = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Unable to load community feed right now.'),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+        ),
       );
-    }).toList();
+    }
+  }
+
+  Future<void> _refreshFeed() async {
+    await _loadFeedData();
+  }
+
+  Future<void> _loadGroupMemberships() async {
+    if (!mounted) return;
+    setState(() => _isLoadingGroups = true);
+
+    try {
+      final joinedIds = await singleton.loadJoinedCommunityGroups();
+      if (!mounted) return;
+
+      setState(() {
+        for (final group in _groups) {
+          group.isJoined = joinedIds.contains(group.id);
+        }
+        _isLoadingGroups = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _isLoadingGroups = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Unable to load groups right now.'),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+        ),
+      );
+    }
+  }
+
+  Future<void> _refreshGroups() async {
+    await _loadGroupMemberships();
+  }
+
+  Future<void> _toggleGroupMembership(SupportGroup group) async {
+    final targetState = !group.isJoined;
+    setState(() => group.isJoined = targetState);
+
+    final updated = await singleton.setCommunityGroupMembership(
+      groupId: group.id,
+      isJoined: targetState,
+    );
 
     if (!mounted) return;
-    setState(() {
-      _posts = posts;
-      _isLoadingFeed = false;
-    });
+    if (updated) {
+      HapticUtils.lightImpact();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content:
+              Text(targetState ? 'Joined ${group.name}' : 'Left ${group.name}'),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+        ),
+      );
+      return;
+    }
+
+    setState(() => group.isJoined = !targetState);
+    final error = singleton.consumeLastCommunityError() ??
+        'Unable to update group right now.';
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(error),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+      ),
+    );
+  }
+
+  Future<void> _sharePost(CommunityPost post) async {
+    try {
+      await SharePlus.instance.share(
+        ShareParams(
+          text: '${post.content}\n\nShared from Levio Community',
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Unable to share this post right now.'),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+        ),
+      );
+    }
+  }
+
+  Future<void> _openExternalResource({
+    required String title,
+    required String url,
+    LaunchMode mode = LaunchMode.externalApplication,
+  }) async {
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: mode);
+      return;
+    }
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Unable to open $title right now.'),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+      ),
+    );
+  }
+
+  Future<void> _openHelplineResource() async {
+    const number = '+18004734636';
+    final callUri = Uri.parse('tel:$number');
+    if (await canLaunchUrl(callUri)) {
+      await launchUrl(callUri);
+      return;
+    }
+
+    await _openExternalResource(
+      title: 'Helpline',
+      url: 'https://www.parkinson.org/resources-support',
+    );
   }
 
   Future<void> _loadCommentsForPost(CommunityPost post) async {
@@ -152,7 +305,7 @@ class _CommunityScreenState extends State<CommunityScreen>
       return PostComment(
         id: row['id']?.toString() ?? '',
         authorName: row['user_name']?.toString() ?? 'Member',
-        authorImage: singleton.image,
+        authorImage: row['profile_image']?.toString() ?? 'images/711128.png',
         content: row['content']?.toString() ?? '',
         timestamp: _parseTimestamp(row['created_at']),
       );
@@ -163,6 +316,7 @@ class _CommunityScreenState extends State<CommunityScreen>
       post.comments
         ..clear()
         ..addAll(mapped);
+      post.commentCount = mapped.length;
     });
   }
 
@@ -182,13 +336,6 @@ class _CommunityScreenState extends State<CommunityScreen>
     final colors = context.colors;
     final textController = TextEditingController();
     String? selectedCategory;
-    final categories = [
-      'General',
-      'Exercise Tips',
-      'Speech Therapy',
-      'Daily Living',
-      'Questions'
-    ];
 
     showModalBottomSheet(
       context: context,
@@ -232,10 +379,10 @@ class _CommunityScreenState extends State<CommunityScreen>
                   height: 32,
                   child: ListView.separated(
                     scrollDirection: Axis.horizontal,
-                    itemCount: categories.length,
+                    itemCount: _postCategories.length,
                     separatorBuilder: (_, __) => const SizedBox(width: 6),
                     itemBuilder: (context, index) {
-                      final cat = categories[index];
+                      final cat = _postCategories[index];
                       final isSelected = selectedCategory == cat;
                       return GestureDetector(
                         onTap: () =>
@@ -324,10 +471,12 @@ class _CommunityScreenState extends State<CommunityScreen>
                               ),
                             );
                           } else {
+                            final errorMessage =
+                                singleton.consumeLastCommunityError() ??
+                                    'Unable to share post.';
                             messenger.showSnackBar(
                               SnackBar(
-                                content: const Text(
-                                    'Unable to share post. Complete profile setup first.'),
+                                content: Text(errorMessage),
                                 behavior: SnackBarBehavior.floating,
                                 shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(6)),
@@ -349,6 +498,249 @@ class _CommunityScreenState extends State<CommunityScreen>
           ),
         ),
       ),
+    );
+  }
+
+  bool _isOwnPost(CommunityPost post) {
+    final uid = singleton.cloudSessionUserId;
+    if (uid == null || uid.isEmpty) return false;
+    return post.authorId == uid;
+  }
+
+  void _showEditPostSheet(CommunityPost post) {
+    final colors = context.colors;
+    final textController = TextEditingController(text: post.content);
+    String? selectedCategory = post.category;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setModalState) => Container(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(ctx).viewInsets.bottom,
+          ),
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 32,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: colors.border,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'Edit Post',
+                  style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  height: 32,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _postCategories.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 6),
+                    itemBuilder: (context, index) {
+                      final category = _postCategories[index];
+                      final isSelected = selectedCategory == category;
+                      return GestureDetector(
+                        onTap: () {
+                          setModalState(() => selectedCategory = category);
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? colors.primary
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(
+                              color:
+                                  isSelected ? colors.primary : colors.border,
+                            ),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            category,
+                            style: TextStyle(
+                              color: isSelected
+                                  ? Colors.white
+                                  : colors.textSecondary,
+                              fontWeight: FontWeight.w500,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: textController,
+                  maxLines: 4,
+                  decoration: InputDecoration(
+                    hintText: 'Update your post...',
+                    hintStyle: TextStyle(color: colors.textTertiary),
+                    filled: true,
+                    fillColor: colors.surfaceVariant,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        child: Text(
+                          'Cancel',
+                          style: TextStyle(color: colors.textSecondary),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () async {
+                          final updatedContent = textController.text.trim();
+                          if (updatedContent.isEmpty) return;
+
+                          final messenger = ScaffoldMessenger.of(context);
+                          final success = await singleton.updateCommunityPost(
+                            postId: post.id,
+                            content: updatedContent,
+                            category: selectedCategory,
+                          );
+                          if (!mounted || !ctx.mounted) return;
+                          if (!success) {
+                            final error =
+                                singleton.consumeLastCommunityError() ??
+                                    'Unable to update post.';
+                            messenger.showSnackBar(
+                              SnackBar(
+                                content: Text(error),
+                                behavior: SnackBarBehavior.floating,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                              ),
+                            );
+                            return;
+                          }
+
+                          setState(() {
+                            post.content = updatedContent;
+                            post.category = selectedCategory;
+                          });
+
+                          Navigator.pop(ctx);
+                          messenger.showSnackBar(
+                            SnackBar(
+                              content: const Text('Post updated'),
+                              behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                            ),
+                          );
+                        },
+                        child: const Text('Save'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showDeletePostDialog(CommunityPost post) {
+    final colors = context.colors;
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Delete Post'),
+          content: Text(
+            'Delete this post permanently?',
+            style: Theme.of(ctx).textTheme.bodyMedium?.copyWith(
+                  color: colors.textSecondary,
+                ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(
+                'Cancel',
+                style: TextStyle(color: colors.textSecondary),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.pop(ctx);
+                final messenger = ScaffoldMessenger.of(context);
+                final deleted = await singleton.deleteCommunityPost(post.id);
+                if (!mounted) return;
+                if (!deleted) {
+                  final error = singleton.consumeLastCommunityError() ??
+                      'Unable to delete post.';
+                  messenger.showSnackBar(
+                    SnackBar(
+                      content: Text(error),
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                    ),
+                  );
+                  return;
+                }
+
+                setState(() {
+                  _posts.removeWhere((p) => p.id == post.id);
+                });
+                messenger.showSnackBar(
+                  SnackBar(
+                    content: const Text('Post deleted'),
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                  ),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: colors.error,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -397,6 +789,84 @@ class _CommunityScreenState extends State<CommunityScreen>
     );
   }
 
+  bool _isDefaultAvatar(String imagePath) {
+    return imagePath.isEmpty ||
+        imagePath == 'images/711128.png' ||
+        imagePath.contains('711128');
+  }
+
+  Widget _buildAvatar({
+    required String imagePath,
+    required String fallbackLabel,
+    required double size,
+    required Color backgroundColor,
+    required Color textColor,
+  }) {
+    final isDefault = _isDefaultAvatar(imagePath);
+    if (isDefault) {
+      return CircleAvatar(
+        radius: size / 2,
+        backgroundColor: backgroundColor,
+        child: Text(
+          fallbackLabel,
+          style: TextStyle(
+            color: textColor,
+            fontWeight: FontWeight.bold,
+            fontSize: size * 0.4,
+          ),
+        ),
+      );
+    }
+
+    if (imagePath.startsWith('images/')) {
+      return CircleAvatar(
+        radius: size / 2,
+        backgroundColor: backgroundColor,
+        child: ClipOval(
+          child: Image.asset(
+            imagePath,
+            width: size,
+            height: size,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => Center(
+              child: Text(
+                fallbackLabel,
+                style: TextStyle(
+                  color: textColor,
+                  fontWeight: FontWeight.bold,
+                  fontSize: size * 0.4,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return CircleAvatar(
+      radius: size / 2,
+      backgroundColor: backgroundColor,
+      child: ClipOval(
+        child: Image.file(
+          File(imagePath),
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => Center(
+            child: Text(
+              fallbackLabel,
+              style: TextStyle(
+                color: textColor,
+                fontWeight: FontWeight.bold,
+                fontSize: size * 0.4,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildFeedTab(AppColors colors) {
     return Column(
       children: [
@@ -439,14 +909,31 @@ class _CommunityScreenState extends State<CommunityScreen>
                   child: CircularProgressIndicator(color: colors.primary),
                 )
               : _posts.isEmpty
-                  ? _buildEmptyFeedState(colors)
-                  : ListView.separated(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      physics: const BouncingScrollPhysics(),
-                      itemCount: _posts.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 12),
-                      itemBuilder: (context, index) =>
-                          _buildPostCard(_posts[index], colors),
+                  ? RefreshIndicator(
+                      onRefresh: _refreshFeed,
+                      child: ListView(
+                        physics: const AlwaysScrollableScrollPhysics(
+                          parent: BouncingScrollPhysics(),
+                        ),
+                        children: [
+                          const SizedBox(height: 80),
+                          _buildEmptyFeedState(colors),
+                          const SizedBox(height: 24),
+                        ],
+                      ),
+                    )
+                  : RefreshIndicator(
+                      onRefresh: _refreshFeed,
+                      child: ListView.separated(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        physics: const AlwaysScrollableScrollPhysics(
+                          parent: BouncingScrollPhysics(),
+                        ),
+                        itemCount: _posts.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 12),
+                        itemBuilder: (context, index) =>
+                            _buildPostCard(_posts[index], colors),
+                      ),
                     ),
         ),
       ],
@@ -454,141 +941,42 @@ class _CommunityScreenState extends State<CommunityScreen>
   }
 
   Widget _buildUserAvatar(double size, AppColors colors) {
-    final hasCustomImage = singleton.image.isNotEmpty &&
-        singleton.image != 'images/711128.png' &&
-        !singleton.image.contains('711128');
-
-    if (hasCustomImage && singleton.image.startsWith('images/')) {
-      return CircleAvatar(
-        radius: size / 2,
-        backgroundColor: colors.primary.withValues(alpha: 0.1),
-        backgroundImage: AssetImage(singleton.image),
-      );
-    }
-
-    if (hasCustomImage && File(singleton.image).existsSync()) {
-      return CircleAvatar(
-        radius: size / 2,
-        backgroundColor: colors.primary.withValues(alpha: 0.1),
-        backgroundImage: FileImage(File(singleton.image)),
-      );
-    }
-
-    return CircleAvatar(
-      radius: size / 2,
+    final fallback = singleton.name.isNotEmpty && singleton.name != '[Name]'
+        ? singleton.name[0].toUpperCase()
+        : 'U';
+    return _buildAvatar(
+      imagePath: singleton.image,
+      fallbackLabel: fallback,
+      size: size,
       backgroundColor: colors.primary.withValues(alpha: 0.1),
-      child: Text(
-        singleton.name.isNotEmpty && singleton.name != '[Name]'
-            ? singleton.name[0].toUpperCase()
-            : 'U',
-        style: TextStyle(
-          color: colors.primary,
-          fontWeight: FontWeight.bold,
-          fontSize: size * 0.4,
-        ),
-      ),
+      textColor: colors.primary,
     );
   }
 
   Widget _buildPostAuthorAvatar(
       CommunityPost post, double size, AppColors colors) {
-    final hasCustomImage = post.authorImage.isNotEmpty &&
-        post.authorImage != 'images/711128.png' &&
-        !post.authorImage.contains('711128');
-
-    if (hasCustomImage) {
-      if (post.authorImage.startsWith('images/')) {
-        return CircleAvatar(
-          radius: size / 2,
-          backgroundColor: colors.primary.withValues(alpha: 0.1),
-          backgroundImage: AssetImage(post.authorImage),
-        );
-      }
-      if (!File(post.authorImage).existsSync()) {
-        return CircleAvatar(
-          radius: size / 2,
-          backgroundColor: colors.primary.withValues(alpha: 0.1),
-          child: Text(
-            post.authorName.isNotEmpty ? post.authorName[0].toUpperCase() : 'U',
-            style: TextStyle(
-              color: colors.primary,
-              fontWeight: FontWeight.bold,
-              fontSize: size * 0.4,
-            ),
-          ),
-        );
-      }
-      return CircleAvatar(
-        radius: size / 2,
-        backgroundColor: colors.primary.withValues(alpha: 0.1),
-        backgroundImage: FileImage(File(post.authorImage)),
-      );
-    }
-
-    return CircleAvatar(
-      radius: size / 2,
+    final fallback =
+        post.authorName.isNotEmpty ? post.authorName[0].toUpperCase() : 'U';
+    return _buildAvatar(
+      imagePath: post.authorImage,
+      fallbackLabel: fallback,
+      size: size,
       backgroundColor: colors.primary.withValues(alpha: 0.1),
-      child: Text(
-        post.authorName.isNotEmpty ? post.authorName[0].toUpperCase() : 'U',
-        style: TextStyle(
-          color: colors.primary,
-          fontWeight: FontWeight.bold,
-          fontSize: size * 0.4,
-        ),
-      ),
+      textColor: colors.primary,
     );
   }
 
   Widget _buildCommentAuthorAvatar(
       PostComment comment, double size, AppColors colors) {
-    final hasCustomImage = comment.authorImage.isNotEmpty &&
-        comment.authorImage != 'images/711128.png' &&
-        !comment.authorImage.contains('711128');
-
-    if (hasCustomImage) {
-      if (comment.authorImage.startsWith('images/')) {
-        return CircleAvatar(
-          radius: size / 2,
-          backgroundColor: colors.surfaceVariant,
-          backgroundImage: AssetImage(comment.authorImage),
-        );
-      }
-      if (!File(comment.authorImage).existsSync()) {
-        return CircleAvatar(
-          radius: size / 2,
-          backgroundColor: colors.surfaceVariant,
-          child: Text(
-            comment.authorName.isNotEmpty
-                ? comment.authorName[0].toUpperCase()
-                : 'U',
-            style: TextStyle(
-              color: colors.textSecondary,
-              fontWeight: FontWeight.bold,
-              fontSize: size * 0.4,
-            ),
-          ),
-        );
-      }
-      return CircleAvatar(
-        radius: size / 2,
-        backgroundColor: colors.surfaceVariant,
-        backgroundImage: FileImage(File(comment.authorImage)),
-      );
-    }
-
-    return CircleAvatar(
-      radius: size / 2,
+    final fallback = comment.authorName.isNotEmpty
+        ? comment.authorName[0].toUpperCase()
+        : 'U';
+    return _buildAvatar(
+      imagePath: comment.authorImage,
+      fallbackLabel: fallback,
+      size: size,
       backgroundColor: colors.surfaceVariant,
-      child: Text(
-        comment.authorName.isNotEmpty
-            ? comment.authorName[0].toUpperCase()
-            : 'U',
-        style: TextStyle(
-          color: colors.textSecondary,
-          fontWeight: FontWeight.bold,
-          fontSize: size * 0.4,
-        ),
-      ),
+      textColor: colors.textSecondary,
     );
   }
 
@@ -660,7 +1048,7 @@ class _CommunityScreenState extends State<CommunityScreen>
                   ],
                 ),
               ),
-              if (post.category != null)
+              if (post.category != null) ...[
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -676,6 +1064,37 @@ class _CommunityScreenState extends State<CommunityScreen>
                       fontWeight: FontWeight.w500,
                     ),
                   ),
+                ),
+                const SizedBox(width: 4),
+              ],
+              if (_isOwnPost(post))
+                PopupMenuButton<String>(
+                  icon: Icon(
+                    Icons.more_horiz,
+                    size: 20,
+                    color: colors.textTertiary,
+                  ),
+                  onSelected: (value) {
+                    if (value == 'edit') {
+                      HapticUtils.lightImpact();
+                      _showEditPostSheet(post);
+                      return;
+                    }
+                    if (value == 'delete') {
+                      HapticUtils.lightImpact();
+                      _showDeletePostDialog(post);
+                    }
+                  },
+                  itemBuilder: (_) => const [
+                    PopupMenuItem<String>(
+                      value: 'edit',
+                      child: Text('Edit'),
+                    ),
+                    PopupMenuItem<String>(
+                      value: 'delete',
+                      child: Text('Delete'),
+                    ),
+                  ],
                 ),
             ],
           ),
@@ -701,8 +1120,19 @@ class _CommunityScreenState extends State<CommunityScreen>
                 label: post.likes.toString(),
                 color: post.isLiked ? colors.error : colors.textSecondary,
                 onTap: () async {
-                  if (post.isLiked) return;
-                  HapticUtils.lightImpact();
+                  if (post.isLiked) {
+                    HapticUtils.lightImpact();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: const Text('You already liked this post.'),
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(6)),
+                      ),
+                    );
+                    return;
+                  }
+                  HapticUtils.success();
                   final liked = await singleton.likeCommunityPost(post.id);
                   if (!mounted) return;
                   if (liked) {
@@ -710,13 +1140,24 @@ class _CommunityScreenState extends State<CommunityScreen>
                       post.isLiked = true;
                       post.likes += 1;
                     });
+                  } else {
+                    final error = singleton.consumeLastCommunityError() ??
+                        'Unable to like post.';
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(error),
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(6)),
+                      ),
+                    );
                   }
                 },
               ),
               const SizedBox(width: 24),
               _buildActionButton(
                 icon: Icons.chat_bubble_outline_rounded,
-                label: post.comments.length.toString(),
+                label: post.commentCount.toString(),
                 color: colors.textSecondary,
                 onTap: () => _openCommentsSheet(post),
               ),
@@ -725,16 +1166,9 @@ class _CommunityScreenState extends State<CommunityScreen>
                 icon: Icons.share_outlined,
                 label: 'Share',
                 color: colors.textSecondary,
-                onTap: () {
+                onTap: () async {
                   HapticUtils.lightImpact();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: const Text('Sharing coming soon!'),
-                      behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                    ),
-                  );
+                  await _sharePost(post);
                 },
               ),
             ],
@@ -972,9 +1406,12 @@ class _CommunityScreenState extends State<CommunityScreen>
                         );
                         if (!mounted || !ctx.mounted) return;
                         if (!success) {
+                          final errorMessage =
+                              singleton.consumeLastCommunityError() ??
+                                  'Unable to add comment.';
                           messenger.showSnackBar(
                             SnackBar(
-                              content: const Text('Unable to add comment'),
+                              content: Text(errorMessage),
                               behavior: SnackBarBehavior.floating,
                               shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(6)),
@@ -1009,47 +1446,69 @@ class _CommunityScreenState extends State<CommunityScreen>
   }
 
   Widget _buildGroupsTab(AppColors colors) {
+    if (_isLoadingGroups) {
+      return Center(child: CircularProgressIndicator(color: colors.primary));
+    }
+
     if (_groups.isEmpty) {
-      return _buildEmptyGroupsState(colors);
+      return RefreshIndicator(
+        onRefresh: _refreshGroups,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(
+            parent: BouncingScrollPhysics(),
+          ),
+          children: [
+            const SizedBox(height: 80),
+            _buildEmptyGroupsState(colors),
+            const SizedBox(height: 24),
+          ],
+        ),
+      );
     }
 
     final joinedGroups = _groups.where((g) => g.isJoined).toList();
     final availableGroups = _groups.where((g) => !g.isJoined).toList();
 
-    return ListView(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      children: [
-        if (joinedGroups.isNotEmpty) ...[
-          Text(
-            'Your Groups',
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: colors.textSecondary,
-                  fontWeight: FontWeight.w500,
-                ),
-          ),
-          const SizedBox(height: 12),
-          ...joinedGroups.map((group) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: _buildGroupCard(group, colors),
-              )),
-          const SizedBox(height: 16),
+    return RefreshIndicator(
+      onRefresh: _refreshGroups,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(
+          parent: BouncingScrollPhysics(),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        children: [
+          if (joinedGroups.isNotEmpty) ...[
+            Text(
+              'Your Groups',
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: colors.textSecondary,
+                    fontWeight: FontWeight.w500,
+                  ),
+            ),
+            const SizedBox(height: 12),
+            ...joinedGroups.map((group) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: _buildGroupCard(group, colors),
+                )),
+            const SizedBox(height: 16),
+          ],
+          if (availableGroups.isNotEmpty) ...[
+            Text(
+              'Discover',
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: colors.textSecondary,
+                    fontWeight: FontWeight.w500,
+                  ),
+            ),
+            const SizedBox(height: 12),
+            ...availableGroups.map((group) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: _buildGroupCard(group, colors),
+                )),
+          ],
+          const SizedBox(height: 20),
         ],
-        if (availableGroups.isNotEmpty) ...[
-          Text(
-            'Discover',
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: colors.textSecondary,
-                  fontWeight: FontWeight.w500,
-                ),
-          ),
-          const SizedBox(height: 12),
-          ...availableGroups.map((group) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: _buildGroupCard(group, colors),
-              )),
-        ],
-        const SizedBox(height: 20),
-      ],
+      ),
     );
   }
 
@@ -1087,6 +1546,8 @@ class _CommunityScreenState extends State<CommunityScreen>
   }
 
   Widget _buildGroupCard(SupportGroup group, AppColors colors) {
+    final displayedMemberCount = group.memberCount + (group.isJoined ? 1 : 0);
+
     return ModernCard(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       child: Row(
@@ -1105,7 +1566,7 @@ class _CommunityScreenState extends State<CommunityScreen>
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '${_formatMemberCount(group.memberCount)} members',
+                  '${_formatMemberCount(displayedMemberCount)} members',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: colors.textTertiary,
                       ),
@@ -1115,21 +1576,8 @@ class _CommunityScreenState extends State<CommunityScreen>
           ),
           const SizedBox(width: 12),
           GestureDetector(
-            onTap: () {
-              HapticUtils.lightImpact();
-              setState(() {
-                group.isJoined = !group.isJoined;
-              });
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(group.isJoined
-                      ? 'Joined ${group.name}'
-                      : 'Left ${group.name}'),
-                  behavior: SnackBarBehavior.floating,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(6)),
-                ),
-              );
+            onTap: () async {
+              await _toggleGroupMembership(group);
             },
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -1157,32 +1605,38 @@ class _CommunityScreenState extends State<CommunityScreen>
       {
         'icon': Icons.article_outlined,
         'title': 'Latest Research',
-        'subtitle': 'Recent studies and findings'
+        'subtitle': 'Recent studies and findings',
+        'url': 'https://www.parkinson.org/research',
       },
       {
         'icon': Icons.video_library_outlined,
         'title': 'Educational Videos',
-        'subtitle': 'Learn about symptom management'
+        'subtitle': 'Learn about symptom management',
+        'url': 'https://www.powerforparkinsons.org/youtube',
       },
       {
         'icon': Icons.local_hospital_outlined,
         'title': 'Find Specialists',
-        'subtitle': 'Connect with movement disorder experts'
+        'subtitle': 'Connect with movement disorder experts',
+        'url': 'https://www.parkinson.org/living-with-parkinsons/finding-care',
       },
       {
         'icon': Icons.event_outlined,
         'title': 'Events Calendar',
-        'subtitle': 'Webinars, support groups & meetups'
+        'subtitle': 'Webinars, support groups & meetups',
+        'url': 'https://www.parkinson.org/events',
       },
       {
         'icon': Icons.phone_outlined,
         'title': 'Helpline',
-        'subtitle': '24/7 support available'
+        'subtitle': '24/7 support available',
+        'action': 'helpline',
       },
       {
         'icon': Icons.menu_book_outlined,
         'title': 'Daily Living Guides',
-        'subtitle': 'Daily living resources'
+        'subtitle': 'Daily living resources',
+        'url': 'https://www.parkinson.org/living-with-parkinsons',
       },
     ];
 
@@ -1192,15 +1646,18 @@ class _CommunityScreenState extends State<CommunityScreen>
         ...resources.map((resource) => Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: ModernCard(
-                onTap: () {
+                onTap: () async {
                   HapticUtils.lightImpact();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('${resource['title']} - Coming soon'),
-                      behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(6)),
-                    ),
+                  final action = resource['action'] as String?;
+                  if (action == 'helpline') {
+                    await _openHelplineResource();
+                    return;
+                  }
+                  final url = resource['url'] as String?;
+                  if (url == null || url.isEmpty) return;
+                  await _openExternalResource(
+                    title: resource['title'] as String,
+                    url: url,
                   );
                 },
                 padding:

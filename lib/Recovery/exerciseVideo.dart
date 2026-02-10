@@ -1,6 +1,12 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
-import 'package:youtube_player_iframe/youtube_player_iframe.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:levio/singleton.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:video_player/video_player.dart';
+import 'package:youtube_player_iframe/youtube_player_iframe.dart';
+
 import '../theme/app_theme.dart';
 import '../utils/haptic_utils.dart';
 import '../widgets/modern_button.dart';
@@ -15,9 +21,17 @@ class ExerciseVideo extends StatefulWidget {
 
 class _ExerciseVideoState extends State<ExerciseVideo> {
   final singleton = Singleton();
+  final ImagePicker _picker = ImagePicker();
+
   late YoutubePlayerController _controller;
-  bool recording = false;
-  bool isButtonDisabled = true;
+  VideoPlayerController? _recordingController;
+
+  String? _recordedVideoPath;
+  bool _isRecordingVideo = false;
+
+  bool get _hasRecording => _recordedVideoPath != null;
+  String get _youtubeUrl =>
+      'https://www.youtube.com/watch?v=${singleton.currentURL}';
 
   @override
   void initState() {
@@ -25,258 +39,88 @@ class _ExerciseVideoState extends State<ExerciseVideo> {
     _controller = YoutubePlayerController.fromVideoId(
       videoId: singleton.currentURL,
       autoPlay: false,
-      params: const YoutubePlayerParams(showFullscreenButton: true),
+      params: const YoutubePlayerParams(
+        showFullscreenButton: true,
+        showControls: true,
+      ),
     );
   }
 
   @override
   void dispose() {
+    _recordingController?.dispose();
     _controller.close();
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
+  Future<void> _openInYouTube() async {
+    final uri = Uri.parse(_youtubeUrl);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+      return;
+    }
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Unable to open YouTube link'),
+        backgroundColor: context.colors.error,
+      ),
+    );
+  }
+
+  void _showExerciseText() {
     final colors = context.colors;
     final exerciseData = singleton.exercises[singleton.currentURL];
+    final title = exerciseData != null ? exerciseData[0] : 'Exercise';
+    final description = exerciseData != null ? exerciseData[1] : '';
     final source =
         exerciseData != null && exerciseData.length > 3 ? exerciseData[3] : '';
 
-    return YoutubePlayerScaffold(
-      controller: _controller,
-      aspectRatio: 16 / 9,
-      builder: (context, player) {
-        return Scaffold(
-          appBar: AppBar(
-            leading: IconButton(
-              icon: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: colors.surfaceVariant,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  Icons.arrow_back_rounded,
-                  color: colors.textPrimary,
-                  size: 20,
-                ),
-              ),
-              onPressed: () {
-                HapticUtils.lightImpact();
-                _controller.close();
-                Navigator.pushNamed(context, '/exerciseScreen');
-              },
-            ),
-            title: const Text('Exercise'),
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext c) {
+        return Container(
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
           ),
-          body: SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.all(20),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Title
                 Text(
-                  singleton.exercises[singleton.currentURL]![0],
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
+                  'Exercise Text',
+                  style: Theme.of(c).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  title,
+                  style: Theme.of(c).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
                       ),
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  singleton.exercises[singleton.currentURL]![1],
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  description,
+                  style: Theme.of(c).textTheme.bodySmall?.copyWith(
                         color: colors.textSecondary,
+                        height: 1.5,
                       ),
                 ),
                 if (source.isNotEmpty) ...[
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 10),
                   Text(
                     source,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    style: Theme.of(c).textTheme.bodySmall?.copyWith(
                           color: colors.textTertiary,
                           fontWeight: FontWeight.w600,
                         ),
-                  ),
-                ],
-                const SizedBox(height: 24),
-
-                // Video player
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: player,
-                ),
-                const SizedBox(height: 24),
-
-                // Action buttons
-                if (!recording) ...[
-                  ModernCard(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: colors.info.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Icon(
-                                Icons.tips_and_updates_rounded,
-                                color: colors.info,
-                                size: 24,
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Text(
-                                'Watch the video and follow along at your own pace.',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodyMedium
-                                    ?.copyWith(
-                                      color: colors.textSecondary,
-                                    ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Record button
-                  SizedBox(
-                    width: double.infinity,
-                    child: ModernButton(
-                      text: 'Record Yourself',
-                      icon: Icons.videocam_rounded,
-                      onPressed: () {
-                        HapticUtils.mediumImpact();
-                        setState(() => recording = true);
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // AI Analysis button
-                  SizedBox(
-                    width: double.infinity,
-                    child: ModernButton(
-                      text: 'AI Analysis',
-                      icon: Icons.auto_awesome_rounded,
-                      isOutlined: true,
-                      backgroundColor: isButtonDisabled
-                          ? colors.textTertiary
-                          : colors.primary,
-                      onPressed: isButtonDisabled
-                          ? () {
-                              HapticUtils.lightImpact();
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: const Text(
-                                      'Record yourself first to get AI analysis'),
-                                  behavior: SnackBarBehavior.floating,
-                                  backgroundColor: colors.info,
-                                  shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12)),
-                                ),
-                              );
-                            }
-                          : () {
-                              HapticUtils.mediumImpact();
-                              _showAnalysisDialog();
-                            },
-                    ),
-                  ),
-                ] else ...[
-                  // Recording UI
-                  ModernCard(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      children: [
-                        Container(
-                          width: double.infinity,
-                          height: 200,
-                          decoration: BoxDecoration(
-                            color: colors.surfaceVariant,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(16),
-                                decoration: BoxDecoration(
-                                  color: colors.error.withValues(alpha: 0.1),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Icon(
-                                  Icons.videocam_rounded,
-                                  color: colors.error,
-                                  size: 48,
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Container(
-                                    width: 12,
-                                    height: 12,
-                                    decoration: BoxDecoration(
-                                      color: colors.error,
-                                      shape: BoxShape.circle,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    'Recording...',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleMedium
-                                        ?.copyWith(
-                                          color: colors.error,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: ModernButton(
-                                text: 'Cancel',
-                                isOutlined: true,
-                                onPressed: () {
-                                  HapticUtils.lightImpact();
-                                  setState(() => recording = false);
-                                },
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: ModernButton(
-                                text: 'Save',
-                                icon: Icons.check_rounded,
-                                backgroundColor: colors.success,
-                                onPressed: () {
-                                  HapticUtils.success();
-                                  _showSaveDialog();
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
                   ),
                 ],
               ],
@@ -287,66 +131,75 @@ class _ExerciseVideoState extends State<ExerciseVideo> {
     );
   }
 
-  void _showSaveDialog() {
-    final colors = context.colors;
+  Future<void> _setRecording(String path) async {
+    final previous = _recordingController;
+    final next = VideoPlayerController.file(File(path));
+    await next.initialize();
+    await next.setLooping(true);
 
-    showDialog(
-      context: context,
-      builder: (BuildContext c) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: colors.success.withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.check_rounded,
-                  color: colors.success,
-                  size: 48,
-                ),
-              ),
-              const SizedBox(height: 24),
-              Text(
-                'Video Saved',
-                style: Theme.of(c).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Your recording has been saved. You can now get AI analysis.',
-                style: Theme.of(c).textTheme.bodyMedium?.copyWith(
-                      color: colors.textSecondary,
-                    ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: ModernButton(
-                  text: 'Continue',
-                  onPressed: () {
-                    setState(() {
-                      isButtonDisabled = false;
-                      recording = false;
-                    });
-                    Navigator.pop(c);
-                  },
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
+    if (!mounted) {
+      await next.dispose();
+      return;
+    }
+
+    await previous?.dispose();
+    setState(() {
+      _recordedVideoPath = path;
+      _recordingController = next;
+    });
+  }
+
+  Future<void> _recordVideo() async {
+    if (_isRecordingVideo) return;
+
+    HapticUtils.mediumImpact();
+    setState(() => _isRecordingVideo = true);
+
+    try {
+      final video = await _picker.pickVideo(
+        source: ImageSource.camera,
+        preferredCameraDevice: CameraDevice.front,
+        maxDuration: const Duration(minutes: 3),
+      );
+
+      if (video == null) return;
+
+      await _setRecording(video.path);
+      if (!mounted) return;
+
+      HapticUtils.success();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Recording captured successfully.'),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: context.colors.success,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      HapticUtils.error();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Recording failed: $e'),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: context.colors.error,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isRecordingVideo = false);
+      }
+    }
+  }
+
+  void _clearRecording() {
+    HapticUtils.lightImpact();
+    final controller = _recordingController;
+    setState(() {
+      _recordingController = null;
+      _recordedVideoPath = null;
+    });
+    controller?.dispose();
   }
 
   void _showAnalysisDialog() {
@@ -394,24 +247,240 @@ class _ExerciseVideoState extends State<ExerciseVideo> {
               ),
               const SizedBox(height: 16),
               Text(
-                'Tips for Improvement',
-                style: Theme.of(c).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w600,
+                'Your recording was detected and analyzed successfully.',
+                style: Theme.of(c).textTheme.bodySmall?.copyWith(
+                      color: colors.textSecondary,
                     ),
               ),
-              const SizedBox(height: 12),
-              const _TipItem(text: 'Keep your movements slow and controlled'),
-              const _TipItem(text: 'Focus on full range of motion'),
-              const _TipItem(text: 'Remember to breathe steadily'),
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,
                 child: ModernButton(
-                  text: 'Got It',
+                  text: 'Close',
                   onPressed: () => Navigator.pop(c),
                 ),
               ),
             ],
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final exerciseData = singleton.exercises[singleton.currentURL];
+
+    if (exerciseData == null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Exercise')),
+        body: const Center(child: Text('Video not found')),
+      );
+    }
+
+    final source = exerciseData.length > 3 ? exerciseData[3] : '';
+
+    return YoutubePlayerScaffold(
+      controller: _controller,
+      aspectRatio: 16 / 9,
+      builder: (context, player) {
+        return Scaffold(
+          appBar: AppBar(
+            leading: IconButton(
+              icon: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: colors.surfaceVariant,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.arrow_back_rounded,
+                  color: colors.textPrimary,
+                  size: 20,
+                ),
+              ),
+              onPressed: () {
+                HapticUtils.lightImpact();
+                if (Navigator.of(context).canPop()) {
+                  Navigator.of(context).pop();
+                }
+              },
+            ),
+            title: const Text('Exercise'),
+            actions: [
+              TextButton.icon(
+                onPressed: () {
+                  HapticUtils.lightImpact();
+                  _showExerciseText();
+                },
+                icon:
+                    Icon(Icons.notes_rounded, color: colors.primary, size: 18),
+                label: Text(
+                  'Text',
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: colors.primary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+              ),
+              IconButton(
+                tooltip: 'Open in YouTube',
+                onPressed: () {
+                  HapticUtils.lightImpact();
+                  _openInYouTube();
+                },
+                icon: Icon(
+                  Icons.open_in_new_rounded,
+                  color: colors.textSecondary,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 4),
+            ],
+          ),
+          body: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  exerciseData[0],
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  exerciseData[1],
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: colors.textSecondary,
+                      ),
+                ),
+                if (source.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    source,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: colors.textTertiary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                ],
+                const SizedBox(height: 20),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: player,
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ModernButton(
+                        text: _hasRecording ? 'Re-record' : 'Record Yourself',
+                        icon: Icons.videocam_rounded,
+                        isLoading: _isRecordingVideo,
+                        onPressed: _recordVideo,
+                      ),
+                    ),
+                    if (_hasRecording) ...[
+                      const SizedBox(width: 10),
+                      ModernIconButton(
+                        icon: Icons.delete_outline_rounded,
+                        backgroundColor: colors.error,
+                        onPressed: _clearRecording,
+                      ),
+                    ],
+                  ],
+                ),
+                if (_recordingController != null &&
+                    _recordingController!.value.isInitialized) ...[
+                  const SizedBox(height: 14),
+                  ModernCard(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Your Recording',
+                          style:
+                              Theme.of(context).textTheme.titleSmall?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                        ),
+                        const SizedBox(height: 10),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: AspectRatio(
+                            aspectRatio:
+                                _recordingController!.value.aspectRatio,
+                            child: VideoPlayer(_recordingController!),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: TextButton.icon(
+                            onPressed: () {
+                              HapticUtils.lightImpact();
+                              final controller = _recordingController;
+                              if (controller == null) return;
+                              if (controller.value.isPlaying) {
+                                controller.pause();
+                              } else {
+                                controller.play();
+                              }
+                              setState(() {});
+                            },
+                            icon: Icon(
+                              _recordingController!.value.isPlaying
+                                  ? Icons.pause_rounded
+                                  : Icons.play_arrow_rounded,
+                              size: 18,
+                            ),
+                            label: Text(
+                              _recordingController!.value.isPlaying
+                                  ? 'Pause Preview'
+                                  : 'Play Preview',
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  child: ModernButton(
+                    text: 'AI Analysis',
+                    icon: Icons.auto_awesome_rounded,
+                    isOutlined: !_hasRecording,
+                    onPressed: !_hasRecording
+                        ? () {
+                            HapticUtils.lightImpact();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: const Text(
+                                  'Record yourself first to run AI analysis.',
+                                ),
+                                behavior: SnackBarBehavior.floating,
+                                backgroundColor: colors.info,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            );
+                          }
+                        : () {
+                            HapticUtils.mediumImpact();
+                            _showAnalysisDialog();
+                          },
+                  ),
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -455,44 +524,6 @@ class _AnalysisItem extends StatelessWidget {
                   fontWeight: FontWeight.bold,
                   color: color,
                 ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TipItem extends StatelessWidget {
-  final String text;
-
-  const _TipItem({required this.text});
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            margin: const EdgeInsets.only(top: 6),
-            width: 6,
-            height: 6,
-            decoration: BoxDecoration(
-              color: colors.primary,
-              shape: BoxShape.circle,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              text,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: colors.textSecondary,
-                  ),
-            ),
           ),
         ],
       ),

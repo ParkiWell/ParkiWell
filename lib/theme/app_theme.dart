@@ -2,9 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-// Use Plus Jakarta Sans as the primary font - clean and readable
-TextStyle _fontStyle(double fontSize, FontWeight weight, Color color,
-    {double? letterSpacing, double? height}) {
+TextStyle _fontStyle(
+  double fontSize,
+  FontWeight weight,
+  Color color, {
+  double? letterSpacing,
+  double? height,
+}) {
   return GoogleFonts.plusJakartaSans(
     fontSize: fontSize,
     fontWeight: weight,
@@ -14,113 +18,77 @@ TextStyle _fontStyle(double fontSize, FontWeight weight, Color color,
   );
 }
 
-/// Professional App Theme - Clean, clinical, trustworthy
 class AppTheme {
-  // Professional Light Mode Colors - Healthcare/medical aesthetic
+  // Brighter, friendlier light palette with stronger accent contrast.
   static const lightColors = AppColors(
-    // Primary colors - Professional blue
-    primary: Color(0xFF2563EB), // Blue - trustworthy, professional
-    primaryLight: Color(0xFF3B82F6), // Lighter blue
-    primaryDark: Color(0xFF1D4ED8), // Darker blue
-
-    // Secondary colors - Muted teal for accents
-    secondary: Color(0xFF0891B2), // Cyan - clinical accent
-    secondaryLight: Color(0xFF06B6D4), // Lighter cyan
-    secondaryDark: Color(0xFF0E7490), // Darker cyan
-
-    // Background colors - Clean whites and grays
-    background: Color(0xFFFAFAFA), // Warm white
-    surface: Color(0xFFFFFFFF), // Pure white
-    surfaceVariant: Color(0xFFF5F5F5), // Light gray
-
-    // Text colors - High contrast for readability
-    textPrimary: Color(0xFF171717), // Near black
-    textSecondary: Color(0xFF525252), // Dark gray
-    textTertiary: Color(0xFF737373), // Medium gray
-    textOnPrimary: Color(0xFFFFFFFF), // White text on primary
-
-    // Status colors - Clear, accessible
-    success: Color(0xFF059669), // Green
-    warning: Color(0xFFD97706), // Amber
-    error: Color(0xFFDC2626), // Red
-    info: Color(0xFF2563EB), // Blue (matches primary)
-
-    // Chart colors
-    chartLine: Color(0xFF2563EB), // Blue
-    chartBar: Color(0xFF0891B2), // Cyan
-    chartGradientTop: Color(0xFF3B82F6),
-    chartGradientBottom: Color(0xFFDBEAFE),
-
-    // UI element colors - Subtle, professional
-    divider: Color(0xFFE5E5E5),
-    border: Color(0xFFD4D4D4),
-    shadow: Color(0x0A000000),
+    primary: Color(0xFF2A6CF7),
+    primaryLight: Color(0xFF5A8DFF),
+    primaryDark: Color(0xFF1949B8),
+    secondary: Color(0xFF0FA5A2),
+    secondaryLight: Color(0xFF2ECFC0),
+    secondaryDark: Color(0xFF0F7A78),
+    background: Color(0xFFF3F7FF),
+    surface: Color(0xFFFFFFFF),
+    surfaceVariant: Color(0xFFEBF1FF),
+    textPrimary: Color(0xFF0F172A),
+    textSecondary: Color(0xFF334155),
+    textTertiary: Color(0xFF64748B),
+    textOnPrimary: Color(0xFFFFFFFF),
+    success: Color(0xFF10B981),
+    warning: Color(0xFFF59E0B),
+    error: Color(0xFFEF4444),
+    info: Color(0xFF3B82F6),
+    chartLine: Color(0xFF2A6CF7),
+    chartBar: Color(0xFF0FA5A2),
+    chartGradientTop: Color(0xFF77A6FF),
+    chartGradientBottom: Color(0xFFDCE8FF),
+    divider: Color(0xFFD9E2F3),
+    border: Color(0xFFC7D6EE),
+    shadow: Color(0x1F0F172A),
     cardBackground: Color(0xFFFFFFFF),
-
-    // Navigation colors
     navBackground: Color(0xFFFFFFFF),
-    navSelected: Color(0xFF2563EB),
-    navUnselected: Color(0xFF737373),
-
-    // Input colors
-    inputBackground: Color(0xFFFAFAFA),
-    inputBorder: Color(0xFFD4D4D4),
-    inputFocusBorder: Color(0xFF2563EB),
+    navSelected: Color(0xFF2A6CF7),
+    navUnselected: Color(0xFF64748B),
+    inputBackground: Color(0xFFFFFFFF),
+    inputBorder: Color(0xFFC7D6EE),
+    inputFocusBorder: Color(0xFF2A6CF7),
   );
 
-  // Professional Dark Mode Colors - Sophisticated, clinical
+  // Dark palette with deep navy surfaces and vivid accents.
   static const darkColors = AppColors(
-    // Primary colors
-    primary: Color(0xFF3B82F6), // Blue for dark mode
-    primaryLight: Color(0xFF60A5FA), // Lighter blue
-    primaryDark: Color(0xFF2563EB), // Standard blue
-
-    // Secondary colors
-    secondary: Color(0xFF06B6D4), // Cyan for dark mode
-    secondaryLight: Color(0xFF22D3EE), // Lighter cyan
-    secondaryDark: Color(0xFF0891B2), // Standard cyan
-
-    // Background colors - Deep, sophisticated
-    background: Color(0xFF0A0A0A), // Near black
-    surface: Color(0xFF171717), // Dark gray
-    surfaceVariant: Color(0xFF262626), // Medium dark gray
-
-    // Text colors
-    textPrimary: Color(0xFFFAFAFA), // Near white
-    textSecondary: Color(0xFFA3A3A3), // Light gray
-    textTertiary: Color(0xFF737373), // Medium gray
-    textOnPrimary: Color(0xFFFFFFFF), // White text on primary
-
-    // Status colors - Accessible on dark
-    success: Color(0xFF10B981), // Green
-    warning: Color(0xFFF59E0B), // Amber
-    error: Color(0xFFEF4444), // Red
-    info: Color(0xFF3B82F6), // Blue
-
-    // Chart colors
-    chartLine: Color(0xFF3B82F6), // Blue
-    chartBar: Color(0xFF06B6D4), // Cyan
-    chartGradientTop: Color(0xFF60A5FA),
-    chartGradientBottom: Color(0xFF1E3A8A),
-
-    // UI element colors
-    divider: Color(0xFF262626),
-    border: Color(0xFF404040),
-    shadow: Color(0x40000000),
-    cardBackground: Color(0xFF171717),
-
-    // Navigation colors
-    navBackground: Color(0xFF171717),
-    navSelected: Color(0xFF3B82F6),
-    navUnselected: Color(0xFF737373),
-
-    // Input colors
-    inputBackground: Color(0xFF262626),
-    inputBorder: Color(0xFF404040),
-    inputFocusBorder: Color(0xFF3B82F6),
+    primary: Color(0xFF6FA4FF),
+    primaryLight: Color(0xFF96BEFF),
+    primaryDark: Color(0xFF2A6CF7),
+    secondary: Color(0xFF2ED9D1),
+    secondaryLight: Color(0xFF74E8E0),
+    secondaryDark: Color(0xFF1C9F9A),
+    background: Color(0xFF070C17),
+    surface: Color(0xFF111A2C),
+    surfaceVariant: Color(0xFF18243D),
+    textPrimary: Color(0xFFF8FAFC),
+    textSecondary: Color(0xFFCBD5E1),
+    textTertiary: Color(0xFF94A3B8),
+    textOnPrimary: Color(0xFFFFFFFF),
+    success: Color(0xFF34D399),
+    warning: Color(0xFFFBBF24),
+    error: Color(0xFFF87171),
+    info: Color(0xFF60A5FA),
+    chartLine: Color(0xFF6FA4FF),
+    chartBar: Color(0xFF2ED9D1),
+    chartGradientTop: Color(0xFF8CB8FF),
+    chartGradientBottom: Color(0xFF1A2B52),
+    divider: Color(0xFF24344F),
+    border: Color(0xFF314766),
+    shadow: Color(0x66000000),
+    cardBackground: Color(0xFF111A2C),
+    navBackground: Color(0xFF0F1727),
+    navSelected: Color(0xFF6FA4FF),
+    navUnselected: Color(0xFF8FA2C0),
+    inputBackground: Color(0xFF17243A),
+    inputBorder: Color(0xFF314766),
+    inputFocusBorder: Color(0xFF6FA4FF),
   );
 
-  /// Get light theme data
   static ThemeData lightTheme() {
     return ThemeData(
       useMaterial3: true,
@@ -137,24 +105,27 @@ class AppTheme {
       ),
       scaffoldBackgroundColor: lightColors.background,
       appBarTheme: AppBarTheme(
-        backgroundColor: lightColors.surface,
+        backgroundColor: Colors.transparent,
         foregroundColor: lightColors.textPrimary,
         elevation: 0,
         scrolledUnderElevation: 0,
         shadowColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
         centerTitle: false,
         systemOverlayStyle: SystemUiOverlayStyle.dark,
         titleTextStyle: GoogleFonts.plusJakartaSans(
-          fontSize: 18,
-          fontWeight: FontWeight.w600,
+          fontSize: 21,
+          fontWeight: FontWeight.w700,
           color: lightColors.textPrimary,
+          letterSpacing: -0.3,
         ),
       ),
       cardTheme: ThemeData.light().cardTheme.copyWith(
             color: lightColors.cardBackground,
             elevation: 0,
+            shadowColor: lightColors.shadow,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(18),
               side: BorderSide(color: lightColors.border),
             ),
           ),
@@ -163,13 +134,14 @@ class AppTheme {
           backgroundColor: lightColors.primary,
           foregroundColor: lightColors.textOnPrimary,
           elevation: 0,
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(14),
           ),
           textStyle: GoogleFonts.plusJakartaSans(
             fontSize: 14,
-            fontWeight: FontWeight.w500,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.2,
           ),
         ),
       ),
@@ -178,11 +150,11 @@ class AppTheme {
           foregroundColor: lightColors.primary,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(12),
           ),
           textStyle: GoogleFonts.plusJakartaSans(
             fontSize: 14,
-            fontWeight: FontWeight.w500,
+            fontWeight: FontWeight.w600,
           ),
         ),
       ),
@@ -190,17 +162,17 @@ class AppTheme {
         filled: true,
         fillColor: lightColors.inputBackground,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide(color: lightColors.inputBorder),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide(color: lightColors.inputBorder),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(14),
           borderSide:
-              BorderSide(color: lightColors.inputFocusBorder, width: 1.5),
+              BorderSide(color: lightColors.inputFocusBorder, width: 1.7),
         ),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -221,30 +193,30 @@ class AppTheme {
         elevation: 0,
         selectedLabelStyle: GoogleFonts.plusJakartaSans(
           fontSize: 11,
-          fontWeight: FontWeight.w500,
+          fontWeight: FontWeight.w700,
         ),
         unselectedLabelStyle: GoogleFonts.plusJakartaSans(
           fontSize: 11,
-          fontWeight: FontWeight.w400,
+          fontWeight: FontWeight.w500,
         ),
       ),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         backgroundColor: lightColors.primary,
         foregroundColor: lightColors.textOnPrimary,
-        elevation: 2,
+        elevation: 4,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(16),
         ),
       ),
       dialogTheme: ThemeData.light().dialogTheme.copyWith(
             backgroundColor: lightColors.surface,
-            elevation: 4,
+            elevation: 8,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(20),
             ),
             titleTextStyle: GoogleFonts.plusJakartaSans(
               fontSize: 18,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w700,
               color: lightColors.textPrimary,
             ),
             contentTextStyle: GoogleFonts.plusJakartaSans(
@@ -256,11 +228,19 @@ class AppTheme {
         color: lightColors.divider,
         thickness: 1,
       ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: lightColors.surface,
+        contentTextStyle: GoogleFonts.plusJakartaSans(
+          color: lightColors.textPrimary,
+          fontWeight: FontWeight.w600,
+        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      ),
       textTheme: _buildTextTheme(lightColors),
     );
   }
 
-  /// Get dark theme data
   static ThemeData darkTheme() {
     return ThemeData(
       useMaterial3: true,
@@ -277,24 +257,27 @@ class AppTheme {
       ),
       scaffoldBackgroundColor: darkColors.background,
       appBarTheme: AppBarTheme(
-        backgroundColor: darkColors.surface,
+        backgroundColor: Colors.transparent,
         foregroundColor: darkColors.textPrimary,
         elevation: 0,
         scrolledUnderElevation: 0,
         shadowColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
         centerTitle: false,
         systemOverlayStyle: SystemUiOverlayStyle.light,
         titleTextStyle: GoogleFonts.plusJakartaSans(
-          fontSize: 18,
-          fontWeight: FontWeight.w600,
+          fontSize: 21,
+          fontWeight: FontWeight.w700,
           color: darkColors.textPrimary,
+          letterSpacing: -0.3,
         ),
       ),
       cardTheme: ThemeData.dark().cardTheme.copyWith(
             color: darkColors.cardBackground,
             elevation: 0,
+            shadowColor: darkColors.shadow,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(18),
               side: BorderSide(color: darkColors.border),
             ),
           ),
@@ -303,13 +286,14 @@ class AppTheme {
           backgroundColor: darkColors.primary,
           foregroundColor: darkColors.textOnPrimary,
           elevation: 0,
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(14),
           ),
           textStyle: GoogleFonts.plusJakartaSans(
             fontSize: 14,
-            fontWeight: FontWeight.w500,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.2,
           ),
         ),
       ),
@@ -318,11 +302,11 @@ class AppTheme {
           foregroundColor: darkColors.primary,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(12),
           ),
           textStyle: GoogleFonts.plusJakartaSans(
             fontSize: 14,
-            fontWeight: FontWeight.w500,
+            fontWeight: FontWeight.w600,
           ),
         ),
       ),
@@ -330,17 +314,17 @@ class AppTheme {
         filled: true,
         fillColor: darkColors.inputBackground,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide(color: darkColors.inputBorder),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide(color: darkColors.inputBorder),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(14),
           borderSide:
-              BorderSide(color: darkColors.inputFocusBorder, width: 1.5),
+              BorderSide(color: darkColors.inputFocusBorder, width: 1.7),
         ),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -361,30 +345,30 @@ class AppTheme {
         elevation: 0,
         selectedLabelStyle: GoogleFonts.plusJakartaSans(
           fontSize: 11,
-          fontWeight: FontWeight.w500,
+          fontWeight: FontWeight.w700,
         ),
         unselectedLabelStyle: GoogleFonts.plusJakartaSans(
           fontSize: 11,
-          fontWeight: FontWeight.w400,
+          fontWeight: FontWeight.w500,
         ),
       ),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         backgroundColor: darkColors.primary,
         foregroundColor: darkColors.textOnPrimary,
-        elevation: 2,
+        elevation: 4,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(16),
         ),
       ),
       dialogTheme: ThemeData.dark().dialogTheme.copyWith(
             backgroundColor: darkColors.surface,
-            elevation: 4,
+            elevation: 10,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(20),
             ),
             titleTextStyle: GoogleFonts.plusJakartaSans(
               fontSize: 18,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w700,
               color: darkColors.textPrimary,
             ),
             contentTextStyle: GoogleFonts.plusJakartaSans(
@@ -396,6 +380,15 @@ class AppTheme {
         color: darkColors.divider,
         thickness: 1,
       ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: darkColors.surface,
+        contentTextStyle: GoogleFonts.plusJakartaSans(
+          color: darkColors.textPrimary,
+          fontWeight: FontWeight.w600,
+        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      ),
       textTheme: _buildTextTheme(darkColors),
     );
   }
@@ -405,31 +398,50 @@ class AppTheme {
       displayLarge: _fontStyle(57, FontWeight.w400, colors.textPrimary),
       displayMedium: _fontStyle(45, FontWeight.w400, colors.textPrimary),
       displaySmall: _fontStyle(36, FontWeight.w400, colors.textPrimary),
-      headlineLarge: _fontStyle(32, FontWeight.w700, colors.textPrimary,
-          letterSpacing: -0.5),
-      headlineMedium: _fontStyle(28, FontWeight.w700, colors.textPrimary,
-          letterSpacing: -0.5),
-      headlineSmall: _fontStyle(24, FontWeight.w600, colors.textPrimary,
-          letterSpacing: -0.3),
-      titleLarge: _fontStyle(22, FontWeight.w600, colors.textPrimary,
-          letterSpacing: -0.2),
-      titleMedium: _fontStyle(16, FontWeight.w600, colors.textPrimary),
-      titleSmall: _fontStyle(14, FontWeight.w600, colors.textPrimary),
+      headlineLarge: _fontStyle(
+        32,
+        FontWeight.w700,
+        colors.textPrimary,
+        letterSpacing: -0.5,
+      ),
+      headlineMedium: _fontStyle(
+        28,
+        FontWeight.w700,
+        colors.textPrimary,
+        letterSpacing: -0.5,
+      ),
+      headlineSmall: _fontStyle(
+        24,
+        FontWeight.w700,
+        colors.textPrimary,
+        letterSpacing: -0.3,
+      ),
+      titleLarge: _fontStyle(
+        22,
+        FontWeight.w700,
+        colors.textPrimary,
+        letterSpacing: -0.2,
+      ),
+      titleMedium: _fontStyle(16, FontWeight.w700, colors.textPrimary),
+      titleSmall: _fontStyle(14, FontWeight.w700, colors.textPrimary),
       bodyLarge:
-          _fontStyle(16, FontWeight.w400, colors.textPrimary, height: 1.5),
+          _fontStyle(16, FontWeight.w500, colors.textPrimary, height: 1.5),
       bodyMedium:
-          _fontStyle(14, FontWeight.w400, colors.textSecondary, height: 1.5),
+          _fontStyle(14, FontWeight.w500, colors.textSecondary, height: 1.5),
       bodySmall:
-          _fontStyle(12, FontWeight.w400, colors.textTertiary, height: 1.4),
-      labelLarge: _fontStyle(14, FontWeight.w600, colors.textPrimary),
-      labelMedium: _fontStyle(12, FontWeight.w600, colors.textSecondary),
-      labelSmall: _fontStyle(11, FontWeight.w600, colors.textTertiary,
-          letterSpacing: 0.3),
+          _fontStyle(12, FontWeight.w500, colors.textTertiary, height: 1.4),
+      labelLarge: _fontStyle(14, FontWeight.w700, colors.textPrimary),
+      labelMedium: _fontStyle(12, FontWeight.w700, colors.textSecondary),
+      labelSmall: _fontStyle(
+        11,
+        FontWeight.w700,
+        colors.textTertiary,
+        letterSpacing: 0.3,
+      ),
     );
   }
 }
 
-/// App color scheme holder
 class AppColors {
   final Color primary;
   final Color primaryLight;
@@ -506,7 +518,6 @@ class AppColors {
   });
 }
 
-/// Extension to easily access app colors from context
 extension AppColorsExtension on BuildContext {
   AppColors get colors {
     final brightness = Theme.of(this).brightness;

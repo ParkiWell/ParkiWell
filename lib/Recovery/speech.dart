@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:levio/singleton.dart';
 import '../theme/app_theme.dart';
 import '../utils/haptic_utils.dart';
-import '../widgets/modern_card.dart';
 
 class SpeechScreen extends StatefulWidget {
   const SpeechScreen({super.key});
@@ -43,6 +42,54 @@ class _SpeechScreenState extends State<SpeechScreen>
     super.dispose();
   }
 
+  void _showSpeechTextGuide() {
+    final colors = context.colors;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext c) {
+        return Container(
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Speech Guide',
+                  style: Theme.of(c).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'Use these videos to practice speaking loudly and clearly. Pause and repeat sections as needed.',
+                  style: Theme.of(c).textTheme.bodySmall?.copyWith(
+                        color: colors.textSecondary,
+                        height: 1.5,
+                      ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'Sources: Official YouTube channels listed on each lesson card.',
+                  style: Theme.of(c).textTheme.bodySmall?.copyWith(
+                        color: colors.textTertiary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
@@ -64,10 +111,29 @@ class _SpeechScreenState extends State<SpeechScreen>
           ),
           onPressed: () {
             HapticUtils.lightImpact();
-            Navigator.pushNamed(context, '/');
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            }
           },
         ),
         title: const Text('Speech Therapy'),
+        actions: [
+          TextButton.icon(
+            onPressed: () {
+              HapticUtils.lightImpact();
+              _showSpeechTextGuide();
+            },
+            icon: Icon(Icons.notes_rounded, color: colors.primary, size: 18),
+            label: Text(
+              'Text',
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: colors.primary,
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: SingleChildScrollView(
         physics: const BouncingScrollPhysics(),
@@ -103,41 +169,7 @@ class _SpeechScreenState extends State<SpeechScreen>
                 ),
               ),
             ),
-            const SizedBox(height: 8),
-
-            // Info card
-            FadeTransition(
-              opacity: _animation,
-              child: ModernCard(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: colors.info.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(
-                        Icons.tips_and_updates_rounded,
-                        color: colors.info,
-                        size: 24,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Text(
-                        'Practice with LSVT LOUD certified therapists. Speak loudly and with intent!',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: colors.textSecondary,
-                            ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
 
             // Speech video list
             ListView.builder(

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 import 'package:levio/singleton.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../theme/app_theme.dart';
 import '../utils/haptic_utils.dart';
-import '../widgets/modern_card.dart';
 
 class SpeechAudio extends StatefulWidget {
   const SpeechAudio({super.key});
@@ -15,6 +15,8 @@ class SpeechAudio extends StatefulWidget {
 class _SpeechAudioState extends State<SpeechAudio> {
   final singleton = Singleton();
   late YoutubePlayerController _controller;
+  String get _youtubeUrl =>
+      'https://www.youtube.com/watch?v=${singleton.currentURL}';
 
   @override
   void initState() {
@@ -33,6 +35,84 @@ class _SpeechAudioState extends State<SpeechAudio> {
   void dispose() {
     _controller.close();
     super.dispose();
+  }
+
+  Future<void> _openInYouTube() async {
+    final uri = Uri.parse(_youtubeUrl);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+      return;
+    }
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Unable to open YouTube link'),
+        backgroundColor: context.colors.error,
+      ),
+    );
+  }
+
+  void _showSpeechText() {
+    final colors = context.colors;
+    final speechData = singleton.speeches[singleton.currentURL];
+    final title = speechData != null ? speechData[0] : 'Speech Exercise';
+    final description = speechData != null ? speechData[1] : '';
+    final source =
+        speechData != null && speechData.length > 3 ? speechData[3] : '';
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext c) {
+        return Container(
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Speech Text',
+                  style: Theme.of(c).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  title,
+                  style: Theme.of(c).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  description,
+                  style: Theme.of(c).textTheme.bodySmall?.copyWith(
+                        color: colors.textSecondary,
+                        height: 1.5,
+                      ),
+                ),
+                if (source.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Text(
+                    source,
+                    style: Theme.of(c).textTheme.bodySmall?.copyWith(
+                          color: colors.textTertiary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -70,11 +150,42 @@ class _SpeechAudioState extends State<SpeechAudio> {
               ),
               onPressed: () {
                 HapticUtils.lightImpact();
-                _controller.close();
-                Navigator.pushNamed(context, '/speechScreen');
+                if (Navigator.of(context).canPop()) {
+                  Navigator.of(context).pop();
+                }
               },
             ),
             title: const Text('Speech Therapy'),
+            actions: [
+              TextButton.icon(
+                onPressed: () {
+                  HapticUtils.lightImpact();
+                  _showSpeechText();
+                },
+                icon:
+                    Icon(Icons.notes_rounded, color: colors.primary, size: 18),
+                label: Text(
+                  'Text',
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: colors.primary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+              ),
+              IconButton(
+                tooltip: 'Open in YouTube',
+                onPressed: () {
+                  HapticUtils.lightImpact();
+                  _openInYouTube();
+                },
+                icon: Icon(
+                  Icons.open_in_new_rounded,
+                  color: colors.textSecondary,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 4),
+            ],
           ),
           body: SingleChildScrollView(
             physics: const BouncingScrollPhysics(),
@@ -113,156 +224,11 @@ class _SpeechAudioState extends State<SpeechAudio> {
                   borderRadius: BorderRadius.circular(16),
                   child: player,
                 ),
-                const SizedBox(height: 24),
-
-                // LSVT LOUD Tips
-                ModernCard(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: colors.info.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Icon(
-                              Icons.record_voice_over_rounded,
-                              color: colors.info,
-                              size: 24,
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Text(
-                              'LSVT LOUD Tips',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleSmall
-                                  ?.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      _TipItem(
-                        text: 'Speak LOUD - think "shout" level',
-                        colors: colors,
-                      ),
-                      _TipItem(
-                        text: 'Exaggerate your mouth movements',
-                        colors: colors,
-                      ),
-                      _TipItem(
-                        text: 'Take deep breaths before speaking',
-                        colors: colors,
-                      ),
-                      _TipItem(
-                        text: 'Practice daily for best results',
-                        colors: colors,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // Practice reminder
-                ModernCard(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: colors.success.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(
-                          Icons.tips_and_updates_rounded,
-                          color: colors.success,
-                          size: 24,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Daily Practice',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleSmall
-                                  ?.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Follow along with the video and repeat exercises 3-5 times each.',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
-                                  ?.copyWith(
-                                    color: colors.textSecondary,
-                                  ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
               ],
             ),
           ),
         );
       },
-    );
-  }
-}
-
-class _TipItem extends StatelessWidget {
-  final String text;
-  final AppColors colors;
-
-  const _TipItem({
-    required this.text,
-    required this.colors,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            margin: const EdgeInsets.only(top: 6),
-            width: 6,
-            height: 6,
-            decoration: BoxDecoration(
-              color: colors.info,
-              shape: BoxShape.circle,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              text,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: colors.textSecondary,
-                  ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

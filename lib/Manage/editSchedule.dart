@@ -3,9 +3,8 @@ import 'package:flutter/material.dart';
 import '../singleton.dart';
 import '../theme/app_theme.dart';
 import '../utils/haptic_utils.dart';
-import '../widgets/modern_button.dart';
-import '../widgets/modern_input.dart';
 import '../widgets/modern_card.dart';
+import '../widgets/modern_input.dart';
 
 class EditScheduleScreen extends StatefulWidget {
   const EditScheduleScreen({super.key});
@@ -20,34 +19,33 @@ class _EditScheduleScreenState extends State<EditScheduleScreen>
   final _nameController = TextEditingController();
   final _detailsController = TextEditingController();
 
-  List<String> selectedDays = [];
-  bool _isLoading = false;
-
-  late AnimationController _animationController;
-  late Animation<double> _animation;
-
-  final List<String> daysOfWeek = [
+  static const List<String> _daysOfWeek = <String>[
     'Monday',
     'Tuesday',
     'Wednesday',
     'Thursday',
     'Friday',
     'Saturday',
-    'Sunday'
+    'Sunday',
   ];
+
+  late final AnimationController _animationController;
+  late final Animation<double> _animation;
+
+  List<String> selectedDays = <String>[];
+  bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
     _animationController = AnimationController(
-      duration: const Duration(milliseconds: 600),
+      duration: const Duration(milliseconds: 420),
       vsync: this,
-    );
+    )..forward();
     _animation = CurvedAnimation(
       parent: _animationController,
       curve: Curves.easeOutCubic,
     );
-    _animationController.forward();
   }
 
   @override
@@ -69,21 +67,40 @@ class _EditScheduleScreenState extends State<EditScheduleScreen>
     });
   }
 
-  void _selectAllDays() {
+  void _applyTemplate(String template) {
     HapticUtils.lightImpact();
     setState(() {
-      if (selectedDays.length == daysOfWeek.length) {
-        selectedDays.clear();
+      if (template == 'Everyday') {
+        selectedDays = List<String>.from(_daysOfWeek);
+      } else if (template == 'Weekdays') {
+        selectedDays = _daysOfWeek.sublist(0, 5);
       } else {
-        selectedDays = List.from(daysOfWeek);
+        selectedDays = <String>['Saturday', 'Sunday'];
       }
     });
   }
 
-  String _formatDays() {
-    if (selectedDays.isEmpty) return '';
-    if (selectedDays.length == 7) return 'Everyday';
-    return selectedDays.map((d) => d.substring(0, 3)).join(', ');
+  bool _templateSelected(String template) {
+    final selected = selectedDays.toSet();
+
+    if (template == 'Everyday') {
+      return selected.length == _daysOfWeek.length;
+    }
+
+    if (template == 'Weekdays') {
+      final weekdays = _daysOfWeek.sublist(0, 5).toSet();
+      return selected.length == weekdays.length &&
+          selected.containsAll(weekdays);
+    }
+
+    final weekends = <String>{'Saturday', 'Sunday'};
+    return selected.length == weekends.length && selected.containsAll(weekends);
+  }
+
+  String _formatSchedule() {
+    if (selectedDays.isEmpty) return 'No days selected';
+    if (selectedDays.length == _daysOfWeek.length) return 'Everyday';
+    return 'Every ${selectedDays.join(', ')}';
   }
 
   Future<void> _submitSchedule() async {
@@ -92,10 +109,7 @@ class _EditScheduleScreenState extends State<EditScheduleScreen>
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text('Please enter medication name'),
-          behavior: SnackBarBehavior.floating,
           backgroundColor: context.colors.error,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       );
       return;
@@ -106,10 +120,7 @@ class _EditScheduleScreenState extends State<EditScheduleScreen>
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text('Please select at least one day'),
-          behavior: SnackBarBehavior.floating,
           backgroundColor: context.colors.error,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       );
       return;
@@ -119,38 +130,29 @@ class _EditScheduleScreenState extends State<EditScheduleScreen>
     HapticUtils.mediumImpact();
 
     try {
-      String days = selectedDays.length == 7
-          ? 'Everyday'
-          : 'Every ${selectedDays.join(", ")}';
-
-      // Save to local database
       final saved = await singleton.saveSchedule(
         _nameController.text.trim(),
         _detailsController.text.trim(),
-        days,
+        _formatSchedule(),
       );
+
       if (!saved) {
         throw Exception('Unable to save medication schedule');
       }
 
       HapticUtils.success();
-
       if (mounted) {
         _showSuccessDialog();
       }
     } catch (e) {
       HapticUtils.error();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error saving medication: $e'),
-            behavior: SnackBarBehavior.floating,
-            backgroundColor: context.colors.error,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-        );
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error saving medication: $e'),
+          backgroundColor: context.colors.error,
+        ),
+      );
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -166,63 +168,54 @@ class _EditScheduleScreenState extends State<EditScheduleScreen>
       barrierDismissible: false,
       builder: (BuildContext c) {
         return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const SizedBox(height: 16),
               Container(
-                padding: const EdgeInsets.all(16),
+                width: 56,
+                height: 56,
                 decoration: BoxDecoration(
-                  color: colors.success.withValues(alpha: 0.1),
+                  color: colors.success.withValues(alpha: 0.12),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
                   Icons.check_rounded,
                   color: colors.success,
-                  size: 48,
+                  size: 32,
                 ),
               ),
-              const SizedBox(height: 24),
-              Text(
-                'Medication Added',
-                style: Theme.of(c).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-              ),
+              const SizedBox(height: 14),
+              Text('Medication Saved', style: Theme.of(c).textTheme.titleLarge),
               const SizedBox(height: 8),
               Text(
-                'Your medication schedule has been saved.',
+                'Your medication schedule is now active.',
+                textAlign: TextAlign.center,
                 style: Theme.of(c).textTheme.bodyMedium?.copyWith(
                       color: colors.textSecondary,
                     ),
-                textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 18),
               Row(
                 children: [
                   Expanded(
-                    child: ModernButton(
-                      text: 'Add Another',
-                      isOutlined: true,
+                    child: TextButton(
                       onPressed: () {
                         Navigator.pop(c);
                         _nameController.clear();
                         _detailsController.clear();
                         setState(() => selectedDays.clear());
                       },
+                      child: const Text('Add More'),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 8),
                   Expanded(
-                    child: ModernButton(
-                      text: 'View All',
+                    child: ElevatedButton(
                       onPressed: () {
                         Navigator.pop(c);
                         Navigator.pushNamed(context, '/scheduleScreen');
                       },
+                      child: const Text('View Meds'),
                     ),
                   ),
                 ],
@@ -234,6 +227,37 @@ class _EditScheduleScreenState extends State<EditScheduleScreen>
     );
   }
 
+  Widget _buildTemplateSelector() {
+    const templates = <String>['Everyday', 'Weekdays', 'Weekends'];
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: templates.map((template) {
+        return _SelectionChip(
+          label: template,
+          selected: _templateSelected(template),
+          onTap: () => _applyTemplate(template),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildDaySelector() {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: _daysOfWeek.map((day) {
+        return _SelectionChip(
+          label: day.substring(0, 3),
+          selected: selectedDays.contains(day),
+          onTap: () => _toggleDay(day),
+          compact: true,
+        );
+      }).toList(),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
@@ -241,249 +265,188 @@ class _EditScheduleScreenState extends State<EditScheduleScreen>
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
-          icon: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: colors.surfaceVariant,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(
-              Icons.arrow_back_rounded,
-              color: colors.textPrimary,
-              size: 20,
-            ),
+          icon: Icon(
+            Icons.arrow_back_rounded,
+            color: colors.textPrimary,
+            size: 22,
           ),
           onPressed: () {
             HapticUtils.lightImpact();
             Navigator.popAndPushNamed(context, '/scheduleScreen');
           },
         ),
-        title: const Text('Add Medication'),
+        title: const Text('Medication Log'),
       ),
-      body: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            FadeTransition(
-              opacity: _animation,
-              child: SlideTransition(
-                position: Tween<Offset>(
-                  begin: const Offset(0, 0.1),
-                  end: Offset.zero,
-                ).animate(_animation),
+      body: FadeTransition(
+        opacity: _animation,
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(20, 6, 20, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Create medication schedule',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Add medication details and assign the days to take it.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: colors.textSecondary,
+                      height: 1.4,
+                    ),
+              ),
+              const SizedBox(height: 16),
+              ModernCard(
+                padding: const EdgeInsets.all(18),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Medication Details',
-                      style:
-                          Theme.of(context).textTheme.headlineSmall?.copyWith(
-                                fontWeight: FontWeight.bold,
-                              ),
+                      'Medication Name',
+                      style: Theme.of(context).textTheme.titleSmall,
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 10),
+                    ModernTextField(
+                      controller: _nameController,
+                      hint: 'e.g., Levodopa 100mg',
+                    ),
+                    const SizedBox(height: 16),
                     Text(
-                      'Add a medication to track your schedule',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: colors.textSecondary,
-                          ),
+                      'Details (optional)',
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    const SizedBox(height: 10),
+                    ModernTextField(
+                      controller: _detailsController,
+                      hint: 'Dosage notes or instructions',
+                      maxLines: 2,
+                    ),
+                    const SizedBox(height: 16),
+                    Divider(
+                        color: colors.border.withValues(alpha: 0.6), height: 1),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Quick templates',
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    const SizedBox(height: 10),
+                    _buildTemplateSelector(),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Select days',
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    const SizedBox(height: 10),
+                    _buildDaySelector(),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              Container(
+                width: double.infinity,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: colors.surfaceVariant,
+                  borderRadius: BorderRadius.circular(12),
+                  border:
+                      Border.all(color: colors.border.withValues(alpha: 0.7)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.schedule_rounded,
+                      color: colors.textSecondary,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        _formatSchedule(),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: colors.textSecondary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                      ),
                     ),
                   ],
                 ),
               ),
-            ),
-            const SizedBox(height: 32),
-
-            // Name input
-            _buildAnimatedSection(
-              delay: 0.1,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Medication Name',
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                  ),
-                  const SizedBox(height: 12),
-                  ModernTextField(
-                    controller: _nameController,
-                    hint: 'e.g., Levodopa, Carbidopa',
-                    prefixIcon: Icons.medication_rounded,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // Details input
-            _buildAnimatedSection(
-              delay: 0.2,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Details (Optional)',
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                  ),
-                  const SizedBox(height: 12),
-                  ModernTextField(
-                    controller: _detailsController,
-                    hint: 'e.g., Dosage, instructions',
-                    prefixIcon: Icons.description_outlined,
-                    maxLines: 2,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // Day selection
-            _buildAnimatedSection(
-              delay: 0.3,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Schedule',
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
-                      ),
-                      TextButton(
-                        onPressed: _selectAllDays,
-                        child: Text(
-                          selectedDays.length == 7 ? 'Clear All' : 'Every Day',
-                          style: TextStyle(color: colors.primary),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  ModernCard(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      children: [
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: daysOfWeek.map((day) {
-                            final isSelected = selectedDays.contains(day);
-                            return GestureDetector(
-                              onTap: () => _toggleDay(day),
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 200),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 10,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: isSelected
-                                      ? colors.secondary
-                                      : colors.surfaceVariant,
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(
-                                    color: isSelected
-                                        ? colors.secondary
-                                        : colors.border,
-                                  ),
-                                ),
-                                child: Text(
-                                  day.substring(0, 3),
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .labelMedium
-                                      ?.copyWith(
-                                        color: isSelected
-                                            ? colors.textOnPrimary
-                                            : colors.textPrimary,
-                                        fontWeight: isSelected
-                                            ? FontWeight.w600
-                                            : FontWeight.w500,
-                                      ),
-                                ),
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                        if (selectedDays.isNotEmpty) ...[
-                          const SizedBox(height: 16),
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: colors.secondary.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  Icons.schedule_rounded,
-                                  color: colors.secondary,
-                                  size: 20,
-                                ),
-                                const SizedBox(width: 12),
-                                Text(
-                                  _formatDays(),
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodyMedium
-                                      ?.copyWith(
-                                        color: colors.secondary,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                ),
-                              ],
+              const SizedBox(height: 18),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _isLoading ? null : _submitSchedule,
+                  icon: _isLoading
+                      ? SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              colors.textOnPrimary,
                             ),
                           ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 32),
-
-            // Submit button
-            _buildAnimatedSection(
-              delay: 0.4,
-              child: SizedBox(
-                width: double.infinity,
-                child: ModernButton(
-                  text: 'Save Medication',
-                  icon: Icons.check_rounded,
-                  isLoading: _isLoading,
-                  onPressed: _submitSchedule,
+                        )
+                      : const Icon(Icons.check_rounded, size: 18),
+                  label: Text(_isLoading ? 'Saving...' : 'Save Medication'),
                 ),
               ),
-            ),
-            const SizedBox(height: 24),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
+}
 
-  Widget _buildAnimatedSection({required double delay, required Widget child}) {
-    return FadeTransition(
-      opacity: _animation,
-      child: SlideTransition(
-        position: Tween<Offset>(
-          begin: const Offset(0, 0.2),
-          end: Offset.zero,
-        ).animate(CurvedAnimation(
-          parent: _animationController,
-          curve: Interval(delay, 1.0, curve: Curves.easeOutCubic),
-        )),
-        child: child,
+class _SelectionChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  final bool compact;
+
+  const _SelectionChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    this.compact = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: EdgeInsets.symmetric(
+          horizontal: compact ? 14 : 16,
+          vertical: compact ? 9 : 10,
+        ),
+        decoration: BoxDecoration(
+          color: selected
+              ? colors.primary.withValues(alpha: 0.12)
+              : colors.surfaceVariant.withValues(alpha: 0.65),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: selected
+                ? colors.primary.withValues(alpha: 0.5)
+                : colors.border.withValues(alpha: 0.8),
+          ),
+        ),
+        child: Text(
+          label,
+          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                color: selected ? colors.primaryDark : colors.textSecondary,
+                fontWeight: FontWeight.w700,
+              ),
+        ),
       ),
     );
   }

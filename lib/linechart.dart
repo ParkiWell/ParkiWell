@@ -398,7 +398,7 @@ class LineChartSample1State extends State<LineChartSample1>
                     colors,
                     Icons.favorite_rounded,
                     '${singleton.log.length}',
-                    'Symptoms logged',
+                    'Symptoms',
                     colors.primary,
                   ),
                 ),

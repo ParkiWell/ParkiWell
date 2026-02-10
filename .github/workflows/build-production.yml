@@ -115,7 +115,7 @@ jobs:
           fi
 
       - name: Install Apple certificate and provisioning profile
-        if: ${{ secrets.APPLE_CERTIFICATE_BASE64 != '' }}
+        if: secrets.APPLE_CERTIFICATE_BASE64 != ''
         env:
           APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}

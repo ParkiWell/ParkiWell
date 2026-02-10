@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:levio/main.dart';
 import 'package:terminate_restart/terminate_restart.dart';
 
+import 'legal/legal_document_screen.dart';
+import 'services/tutorial_service.dart';
 import 'singleton.dart';
 import 'theme/app_theme.dart';
 import 'utils/haptic_utils.dart';
@@ -16,6 +18,7 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   final singleton = Singleton();
+  final tutorialService = TutorialService();
   bool theme = false;
 
   @override
@@ -61,6 +64,61 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ],
         );
       },
+    );
+  }
+
+  void _showSignOutDialog() {
+    final colors = context.colors;
+    showDialog(
+      context: context,
+      builder: (BuildContext c) {
+        return AlertDialog(
+          title: const Text('Sign Out'),
+          content: Text(
+            'Sign out of your account on this device?',
+            style: Theme.of(c).textTheme.bodyMedium?.copyWith(
+                  color: colors.textSecondary,
+                ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(c),
+              child: Text(
+                'Cancel',
+                style: TextStyle(color: colors.textSecondary),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.pop(c);
+                await _signOut();
+              },
+              child: const Text('Sign Out'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _signOut() async {
+    HapticUtils.lightImpact();
+    await singleton.signOut();
+    if (!mounted) return;
+    await Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const MyApp()),
+      (route) => false,
+    );
+  }
+
+  Future<void> _restartTutorial() async {
+    HapticUtils.lightImpact();
+    await tutorialService.resetTutorial();
+    singleton.setPage(0);
+    if (!mounted) return;
+    await Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const MyApp()),
+      (route) => false,
     );
   }
 
@@ -185,7 +243,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               onTap: () {
                 HapticUtils.lightImpact();
-                // Navigate to terms
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const LegalDocumentScreen(
+                      type: LegalDocumentType.termsOfService,
+                    ),
+                  ),
+                );
               },
             ),
             const SizedBox(height: 8),
@@ -200,8 +264,40 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               onTap: () {
                 HapticUtils.lightImpact();
-                // Navigate to privacy
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const LegalDocumentScreen(
+                      type: LegalDocumentType.privacyPolicy,
+                    ),
+                  ),
+                );
               },
+            ),
+            const SizedBox(height: 24),
+
+            // Account section
+            Text(
+              'Account',
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: colors.textSecondary,
+                    fontWeight: FontWeight.w500,
+                  ),
+            ),
+            const SizedBox(height: 12),
+
+            _SettingsTile(
+              icon: Icons.tour_outlined,
+              title: 'Replay Tutorial',
+              subtitle: 'Show the guided app walkthrough again',
+              onTap: _restartTutorial,
+            ),
+            const SizedBox(height: 8),
+
+            _SettingsTile(
+              icon: Icons.logout_rounded,
+              title: 'Sign Out',
+              subtitle: 'Sign out from this device',
+              onTap: _showSignOutDialog,
             ),
             const SizedBox(height: 24),
 

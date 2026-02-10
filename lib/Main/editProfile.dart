@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -9,6 +8,7 @@ import '../singleton.dart';
 import '../theme/app_theme.dart';
 import '../utils/haptic_utils.dart';
 import '../widgets/modern_button.dart';
+import '../widgets/modern_card.dart';
 import '../widgets/modern_input.dart';
 
 class EditProfileScreen extends StatefulWidget {
@@ -23,45 +23,35 @@ class _EditProfileScreenState extends State<EditProfileScreen>
   final singleton = Singleton();
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
-  String image = "images/711128.png";
   final picker = ImagePicker();
-  bool _isLoading = false;
-  int _currentStep = 0;
 
-  late AnimationController _fadeController;
-  late AnimationController _slideController;
-  late Animation<double> _fadeAnimation;
-  late Animation<Offset> _slideAnimation;
+  late final AnimationController _fadeController;
+  late final Animation<double> _fade;
+
+  String image = 'images/711128.png';
+  bool _isLoading = false;
+  bool _isGoogleLoading = false;
+  int _step = 0;
+  String? _nameError;
+  String? _emailError;
 
   @override
   void initState() {
     super.initState();
     _fadeController = AnimationController(
-      duration: const Duration(milliseconds: 600),
-      vsync: this,
-    );
-    _slideController = AnimationController(
       duration: const Duration(milliseconds: 500),
       vsync: this,
-    );
+    )..forward();
 
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _fadeController, curve: Curves.easeOut),
+    _fade = CurvedAnimation(
+      parent: _fadeController,
+      curve: Curves.easeOut,
     );
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.3),
-      end: Offset.zero,
-    ).animate(
-        CurvedAnimation(parent: _slideController, curve: Curves.easeOutCubic));
-
-    _fadeController.forward();
-    _slideController.forward();
   }
 
   @override
   void dispose() {
     _fadeController.dispose();
-    _slideController.dispose();
     _nameController.dispose();
     _emailController.dispose();
     super.dispose();
@@ -79,71 +69,77 @@ class _EditProfileScreenState extends State<EditProfileScreen>
     }
   }
 
+  bool _isEmailValid(String email) {
+    final value = email.trim();
+    if (value.isEmpty) return true;
+    return RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(value);
+  }
+
+  bool _validateForm() {
+    final name = _nameController.text.trim();
+    final email = _emailController.text.trim();
+
+    setState(() {
+      _nameError = name.isEmpty ? 'Name is required' : null;
+      _emailError = _isEmailValid(email) ? null : 'Enter a valid email address';
+    });
+
+    return _nameError == null && _emailError == null;
+  }
+
   Future<void> _createAccount() async {
-    if (_nameController.text.trim().isEmpty) {
+    if (_isGoogleLoading) return;
+
+    if (!_validateForm()) {
       HapticUtils.error();
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final email = _emailController.text.trim();
+      final name = _nameController.text.trim();
+
+      singleton.setEmail(email.isEmpty ? '[Email]' : email);
+      singleton.setName(name);
+      singleton.setImage(image);
+
+      final created = await singleton.createUser(name, 0);
+      if (!created) {
+        throw Exception('Unable to create your account right now');
+      }
+
+      final userUpdated = await singleton.updateUser(
+        userName: name,
+        userEmail: email.isEmpty ? null : email,
+        profileImage: image,
+      );
+      if (!userUpdated) {
+        throw Exception('Unable to finish profile setup');
+      }
+
+      singleton.setFirstTime(false);
+
+      if (!mounted) return;
+      HapticUtils.success();
+
+      await Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const Navbar()),
+        (route) => false,
+      );
+    } catch (e) {
+      HapticUtils.error();
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Please enter your name'),
+          content: Text('Sign in failed: $e'),
           behavior: SnackBarBehavior.floating,
           backgroundColor: context.colors.error,
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       );
-      return;
-    }
-
-    setState(() => _isLoading = true);
-    HapticUtils.mediumImpact();
-
-    try {
-      singleton.setEmail(_emailController.text.trim().isEmpty
-          ? 'Not provided'
-          : _emailController.text.trim());
-      singleton.setName(_nameController.text.trim());
-      singleton.setImage(image);
-
-      // Create user in local database
-      final created =
-          await singleton.createUser(_nameController.text.trim(), 0);
-      if (!created) {
-        throw Exception('Unable to create your account right now');
-      }
-
-      // Update image if custom image was selected
-      if (image != "images/711128.png") {
-        final updated = await singleton.updateUser(profileImage: image);
-        if (!updated) {
-          throw Exception('Unable to save your profile image');
-        }
-      }
-
-      HapticUtils.success();
-
-      if (singleton.firstTime && mounted) {
-        singleton.setFirstTime(false);
-        if (mounted) {
-          // Navigate to main app
-          unawaited(Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (context) => const Navbar()),
-            (r) => false,
-          ));
-        }
-      }
-    } catch (e) {
-      HapticUtils.error();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error creating account: $e'),
-            behavior: SnackBarBehavior.floating,
-            backgroundColor: context.colors.error,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-        );
-      }
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -151,225 +147,96 @@ class _EditProfileScreenState extends State<EditProfileScreen>
     }
   }
 
-  void _nextStep() {
-    if (_currentStep < 2) {
-      HapticUtils.selectionClick();
-      setState(() => _currentStep++);
-    }
-  }
+  Future<void> _signInWithGoogle() async {
+    if (_isGoogleLoading || _isLoading) return;
 
-  void _previousStep() {
-    if (_currentStep > 0) {
-      HapticUtils.selectionClick();
-      setState(() => _currentStep--);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    final size = MediaQuery.of(context).size;
-
-    return Scaffold(
-      body: SafeArea(
-        child: FadeTransition(
-          opacity: _fadeAnimation,
-          child: SlideTransition(
-            position: _slideAnimation,
-            child: Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                children: [
-                  // Progress indicator
-                  _buildProgressIndicator(colors),
-                  const SizedBox(height: 32),
-
-                  // Content
-                  Expanded(
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 300),
-                      transitionBuilder: (child, animation) {
-                        return FadeTransition(
-                          opacity: animation,
-                          child: SlideTransition(
-                            position: Tween<Offset>(
-                              begin: const Offset(0.1, 0),
-                              end: Offset.zero,
-                            ).animate(animation),
-                            child: child,
-                          ),
-                        );
-                      },
-                      child: _buildStepContent(colors, size),
-                    ),
-                  ),
-
-                  // Navigation buttons
-                  _buildNavigationButtons(colors),
-                ],
-              ),
-            ),
+    if (!singleton.isCloudConfigured) {
+      HapticUtils.error();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            'Google sign-in requires cloud backend configuration.',
           ),
+          backgroundColor: context.colors.error,
         ),
-      ),
-    );
-  }
+      );
+      return;
+    }
 
-  Widget _buildProgressIndicator(AppColors colors) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: List.generate(3, (index) {
-        final isActive = index <= _currentStep;
-        return AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          margin: const EdgeInsets.symmetric(horizontal: 4),
-          width: isActive ? 32 : 8,
-          height: 8,
-          decoration: BoxDecoration(
-            color: isActive ? colors.primary : colors.border,
-            borderRadius: BorderRadius.circular(4),
-          ),
-        );
-      }),
-    );
-  }
+    setState(() => _isGoogleLoading = true);
+    HapticUtils.mediumImpact();
 
-  Widget _buildStepContent(AppColors colors, Size size) {
-    switch (_currentStep) {
-      case 0:
-        return _buildWelcomeStep(colors, size);
-      case 1:
-        return _buildProfileStep(colors);
-      case 2:
-        return _buildDetailsStep(colors);
-      default:
-        return const SizedBox.shrink();
+    try {
+      final profile = await singleton.signInWithGoogle();
+      if (profile == null) {
+        throw Exception('Google sign-in was cancelled or could not complete.');
+      }
+
+      final fallbackFromEmail =
+          profile.email != null && profile.email!.contains('@')
+              ? profile.email!.split('@').first
+              : 'Levio Member';
+      final resolvedName =
+          (profile.fullName != null && profile.fullName!.trim().isNotEmpty)
+              ? profile.fullName!.trim()
+              : (_nameController.text.trim().isNotEmpty
+                  ? _nameController.text.trim()
+                  : fallbackFromEmail);
+      final resolvedEmail =
+          (profile.email != null && profile.email!.trim().isNotEmpty)
+              ? profile.email!.trim()
+              : null;
+
+      _nameController.text = resolvedName;
+      if (resolvedEmail != null) {
+        _emailController.text = resolvedEmail;
+      }
+
+      final synced = await singleton.createOrSyncAuthenticatedUser(
+        displayName: resolvedName,
+        userEmail: resolvedEmail,
+        profileImage: image,
+      );
+      if (!synced) {
+        throw Exception('Unable to complete account sync.');
+      }
+
+      singleton.setFirstTime(false);
+
+      if (!mounted) return;
+      HapticUtils.success();
+
+      await Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const Navbar()),
+        (route) => false,
+      );
+    } catch (e) {
+      HapticUtils.error();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Google sign in failed: $e'),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: context.colors.error,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isGoogleLoading = false);
+      }
     }
   }
 
-  Widget _buildWelcomeStep(AppColors colors, Size size) {
-    return SingleChildScrollView(
-      key: const ValueKey(0),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          SizedBox(height: size.height * 0.05),
-          // App logo
-          Image.asset(
-            'images/logo.png',
-            width: 140,
-            height: 140,
-            errorBuilder: (context, error, stackTrace) {
-              return Container(
-                padding: const EdgeInsets.all(32),
-                decoration: BoxDecoration(
-                  color: colors.primary.withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.health_and_safety_rounded,
-                  size: 80,
-                  color: colors.primary,
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: 24),
-          Text(
-            'Welcome to Levio',
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 12),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Text(
-              'Your personal companion for managing Parkinson\'s with care and precision.',
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: colors.textSecondary,
-                  ),
-              textAlign: TextAlign.center,
-            ),
-          ),
-          const SizedBox(height: 40),
-          // Feature highlights
-          _buildFeatureItem(
-            colors,
-            Icons.track_changes_rounded,
-            'Track Symptoms',
-            'Monitor and log your daily symptoms',
-          ),
-          const SizedBox(height: 12),
-          _buildFeatureItem(
-            colors,
-            Icons.medication_rounded,
-            'Medication Management',
-            'Keep track of your medication schedule',
-          ),
-          const SizedBox(height: 12),
-          _buildFeatureItem(
-            colors,
-            Icons.record_voice_over_rounded,
-            'Speech Therapy',
-            'Audio-guided exercises for voice clarity',
-          ),
-          const SizedBox(height: 12),
-          _buildFeatureItem(
-            colors,
-            Icons.fitness_center_rounded,
-            'Physical Exercises',
-            'Video-guided workouts for mobility',
-          ),
-        ],
-      ),
-    );
+  void _goToForm() {
+    HapticUtils.selectionClick();
+    setState(() => _step = 1);
   }
 
-  Widget _buildFeatureItem(
-      AppColors colors, IconData icon, String title, String subtitle) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: colors.cardBackground,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: colors.border.withValues(alpha: 0.3)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: colors.primary.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: colors.primary, size: 22),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: colors.textSecondary,
-                      ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
+  void _goBack() {
+    HapticUtils.selectionClick();
+    setState(() => _step = 0);
   }
 
   bool _hasCustomImage() {
@@ -390,34 +257,27 @@ class _EditProfileScreenState extends State<EditProfileScreen>
           fit: BoxFit.cover,
           width: size,
           height: size,
-          errorBuilder: (context, error, stackTrace) {
-            return _buildInitialsAvatar(size, colors);
-          },
+          errorBuilder: (_, __, ___) => _buildInitialsAvatar(size, colors),
         ),
       );
-    } else {
-      final file = File(image);
-      if (file.existsSync()) {
-        return ClipOval(
-          child: Image.file(
-            file,
-            fit: BoxFit.cover,
-            width: size,
-            height: size,
-            errorBuilder: (context, error, stackTrace) {
-              return _buildInitialsAvatar(size, colors);
-            },
-          ),
-        );
-      }
-      return _buildInitialsAvatar(size, colors);
     }
+
+    return ClipOval(
+      child: Image.file(
+        File(image),
+        fit: BoxFit.cover,
+        width: size,
+        height: size,
+        errorBuilder: (_, __, ___) => _buildInitialsAvatar(size, colors),
+      ),
+    );
   }
 
   Widget _buildInitialsAvatar(double size, AppColors colors) {
-    final displayName =
-        _nameController.text.isNotEmpty ? _nameController.text : 'User';
-    final initial = displayName.isNotEmpty ? displayName[0].toUpperCase() : 'U';
+    final displayName = _nameController.text.trim().isNotEmpty
+        ? _nameController.text.trim()
+        : 'U';
+    final initial = displayName[0].toUpperCase();
 
     return Container(
       width: size,
@@ -428,7 +288,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
           end: Alignment.bottomRight,
           colors: [
             colors.primary.withValues(alpha: 0.2),
-            colors.primaryLight.withValues(alpha: 0.1),
+            colors.secondary.withValues(alpha: 0.14),
           ],
         ),
         shape: BoxShape.circle,
@@ -437,8 +297,8 @@ class _EditProfileScreenState extends State<EditProfileScreen>
         child: Text(
           initial,
           style: TextStyle(
-            fontSize: size * 0.4,
-            fontWeight: FontWeight.bold,
+            fontSize: size * 0.42,
+            fontWeight: FontWeight.w700,
             color: colors.primary,
           ),
         ),
@@ -446,102 +306,162 @@ class _EditProfileScreenState extends State<EditProfileScreen>
     );
   }
 
-  Widget _buildProfileStep(AppColors colors) {
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+
+    return Scaffold(
+      body: FadeTransition(
+        opacity: _fade,
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Color.lerp(colors.background, colors.primaryLight, 0.1)!,
+                colors.background,
+              ],
+            ),
+          ),
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              child: Column(
+                children: [
+                  _buildTopBar(colors),
+                  const SizedBox(height: 18),
+                  Expanded(
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 260),
+                      switchInCurve: Curves.easeOut,
+                      switchOutCurve: Curves.easeIn,
+                      child: _step == 0
+                          ? _buildWelcomeStep(colors)
+                          : _buildSignInStep(colors),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  _buildBottomActions(colors),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTopBar(AppColors colors) {
+    return Row(
+      children: [
+        if (_step == 1)
+          IconButton(
+            onPressed: _goBack,
+            icon: Icon(Icons.arrow_back_rounded, color: colors.textPrimary),
+            style: IconButton.styleFrom(
+              backgroundColor: colors.surface.withValues(alpha: 0.8),
+            ),
+          )
+        else
+          const SizedBox(width: 48),
+        Expanded(
+          child: Column(
+            children: [
+              Text(
+                _step == 0 ? 'Welcome' : 'Sign In',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+              const SizedBox(height: 4),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(2, (index) {
+                  final isActive = index <= _step;
+                  return AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    width: isActive ? 28 : 8,
+                    height: 8,
+                    margin: const EdgeInsets.symmetric(horizontal: 3),
+                    decoration: BoxDecoration(
+                      color: isActive ? colors.primary : colors.border,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  );
+                }),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 48),
+      ],
+    );
+  }
+
+  Widget _buildWelcomeStep(AppColors colors) {
     return SingleChildScrollView(
-      key: const ValueKey(1),
+      key: const ValueKey('welcome_step'),
+      physics: const BouncingScrollPhysics(),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SizedBox(height: 20),
+          const SizedBox(height: 8),
           Text(
-            'Set up your profile',
+            'Sign in to Levio',
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
+                  fontWeight: FontWeight.w700,
                 ),
           ),
           const SizedBox(height: 8),
           Text(
-            'Add a photo to personalize your account',
+            'Create your care space in under a minute. Your progress stays on-device, with secure cloud sync when configured.',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: colors.textSecondary,
                 ),
           ),
-          const SizedBox(height: 48),
-          // Profile image picker
-          GestureDetector(
-            onTap: updateImage,
-            child: Stack(
-              children: [
-                Container(
-                  width: 150,
-                  height: 150,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(color: colors.border, width: 3),
-                  ),
-                  child: _buildProfileImage(144, colors),
-                ),
-                Positioned(
-                  bottom: 0,
-                  right: 0,
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: colors.primary,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: colors.primary.withValues(alpha: 0.3),
-                          blurRadius: 8,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Icon(
-                      Icons.camera_alt_rounded,
-                      color: colors.textOnPrimary,
-                      size: 20,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-          Text(
-            'Tap to change photo',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: colors.textTertiary,
-                ),
-          ),
-          const SizedBox(height: 48),
-          // Preview card
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: colors.cardBackground,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: colors.border.withValues(alpha: 0.3)),
-            ),
+          const SizedBox(height: 20),
+          ModernCard(
+            padding: const EdgeInsets.all(18),
             child: Row(
               children: [
-                _buildProfileImage(60, colors),
-                const SizedBox(width: 16),
+                Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    color: colors.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Center(
+                    child: Image.asset(
+                      'images/logo.png',
+                      width: 36,
+                      height: 36,
+                      errorBuilder: (_, __, ___) => Icon(
+                        Icons.health_and_safety_rounded,
+                        color: colors.primary,
+                        size: 30,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Profile Preview',
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                              color: colors.textTertiary,
+                        'Personalized, calm, and consistent',
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w700,
                             ),
                       ),
+                      const SizedBox(height: 4),
                       Text(
-                        _nameController.text.isEmpty
-                            ? 'Your Name'
-                            : _nameController.text,
-                        style: Theme.of(context).textTheme.titleMedium,
+                        'Levio organizes symptoms, meds, speech, and movement in one place.',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: colors.textSecondary,
+                            ),
                       ),
                     ],
                   ),
@@ -549,81 +469,71 @@ class _EditProfileScreenState extends State<EditProfileScreen>
               ],
             ),
           ),
+          const SizedBox(height: 16),
+          _buildBulletCard(
+            colors,
+            icon: Icons.shield_outlined,
+            title: 'Private by default',
+            subtitle:
+                'Your profile data stays local unless cloud sync is enabled.',
+          ),
+          const SizedBox(height: 10),
+          _buildBulletCard(
+            colors,
+            icon: Icons.track_changes_outlined,
+            title: 'Actionable tracking',
+            subtitle: 'Capture symptoms and routines for clearer patterns.',
+          ),
+          const SizedBox(height: 10),
+          _buildBulletCard(
+            colors,
+            icon: Icons.favorite_outline,
+            title: 'Supportive community',
+            subtitle: 'Share safely with moderated posts and comments.',
+          ),
+          const SizedBox(height: 18),
         ],
       ),
     );
   }
 
-  Widget _buildDetailsStep(AppColors colors) {
-    return SingleChildScrollView(
-      key: const ValueKey(2),
-      child: Column(
+  Widget _buildBulletCard(
+    AppColors colors, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+  }) {
+    return ModernCard(
+      padding: const EdgeInsets.all(14),
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SizedBox(height: 20),
-          Center(
-            child: Text(
-              'Almost there!',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Center(
-            child: Text(
-              'Enter your details to complete setup',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: colors.textSecondary,
-                  ),
-            ),
-          ),
-          const SizedBox(height: 48),
-          // Name field
-          Text(
-            'Name',
-            style: Theme.of(context).textTheme.labelLarge,
-          ),
-          const SizedBox(height: 8),
-          ModernTextField(
-            controller: _nameController,
-            hint: 'Enter your name',
-            prefixIcon: Icons.person_outline_rounded,
-            onChanged: (value) => setState(() {}),
-          ),
-          const SizedBox(height: 24),
-          // Email field
-          Text(
-            'Email (optional)',
-            style: Theme.of(context).textTheme.labelLarge,
-          ),
-          const SizedBox(height: 8),
-          ModernTextField(
-            controller: _emailController,
-            hint: 'Enter your email',
-            prefixIcon: Icons.email_outlined,
-            keyboardType: TextInputType.emailAddress,
-          ),
-          const SizedBox(height: 32),
-          // Privacy note
           Container(
-            padding: const EdgeInsets.all(16),
+            width: 36,
+            height: 36,
             decoration: BoxDecoration(
-              color: colors.info.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: colors.info.withValues(alpha: 0.3)),
+              color: colors.primary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
             ),
-            child: Row(
+            child: Icon(icon, size: 18, color: colors.primary),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.shield_outlined, color: colors.info, size: 24),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Your data is stored securely and will never be shared with third parties.',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: colors.info,
-                        ),
-                  ),
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: colors.textSecondary,
+                      ),
                 ),
               ],
             ),
@@ -633,39 +543,281 @@ class _EditProfileScreenState extends State<EditProfileScreen>
     );
   }
 
-  Widget _buildNavigationButtons(AppColors colors) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 24),
-      child: Row(
+  Widget _buildSignInStep(AppColors colors) {
+    return SingleChildScrollView(
+      key: const ValueKey('signin_step'),
+      physics: const BouncingScrollPhysics(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (_currentStep > 0)
-            Expanded(
-              child: ModernButton(
-                text: 'Back',
-                isOutlined: true,
-                onPressed: _previousStep,
+          const SizedBox(height: 6),
+          Text(
+            'Finish your account',
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Continue with Google for one-tap sign in, or fill your details manually.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: colors.textSecondary,
+                ),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed:
+                  (_isGoogleLoading || _isLoading) ? null : _signInWithGoogle,
+              icon: _isGoogleLoading
+                  ? SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor:
+                            AlwaysStoppedAnimation<Color>(colors.primary),
+                      ),
+                    )
+                  : Container(
+                      width: 18,
+                      height: 18,
+                      decoration: BoxDecoration(
+                        color: colors.surfaceVariant,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Center(
+                        child: Text(
+                          'G',
+                          style:
+                              Theme.of(context).textTheme.labelSmall?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    color: colors.primary,
+                                  ),
+                        ),
+                      ),
+                    ),
+              label: Text(
+                _isGoogleLoading
+                    ? 'Connecting Google...'
+                    : 'Continue with Google',
               ),
             ),
-          if (_currentStep > 0) const SizedBox(width: 16),
-          Expanded(
-            flex: _currentStep == 0 ? 1 : 1,
-            child: ModernButton(
-              text: _currentStep == 2 ? 'Get Started' : 'Continue',
-              isLoading: _isLoading,
-              icon: _currentStep == 2
-                  ? Icons.check_rounded
-                  : Icons.arrow_forward_rounded,
-              onPressed: () {
-                if (_currentStep == 2) {
-                  _createAccount();
-                } else {
-                  _nextStep();
-                }
-              },
+          ),
+          if (!singleton.isCloudConfigured) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Google sign-in is available when cloud backend is configured.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: colors.textTertiary,
+                  ),
+            ),
+          ],
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(child: Divider(color: colors.border)),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                child: Text(
+                  'or continue manually',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: colors.textTertiary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+              ),
+              Expanded(child: Divider(color: colors.border)),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Center(
+            child: GestureDetector(
+              onTap: updateImage,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    width: 116,
+                    height: 116,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: colors.border, width: 3),
+                    ),
+                    child: _buildProfileImage(110, colors),
+                  ),
+                  Positioned(
+                    bottom: -2,
+                    right: -2,
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: colors.primary,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: colors.surface, width: 2),
+                      ),
+                      child: const Icon(
+                        Icons.camera_alt_rounded,
+                        color: Colors.white,
+                        size: 16,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
+          const SizedBox(height: 10),
+          Center(
+            child: Text(
+              'Tap to add profile photo',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: colors.textTertiary,
+                  ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'Name',
+            style: Theme.of(context).textTheme.labelLarge,
+          ),
+          const SizedBox(height: 8),
+          ModernTextField(
+            controller: _nameController,
+            hint: 'Enter your full name',
+            prefixIcon: Icons.person_outline_rounded,
+            errorText: _nameError,
+            onChanged: (_) {
+              if (_nameError != null) {
+                setState(() => _nameError = null);
+              }
+            },
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Email (optional)',
+            style: Theme.of(context).textTheme.labelLarge,
+          ),
+          const SizedBox(height: 8),
+          ModernTextField(
+            controller: _emailController,
+            hint: 'you@example.com',
+            prefixIcon: Icons.alternate_email_rounded,
+            keyboardType: TextInputType.emailAddress,
+            errorText: _emailError,
+            onChanged: (_) {
+              if (_emailError != null) {
+                setState(() => _emailError = null);
+              }
+            },
+          ),
+          const SizedBox(height: 16),
+          ModernCard(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Row(
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: singleton.isCloudConnected
+                        ? colors.success.withValues(alpha: 0.12)
+                        : colors.info.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    singleton.isCloudConnected
+                        ? Icons.cloud_done_outlined
+                        : Icons.cloud_off_outlined,
+                    color: singleton.isCloudConnected
+                        ? colors.success
+                        : colors.info,
+                    size: 18,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        singleton.isCloudConnected
+                            ? 'Backend connected'
+                            : 'Running local-first',
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        singleton.backendStatusDescription,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: colors.textSecondary,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+          ModernCard(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.lock_outline, size: 18, color: colors.info),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Your data is encrypted on-device. Cloud sync uses an authenticated session when enabled.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: colors.textSecondary,
+                        ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
         ],
       ),
+    );
+  }
+
+  Widget _buildBottomActions(AppColors colors) {
+    if (_step == 0) {
+      return SizedBox(
+        width: double.infinity,
+        child: ModernButton(
+          text: 'Continue',
+          icon: Icons.arrow_forward_rounded,
+          onPressed: _goToForm,
+        ),
+      );
+    }
+
+    return Row(
+      children: [
+        Expanded(
+          child: ModernButton(
+            text: 'Back',
+            isOutlined: true,
+            onPressed: _goBack,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: ModernButton(
+            text: 'Sign In',
+            icon: Icons.login_rounded,
+            isLoading: _isLoading || _isGoogleLoading,
+            onPressed: _createAccount,
+          ),
+        ),
+      ],
     );
   }
 }

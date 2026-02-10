@@ -42,6 +42,54 @@ class _ExerciseScreenState extends State<ExerciseScreen>
     super.dispose();
   }
 
+  void _showExerciseTextGuide() {
+    final colors = context.colors;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext c) {
+        return Container(
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Exercise Guide',
+                  style: Theme.of(c).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'Follow each session at your own pace. Stop if you feel pain, dizziness, or shortness of breath.',
+                  style: Theme.of(c).textTheme.bodySmall?.copyWith(
+                        color: colors.textSecondary,
+                        height: 1.5,
+                      ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'Sources: Official YouTube channels listed on each lesson card.',
+                  style: Theme.of(c).textTheme.bodySmall?.copyWith(
+                        color: colors.textTertiary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
@@ -63,10 +111,29 @@ class _ExerciseScreenState extends State<ExerciseScreen>
           ),
           onPressed: () {
             HapticUtils.lightImpact();
-            Navigator.pushNamed(context, '/');
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            }
           },
         ),
         title: const Text('Exercises'),
+        actions: [
+          TextButton.icon(
+            onPressed: () {
+              HapticUtils.lightImpact();
+              _showExerciseTextGuide();
+            },
+            icon: Icon(Icons.notes_rounded, color: colors.primary, size: 18),
+            label: Text(
+              'Text',
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: colors.primary,
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: SingleChildScrollView(
         physics: const BouncingScrollPhysics(),

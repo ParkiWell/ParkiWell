@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+
 import '../theme/app_theme.dart';
 import '../utils/haptic_utils.dart';
 
-/// A professional card widget with subtle interactions
+/// A modern card widget with soft depth and subtle motion.
 class ModernCard extends StatefulWidget {
   final Widget child;
   final VoidCallback? onTap;
@@ -21,7 +22,7 @@ class ModernCard extends StatefulWidget {
     this.padding,
     this.margin,
     this.backgroundColor,
-    this.borderRadius = 8,
+    this.borderRadius = 16,
     this.showBorder = true,
     this.gradient,
     this.border,
@@ -32,21 +33,24 @@ class ModernCard extends StatefulWidget {
 }
 
 class _ModernCardState extends State<ModernCard> {
-  bool _isHovered = false;
+  bool _isPressed = false;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
 
+    final cardColor = widget.backgroundColor ?? colors.cardBackground;
+    final hasGradient = widget.gradient != null;
+
     return GestureDetector(
       onTapDown: widget.onTap != null
-          ? (_) => setState(() => _isHovered = true)
+          ? (_) => setState(() => _isPressed = true)
           : null,
       onTapUp: widget.onTap != null
-          ? (_) => setState(() => _isHovered = false)
+          ? (_) => setState(() => _isPressed = false)
           : null,
       onTapCancel: widget.onTap != null
-          ? () => setState(() => _isHovered = false)
+          ? () => setState(() => _isPressed = false)
           : null,
       onTap: widget.onTap != null
           ? () {
@@ -55,19 +59,41 @@ class _ModernCardState extends State<ModernCard> {
             }
           : null,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 100),
+        duration: const Duration(milliseconds: 140),
         curve: Curves.easeOut,
         margin: widget.margin ?? const EdgeInsets.symmetric(vertical: 6),
+        transform: Matrix4.identity()
+          ..scaleByDouble(
+            _isPressed ? 0.99 : 1.0,
+            _isPressed ? 0.99 : 1.0,
+            1.0,
+            1.0,
+          )
+          ..translateByDouble(0.0, _isPressed ? 1.0 : 0.0, 0.0, 1.0),
         decoration: BoxDecoration(
-          color: widget.gradient == null
-              ? (_isHovered
-                  ? colors.surfaceVariant
-                  : widget.backgroundColor ?? colors.cardBackground)
-              : null,
+          color: hasGradient
+              ? null
+              : (_isPressed
+                  ? Color.lerp(cardColor, colors.surfaceVariant, 0.45)
+                  : cardColor),
           gradient: widget.gradient,
           borderRadius: BorderRadius.circular(widget.borderRadius),
           border: widget.border ??
-              (widget.showBorder ? Border.all(color: colors.border) : null),
+              (widget.showBorder
+                  ? Border.all(
+                      color: _isPressed
+                          ? colors.primary.withValues(alpha: 0.28)
+                          : colors.border.withValues(alpha: 0.9),
+                    )
+                  : null),
+          boxShadow: [
+            BoxShadow(
+              color: colors.shadow.withValues(alpha: _isPressed ? 0.09 : 0.13),
+              blurRadius: _isPressed ? 8 : 18,
+              spreadRadius: 0,
+              offset: Offset(0, _isPressed ? 3 : 8),
+            ),
+          ],
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(widget.borderRadius),
@@ -81,7 +107,6 @@ class _ModernCardState extends State<ModernCard> {
   }
 }
 
-/// A feature card with icon, title, and description
 class FeatureCard extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -113,8 +138,8 @@ class FeatureCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: (iconColor ?? colors.primary).withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(6),
+              color: (iconColor ?? colors.primary).withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(
               icon,
@@ -130,7 +155,7 @@ class FeatureCard extends StatelessWidget {
                 Text(
                   title,
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w500,
+                        fontWeight: FontWeight.w700,
                       ),
                 ),
                 const SizedBox(height: 2),
@@ -144,7 +169,7 @@ class FeatureCard extends StatelessWidget {
             ),
           ),
           Icon(
-            Icons.chevron_right,
+            Icons.chevron_right_rounded,
             size: 20,
             color: colors.textTertiary,
           ),
@@ -154,7 +179,6 @@ class FeatureCard extends StatelessWidget {
   }
 }
 
-/// A stat card for displaying metrics
 class StatCard extends StatelessWidget {
   final String title;
   final String value;
@@ -181,21 +205,16 @@ class StatCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Icon(
-                icon,
-                size: 20,
-                color: cardColor,
-              ),
-            ],
+          Icon(
+            icon,
+            size: 20,
+            color: cardColor,
           ),
           const SizedBox(height: 12),
           Text(
             value,
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w700,
                 ),
           ),
           const SizedBox(height: 2),
@@ -211,7 +230,7 @@ class StatCard extends StatelessWidget {
               subtitle!,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: cardColor,
-                    fontWeight: FontWeight.w500,
+                    fontWeight: FontWeight.w700,
                   ),
             ),
           ],

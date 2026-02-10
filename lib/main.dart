@@ -8,6 +8,7 @@ import 'package:levio/singleton.dart';
 import 'package:levio/theme/app_theme.dart';
 import 'package:levio/screens/splash_screen.dart';
 import 'package:levio/screens/intro_screen.dart';
+import 'package:levio/screens/welcome_screen.dart';
 import 'package:levio/services/app_logger.dart';
 import 'package:levio/config/environment.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -34,7 +35,7 @@ void main() async {
     DeviceOrientation.portraitDown,
   ]);
 
-  // Initialize singleton and database
+  // Initialize singleton services
   final singleton = Singleton();
 
   try {
@@ -43,7 +44,7 @@ void main() async {
     await SharedPreferences.getInstance().then((prefs) async {
       if (prefs.containsKey('userID')) {
         try {
-          // Load user from local database
+          // Load user from cloud backend
           final loaded = await singleton.loadUser();
           if (loaded && singleton.name != "[Name]") {
             // User data loaded successfully, not first time
@@ -94,7 +95,7 @@ class MyApp extends StatefulWidget {
   State<MyApp> createState() => _MyAppState();
 }
 
-enum AppScreen { splash, intro, editProfile, home }
+enum AppScreen { splash, welcome, intro, editProfile, home }
 
 class _MyAppState extends State<MyApp> {
   final singleton = Singleton();
@@ -121,8 +122,17 @@ class _MyAppState extends State<MyApp> {
   void _onSplashComplete() {
     if (mounted) {
       setState(() {
-        // If first time, show intro. Otherwise go to home.
-        _currentScreen = singleton.firstTime ? AppScreen.intro : AppScreen.home;
+        // If first time, show welcome onboarding. Otherwise go to home.
+        _currentScreen =
+            singleton.firstTime ? AppScreen.welcome : AppScreen.home;
+      });
+    }
+  }
+
+  void _onWelcomeComplete() {
+    if (mounted) {
+      setState(() {
+        _currentScreen = AppScreen.intro;
       });
     }
   }
@@ -154,6 +164,9 @@ class _MyAppState extends State<MyApp> {
     switch (_currentScreen) {
       case AppScreen.splash:
         home = SplashScreen(onComplete: _onSplashComplete);
+        break;
+      case AppScreen.welcome:
+        home = WelcomeScreen(onContinue: _onWelcomeComplete);
         break;
       case AppScreen.intro:
         home = IntroScreen(onComplete: _onIntroComplete);

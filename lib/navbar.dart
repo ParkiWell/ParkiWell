@@ -6,10 +6,12 @@ import 'Main/manage.dart';
 import 'Main/recovery.dart';
 import 'Main/community.dart';
 import 'Main/profile.dart';
+import 'services/tutorial_service.dart';
 import 'singleton.dart';
 import 'theme/app_theme.dart';
 import 'utils/haptic_utils.dart';
 import 'widgets/modern_input.dart';
+import 'widgets/tutorial_overlay.dart';
 
 class Navbar extends StatefulWidget {
   const Navbar({super.key});
@@ -20,6 +22,7 @@ class Navbar extends StatefulWidget {
 
 class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
   final singleton = Singleton();
+  final tutorialService = TutorialService();
   int currentIndex = 0;
   bool button = false;
   bool addPost = false;
@@ -28,6 +31,14 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
 
   late AnimationController _fabAnimationController;
   late Animation<double> _fabScaleAnimation;
+  late final List<TutorialStep> _tutorialSteps;
+
+  final GlobalKey _titleKey = GlobalKey();
+  final GlobalKey _avatarKey = GlobalKey();
+  final GlobalKey _settingsKey = GlobalKey();
+  final GlobalKey _fabKey = GlobalKey();
+  final List<GlobalKey> _navItemKeys =
+      List<GlobalKey>.generate(5, (_) => GlobalKey());
 
   final List<Widget> tabs = [
     const LineChartSample1(),
@@ -72,6 +83,7 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
   void initState() {
     super.initState();
     currentIndex = singleton.page;
+    singleton.addListener(_onSingletonPageChange);
     if (currentIndex == 3 || currentIndex == 4) checkTab();
 
     _fabAnimationController = AnimationController(
@@ -87,10 +99,13 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
     if (button) {
       _fabAnimationController.forward();
     }
+
+    _tutorialSteps = _buildTutorialSteps();
   }
 
   @override
   void dispose() {
+    singleton.removeListener(_onSingletonPageChange);
     _fabAnimationController.dispose();
     super.dispose();
   }
@@ -136,6 +151,104 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
         _fabAnimationController.reverse();
       }
     });
+  }
+
+  void _switchTabForTutorial(int index) {
+    if (!mounted) return;
+    if (currentIndex == index) return;
+
+    setState(() {
+      currentIndex = index;
+      singleton.setPage(index);
+      button = false;
+      if (currentIndex == 3 || currentIndex == 4) {
+        checkTab();
+        _fabAnimationController.forward(from: 0);
+      } else {
+        _fabAnimationController.reverse();
+      }
+    });
+  }
+
+  void _onSingletonPageChange() {
+    if (!mounted) return;
+    final targetIndex = singleton.page;
+    if (targetIndex == currentIndex) return;
+
+    setState(() {
+      currentIndex = targetIndex;
+      button = false;
+      if (currentIndex == 3 || currentIndex == 4) {
+        checkTab();
+        _fabAnimationController.forward(from: 0);
+      } else {
+        _fabAnimationController.reverse();
+      }
+    });
+  }
+
+  List<TutorialStep> _buildTutorialSteps() {
+    return <TutorialStep>[
+      TutorialStep(
+        targetKey: _navItemKeys[0],
+        title: 'Home Dashboard',
+        description:
+            'This is your home dashboard for symptom and medication trend snapshots.',
+        onStepStarted: () => _switchTabForTutorial(0),
+      ),
+      TutorialStep(
+        targetKey: _navItemKeys[1],
+        title: 'Manage',
+        description:
+            'Use Manage to log symptoms, add medication schedules, and review care activity.',
+        onStepStarted: () => _switchTabForTutorial(1),
+      ),
+      TutorialStep(
+        targetKey: _navItemKeys[2],
+        title: 'Recovery',
+        description:
+            'Recovery gives you guided speech, movement, and exercise sessions.',
+        onStepStarted: () => _switchTabForTutorial(2),
+      ),
+      TutorialStep(
+        targetKey: _navItemKeys[3],
+        title: 'Community',
+        description:
+            'Community lets you connect with peers, groups, and trusted external resources.',
+        onStepStarted: () => _switchTabForTutorial(3),
+      ),
+      TutorialStep(
+        targetKey: _navItemKeys[4],
+        title: 'Profile',
+        description:
+            'Profile keeps your account and progress summary in one place.',
+        onStepStarted: () => _switchTabForTutorial(4),
+      ),
+      TutorialStep(
+        targetKey: _avatarKey,
+        title: 'Quick Profile',
+        description:
+            'Tap your avatar to jump to profile from anywhere in the app.',
+        onStepStarted: () => _switchTabForTutorial(4),
+        tooltipPosition: TutorialTooltipPosition.above,
+      ),
+      TutorialStep(
+        targetKey: _settingsKey,
+        title: 'Settings',
+        description:
+            'Open Settings to change theme, review legal docs, replay tutorial, or sign out.',
+        onStepStarted: () => _switchTabForTutorial(4),
+        tooltipPosition: TutorialTooltipPosition.above,
+      ),
+      TutorialStep(
+        targetKey: _fabKey,
+        title: 'Quick Edit',
+        description:
+            'Use this quick edit button to update your profile details.',
+        onStepStarted: () => _switchTabForTutorial(4),
+        tooltipPosition: TutorialTooltipPosition.above,
+      ),
+    ];
   }
 
   bool _hasCustomImage() {
@@ -313,24 +426,27 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     final colors = context.colors;
 
-    return Scaffold(
-      resizeToAvoidBottomInset: false,
-      appBar: _buildAppBar(colors),
-      body: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 300),
-        transitionBuilder: (child, animation) {
-          return FadeTransition(
-            opacity: animation,
-            child: child,
-          );
-        },
-        child: Container(
-          key: ValueKey(currentIndex),
-          child: tabs[currentIndex],
+    return TutorialOverlay(
+      steps: _tutorialSteps,
+      child: Scaffold(
+        resizeToAvoidBottomInset: false,
+        appBar: _buildAppBar(colors),
+        body: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 300),
+          transitionBuilder: (child, animation) {
+            return FadeTransition(
+              opacity: animation,
+              child: child,
+            );
+          },
+          child: Container(
+            key: ValueKey(currentIndex),
+            child: tabs[currentIndex],
+          ),
         ),
+        bottomNavigationBar: _buildBottomNavBar(colors),
+        floatingActionButton: _buildFAB(colors),
       ),
-      bottomNavigationBar: _buildBottomNavBar(colors),
-      floatingActionButton: _buildFAB(colors),
     );
   }
 
@@ -339,16 +455,20 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
       elevation: 0,
       scrolledUnderElevation: 0,
       backgroundColor: colors.background,
-      leadingWidth: 200,
+      toolbarHeight: 46,
+      leadingWidth: 180,
       leading: Padding(
-        padding: const EdgeInsets.only(left: 20),
+        padding: const EdgeInsets.only(left: 14),
         child: Row(
           children: [
-            Text(
-              navItems[currentIndex].label,
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
+            Container(
+              key: _titleKey,
+              child: Text(
+                navItems[currentIndex].label,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
             ),
           ],
         ),
@@ -358,9 +478,10 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
         GestureDetector(
           onTap: () => _onTabTapped(4),
           child: Container(
-            width: 36,
-            height: 36,
-            margin: const EdgeInsets.only(right: 8),
+            key: _avatarKey,
+            width: 34,
+            height: 34,
+            margin: const EdgeInsets.only(right: 4),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: Border.all(
@@ -374,7 +495,8 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
           ),
         ),
         IconButton(
-          iconSize: 20,
+          key: _settingsKey,
+          iconSize: 19,
           icon: Icon(
             Icons.settings_outlined,
             color: colors.textSecondary,
@@ -384,7 +506,7 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
             Navigator.pushNamed(context, '/settingsScreen');
           },
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: 4),
       ],
     );
   }
@@ -398,8 +520,10 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
         ),
       ),
       child: SafeArea(
+        top: false,
+        minimum: const EdgeInsets.only(bottom: 2),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: List.generate(navItems.length, (index) {
@@ -408,6 +532,7 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
                 navItems[index],
                 isSelected,
                 colors,
+                _navItemKeys[index],
                 () => _onTabTapped(index),
               );
             }),
@@ -421,31 +546,36 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
     _NavItem item,
     bool isSelected,
     AppColors colors,
+    GlobalKey itemKey,
     VoidCallback onTap,
   ) {
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              isSelected ? item.activeIcon : item.icon,
-              color: isSelected ? colors.primary : colors.navUnselected,
-              size: 22,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              item.label,
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: isSelected ? colors.primary : colors.navUnselected,
-                    fontWeight: isSelected ? FontWeight.w500 : FontWeight.w400,
-                    fontSize: 10,
-                  ),
-            ),
-          ],
+    return KeyedSubtree(
+      key: itemKey,
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                isSelected ? item.activeIcon : item.icon,
+                color: isSelected ? colors.primary : colors.navUnselected,
+                size: 20,
+              ),
+              const SizedBox(height: 2),
+              Text(
+                item.label,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: isSelected ? colors.primary : colors.navUnselected,
+                      fontWeight:
+                          isSelected ? FontWeight.w500 : FontWeight.w400,
+                      fontSize: 9,
+                    ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -457,6 +587,7 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
     return ScaleTransition(
       scale: _fabScaleAnimation,
       child: FloatingActionButton(
+        key: _fabKey,
         onPressed: () {
           HapticUtils.lightImpact();
           if (addPost) {

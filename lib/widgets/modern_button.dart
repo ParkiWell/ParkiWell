@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+
 import '../theme/app_theme.dart';
 import '../utils/haptic_utils.dart';
 
-/// Professional primary button
 class ModernButton extends StatefulWidget {
   final String text;
   final VoidCallback onPressed;
@@ -54,6 +54,17 @@ class _ModernButtonState extends State<ModernButton> {
     final backgroundColor = widget.backgroundColor ?? colors.primary;
     final textColor = widget.textColor ?? colors.textOnPrimary;
 
+    final gradient = widget.isOutlined
+        ? null
+        : LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              backgroundColor,
+              Color.lerp(backgroundColor, colors.primaryLight, 0.35)!,
+            ],
+          );
+
     return GestureDetector(
       onTapDown: _handleTapDown,
       onTapUp: _handleTapUp,
@@ -65,20 +76,51 @@ class _ModernButtonState extends State<ModernButton> {
               widget.onPressed();
             },
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 100),
+        duration: const Duration(milliseconds: 120),
         width: widget.width,
         padding: widget.padding ??
-            const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
+        transform: Matrix4.identity()
+          ..scaleByDouble(
+            _isPressed ? 0.985 : 1.0,
+            _isPressed ? 0.985 : 1.0,
+            1.0,
+            1.0,
+          ),
         decoration: BoxDecoration(
           color: widget.isOutlined
-              ? (_isPressed ? colors.surfaceVariant : Colors.transparent)
-              : (_isPressed
-                  ? backgroundColor.withValues(alpha: 0.9)
-                  : backgroundColor),
-          borderRadius: BorderRadius.circular(6),
-          border: widget.isOutlined
-              ? Border.all(color: colors.border, width: 1)
+              ? (_isPressed
+                  ? colors.surfaceVariant.withValues(alpha: 0.7)
+                  : Colors.transparent)
               : null,
+          gradient: widget.isOutlined
+              ? null
+              : (_isPressed
+                  ? LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        backgroundColor.withValues(alpha: 0.94),
+                        Color.lerp(backgroundColor, colors.primaryLight, 0.35)!
+                            .withValues(alpha: 0.94),
+                      ],
+                    )
+                  : gradient),
+          borderRadius: BorderRadius.circular(14),
+          border: widget.isOutlined
+              ? Border.all(
+                  color: colors.border.withValues(alpha: 0.9), width: 1)
+              : null,
+          boxShadow: widget.isOutlined
+              ? null
+              : [
+                  BoxShadow(
+                    color: backgroundColor.withValues(
+                        alpha: _isPressed ? 0.22 : 0.3),
+                    blurRadius: _isPressed ? 8 : 16,
+                    offset: Offset(0, _isPressed ? 4 : 8),
+                  ),
+                ],
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -108,7 +150,8 @@ class _ModernButtonState extends State<ModernButton> {
                 widget.text,
                 style: Theme.of(context).textTheme.labelLarge?.copyWith(
                       color: widget.isOutlined ? colors.textPrimary : textColor,
-                      fontWeight: FontWeight.w500,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.2,
                     ),
               ),
             ],
@@ -119,7 +162,6 @@ class _ModernButtonState extends State<ModernButton> {
   }
 }
 
-/// Icon button with professional styling
 class ModernIconButton extends StatefulWidget {
   final IconData icon;
   final VoidCallback onPressed;
@@ -158,16 +200,31 @@ class _ModernIconButtonState extends State<ModernIconButton> {
         widget.onPressed();
       },
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 100),
+        duration: const Duration(milliseconds: 120),
         width: widget.size,
         height: widget.size,
+        transform: Matrix4.identity()
+          ..scaleByDouble(
+            _isPressed ? 0.95 : 1.0,
+            _isPressed ? 0.95 : 1.0,
+            1.0,
+            1.0,
+          ),
         decoration: BoxDecoration(
           color: _isPressed
               ? (widget.backgroundColor ?? colors.primary)
                   .withValues(alpha: 0.9)
               : widget.backgroundColor ?? colors.primary,
           shape: widget.isCircle ? BoxShape.circle : BoxShape.rectangle,
-          borderRadius: widget.isCircle ? null : BorderRadius.circular(6),
+          borderRadius: widget.isCircle ? null : BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: (widget.backgroundColor ?? colors.primary)
+                  .withValues(alpha: 0.3),
+              blurRadius: 12,
+              offset: const Offset(0, 6),
+            ),
+          ],
         ),
         child: Icon(
           widget.icon,
@@ -179,7 +236,6 @@ class _ModernIconButtonState extends State<ModernIconButton> {
   }
 }
 
-/// Floating action button with professional styling
 class ModernFAB extends StatefulWidget {
   final IconData icon;
   final VoidCallback onPressed;
@@ -223,12 +279,37 @@ class _ModernFABState extends State<ModernFAB> {
           horizontal: widget.extended ? 16 : 14,
           vertical: 14,
         ),
+        transform: Matrix4.identity()
+          ..scaleByDouble(
+            _isPressed ? 0.97 : 1.0,
+            _isPressed ? 0.97 : 1.0,
+            1.0,
+            1.0,
+          ),
         decoration: BoxDecoration(
-          color: _isPressed
-              ? (widget.backgroundColor ?? colors.primary)
-                  .withValues(alpha: 0.9)
-              : widget.backgroundColor ?? colors.primary,
-          borderRadius: BorderRadius.circular(8),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              (_isPressed
+                      ? (widget.backgroundColor ?? colors.primary)
+                          .withValues(alpha: 0.9)
+                      : widget.backgroundColor ?? colors.primary)
+                  .withValues(alpha: 0.98),
+              Color.lerp(widget.backgroundColor ?? colors.primary,
+                      colors.primaryLight, 0.35)!
+                  .withValues(alpha: 0.98),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: (widget.backgroundColor ?? colors.primary)
+                  .withValues(alpha: 0.3),
+              blurRadius: 16,
+              offset: const Offset(0, 8),
+            ),
+          ],
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -244,7 +325,7 @@ class _ModernFABState extends State<ModernFAB> {
                 widget.label!,
                 style: Theme.of(context).textTheme.labelMedium?.copyWith(
                       color: widget.iconColor ?? colors.textOnPrimary,
-                      fontWeight: FontWeight.w500,
+                      fontWeight: FontWeight.w700,
                     ),
               ),
             ],

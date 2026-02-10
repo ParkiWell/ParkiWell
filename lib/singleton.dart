@@ -1,9 +1,9 @@
 import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:levio/services/local_database.dart';
 import 'package:levio/services/app_logger.dart';
 import 'package:levio/services/cloud_backend_service.dart';
+import 'package:levio/services/content_filter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import 'theme/app_theme.dart';
@@ -11,14 +11,14 @@ import 'theme/app_theme.dart';
 /// Main application state manager
 ///
 /// Singleton pattern for centralized state management with:
-/// - Local database persistence
+/// - Cloud database persistence
 /// - Secure data handling
 /// - Comprehensive logging
 class Singleton extends ChangeNotifier {
   static final Singleton _instance = Singleton._internal();
   final Future<SharedPreferences> _prefs = SharedPreferences.getInstance();
-  final LocalDatabase _db = LocalDatabase();
   final CloudBackendService _cloud = CloudBackendService();
+  final ContentModerationService _moderation = ContentModerationService();
   final AppLogger _logger = AppLogger();
   final Uuid _uuid = const Uuid();
 
@@ -130,13 +130,14 @@ class Singleton extends ChangeNotifier {
   // Community cache
   final List<Map<String, dynamic>> communityPosts = [];
   final Map<String, List<Map<String, dynamic>>> communityComments = {};
+  final Set<String> joinedCommunityGroups = <String>{};
+  String? _lastCommunityError;
 
-  /// Initialize the singleton and database
+  /// Initialize singleton services
   Future<void> initialize({bool isProduction = false}) async {
     if (_initialized) return;
 
     _logger.init(isProduction: isProduction);
-    await _db.initialize();
     await _cloud.initialize();
     _initialized = true;
     _logger.info('Singleton initialized');
@@ -147,7 +148,7 @@ class Singleton extends ChangeNotifier {
     notifyListenersSafe();
   }
 
-  void setUID(String uid) async {
+  Future<void> setUID(String uid) async {
     final SharedPreferences prefs = await _prefs;
     await prefs.setString('userID', uid);
   }
@@ -395,78 +396,134 @@ class Singleton extends ChangeNotifier {
     return colorMode == 1 ? AppTheme.darkColors : AppTheme.lightColors;
   }
 
+  bool get isCloudConnected => _cloud.isEnabled;
+  bool get isCloudConfigured => _cloud.isConfigured;
+  String get backendStatusDescription => _cloud.statusDescription;
+  String? get cloudSessionUserId => _cloud.cloudUserId;
+
+  String? consumeLastCommunityError() {
+    final error = _lastCommunityError;
+    _lastCommunityError = null;
+    return error;
+  }
+
   void setCurrentUrl(url) {
     currentURL = url;
     notifyListenersSafe();
   }
 
-  // ==================== Local Database Operations ====================
+  // ==================== Cloud Data Operations ====================
 
-  /// Load user data from local database
+  Future<String?> _resolveUserId() async {
+    final storedUid = await getUID();
+    final cloudUid = _cloud.cloudUserId;
+    final resolvedUid = cloudUid ?? storedUid;
+
+    if (resolvedUid != null && storedUid != resolvedUid) {
+      await setUID(resolvedUid);
+    }
+
+    return resolvedUid;
+  }
+
+  Map<String, dynamic> _decodeDataField(dynamic value) {
+    if (value is Map<String, dynamic>) return value;
+    if (value is Map) return Map<String, dynamic>.from(value);
+    if (value is String && value.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(value);
+        if (decoded is Map<String, dynamic>) return decoded;
+        if (decoded is Map) return Map<String, dynamic>.from(decoded);
+      } catch (_) {
+        // Keep empty map when persisted payload is malformed.
+      }
+    }
+    return <String, dynamic>{};
+  }
+
+  String _normalizedDisplayName(String value) {
+    final trimmed = value.trim();
+    return trimmed.isEmpty ? 'Levio Member' : trimmed;
+  }
+
+  String _effectiveProfileImage(String? candidate) {
+    final trimmed = candidate?.trim() ?? '';
+    return trimmed.isEmpty ? 'images/711128.png' : trimmed;
+  }
+
+  Future<bool> _ensureCloudUserRecord(String uid) async {
+    return _cloud.upsertUser(
+      id: uid,
+      name: _normalizedDisplayName(name == '[Name]' ? '' : name),
+      age: age,
+      profileImage: _effectiveProfileImage(image),
+      email: email == '[Email]' ? null : email,
+    );
+  }
+
+  /// Load user data from cloud backend
   Future<bool> loadUser() async {
     try {
-      final uid = await getUID();
+      if (!_cloud.isEnabled) {
+        _logger.warning('Cloud backend is not available for user loading.');
+        return false;
+      }
+
+      final uid = await _resolveUserId();
       if (uid == null) {
-        _logger.debug('No user ID found');
+        _logger.debug('No cloud user ID found');
         return false;
       }
 
-      final userResult = await _db.getUser(uid);
-      if (!userResult.success || userResult.data == null) {
-        _logger.debug('User not found in database');
+      final userData = await _cloud.getUser(uid);
+      if (userData == null) {
+        _logger.debug('User not found in cloud database');
         return false;
       }
 
-      final userData = userResult.data!;
-      name = userData['name'] ?? '[Name]';
-      email = userData['email'] ?? '[Email]';
+      final userName = userData['name']?.toString().trim() ?? '';
+      final userEmail = userData['email']?.toString().trim() ?? '';
+      final userImage = userData['profile_image']?.toString().trim() ?? '';
+
+      name = userName.isEmpty ? '[Name]' : userName;
+      email = userEmail.isEmpty ? '[Email]' : userEmail;
       age = (userData['age'] as num?)?.toInt() ?? 0;
-      image = userData['profile_image'] ?? 'images/711128.png';
+      image = userImage.isEmpty ? 'images/711128.png' : userImage;
 
-      // Load logs
-      final logsResult = await _db.getLogs(uid);
-      if (logsResult.success) {
-        log.clear();
-        logIDs.clear();
-        for (final logEntry in logsResult.dataOrThrow) {
-          try {
-            final data = jsonDecode(logEntry['data']);
-            log.add([
-              data['time'] ?? '',
-              data['symptom'] ?? '',
-              data['severity'] ?? ''
-            ]);
-            logIDs.add(logEntry['id']);
-          } catch (e) {
-            _logger.error('Error parsing log entry', e);
-          }
-        }
-        sortTime();
+      final cloudLogs = await _cloud.getLogs(uid);
+      log.clear();
+      logIDs.clear();
+      for (final logEntry in cloudLogs) {
+        final parsedData = _decodeDataField(logEntry['data']);
+        log.add(<String>[
+          (logEntry['event_time'] ?? parsedData['time'] ?? '').toString(),
+          (logEntry['symptom'] ??
+                  parsedData['symptom'] ??
+                  logEntry['title'] ??
+                  '')
+              .toString(),
+          (logEntry['severity'] ?? parsedData['severity'] ?? '').toString(),
+        ]);
+        logIDs.add((logEntry['id'] ?? '').toString());
       }
+      sortTime();
 
-      // Load schedules
-      final schedulesResult = await _db.getSchedules(uid);
-      if (schedulesResult.success) {
-        schedule.clear();
-        scheduleIDs.clear();
-        for (final scheduleEntry in schedulesResult.dataOrThrow) {
-          try {
-            final data = jsonDecode(scheduleEntry['data']);
-            schedule.add([
-              data['name'] ?? '',
-              data['details'] ?? '',
-              data['days'] ?? ''
-            ]);
-            scheduleIDs.add(scheduleEntry['id']);
-          } catch (e) {
-            _logger.error('Error parsing schedule entry', e);
-          }
-        }
+      final cloudSchedules = await _cloud.getSchedules(uid);
+      schedule.clear();
+      scheduleIDs.clear();
+      for (final scheduleEntry in cloudSchedules) {
+        final parsedData = _decodeDataField(scheduleEntry['data']);
+        schedule.add(<String>[
+          (parsedData['name'] ?? scheduleEntry['title'] ?? '').toString(),
+          (scheduleEntry['details'] ?? parsedData['details'] ?? '').toString(),
+          (scheduleEntry['days'] ?? parsedData['days'] ?? '').toString(),
+        ]);
+        scheduleIDs.add((scheduleEntry['id'] ?? '').toString());
       }
 
       calcMeds();
       notifyListenersSafe();
-      _logger.info('User data loaded successfully');
+      _logger.info('User data loaded from cloud successfully');
       return true;
     } catch (e, stackTrace) {
       _logger.error('Error loading user', e, stackTrace);
@@ -474,77 +531,123 @@ class Singleton extends ChangeNotifier {
     }
   }
 
-  /// Create a new user in local database
+  Future<CloudAuthProfile?> signInWithGoogle() async {
+    return _cloud.signInWithGoogle();
+  }
+
+  Future<bool> createOrSyncAuthenticatedUser({
+    required String displayName,
+    String? userEmail,
+    String? profileImage,
+  }) async {
+    try {
+      if (!_cloud.isEnabled) return false;
+
+      final uid = await _resolveUserId();
+      if (uid == null) return false;
+
+      final normalizedName = _normalizedDisplayName(displayName);
+      final normalizedEmail = (userEmail != null && userEmail.trim().isNotEmpty)
+          ? userEmail.trim()
+          : null;
+      final normalizedImage = _effectiveProfileImage(profileImage ?? image);
+
+      final prefs = await _prefs;
+      await prefs.setString('userID', uid);
+
+      final synced = await _cloud.upsertUser(
+        id: uid,
+        name: normalizedName,
+        age: age,
+        profileImage: normalizedImage,
+        email: normalizedEmail,
+      );
+      if (!synced) return false;
+
+      name = normalizedName;
+      email = normalizedEmail ?? '[Email]';
+      image = normalizedImage;
+      firstTime = false;
+
+      await loadUser();
+      notifyListenersSafe();
+      return true;
+    } catch (e, stackTrace) {
+      _logger.error('Error syncing authenticated user', e, stackTrace);
+      return false;
+    }
+  }
+
+  /// Create a new user in cloud database
   Future<bool> createUser(String userName, int age) async {
     try {
-      final uid = _uuid.v4();
-      final result = await _db.createUser(
-        uid,
-        userName,
-        age,
-        null,
-        email == '[Email]' ? null : email,
+      if (!_cloud.isEnabled) return false;
+
+      final uid = await _resolveUserId();
+      if (uid == null) return false;
+
+      final normalizedName = _normalizedDisplayName(userName);
+      final created = await _cloud.upsertUser(
+        id: uid,
+        name: normalizedName,
+        age: age,
+        profileImage: _effectiveProfileImage(image),
+        email: email == '[Email]' ? null : email,
       );
+      if (!created) return false;
 
-      if (result.success) {
-        final prefs = await _prefs;
-        await prefs.setString('userID', uid);
-        name = userName;
-        this.age = age;
+      final prefs = await _prefs;
+      await prefs.setString('userID', uid);
+      name = normalizedName;
+      this.age = age;
 
-        await _cloud.upsertUser(
-          id: uid,
-          name: userName,
-          age: age,
-          profileImage: image,
-          email: email == '[Email]' ? null : email,
-        );
-
-        notifyListenersSafe();
-        _logger.info('User created successfully');
-        return true;
-      }
-      return false;
+      notifyListenersSafe();
+      _logger.info('User created successfully');
+      return true;
     } catch (e, stackTrace) {
       _logger.error('Error creating user', e, stackTrace);
       return false;
     }
   }
 
-  /// Update user data in local database
+  /// Update user data in cloud database
   Future<bool> updateUser(
       {String? userName,
       int? age,
       String? profileImage,
       String? userEmail}) async {
     try {
-      final uid = await getUID();
+      if (!_cloud.isEnabled) return false;
+
+      final uid = await _resolveUserId();
       if (uid == null) return false;
 
-      final result = await _db.updateUser(uid,
-          name: userName,
-          age: age,
-          profileImage: profileImage,
-          email: userEmail);
+      final nextName =
+          userName != null ? _normalizedDisplayName(userName) : name;
+      final nextEmail = userEmail != null
+          ? (userEmail.trim().isEmpty ? '[Email]' : userEmail.trim())
+          : email;
+      final nextAge = age ?? this.age;
+      final nextImage = profileImage != null
+          ? _effectiveProfileImage(profileImage)
+          : _effectiveProfileImage(image);
 
-      if (result.success) {
-        if (userName != null) name = userName;
-        if (userEmail != null) email = userEmail;
-        if (age != null) this.age = age;
-        if (profileImage != null) image = profileImage;
+      final updated = await _cloud.upsertUser(
+        id: uid,
+        name: nextName,
+        age: nextAge,
+        profileImage: nextImage,
+        email: nextEmail == '[Email]' ? null : nextEmail,
+      );
+      if (!updated) return false;
 
-        await _cloud.upsertUser(
-          id: uid,
-          name: name,
-          age: this.age,
-          profileImage: image,
-          email: email == '[Email]' ? null : email,
-        );
+      name = nextName;
+      email = nextEmail;
+      this.age = nextAge;
+      image = nextImage;
 
-        notifyListenersSafe();
-        return true;
-      }
-      return false;
+      notifyListenersSafe();
+      return true;
     } catch (e, stackTrace) {
       _logger.error('Error updating user', e, stackTrace);
       return false;
@@ -554,8 +657,11 @@ class Singleton extends ChangeNotifier {
   /// Save a new log entry
   Future<bool> saveLog(String time, String symptom, String severity) async {
     try {
-      final uid = await getUID();
+      if (!_cloud.isEnabled) return false;
+
+      final uid = await _resolveUserId();
       if (uid == null) return false;
+      if (!await _ensureCloudUserRecord(uid)) return false;
 
       final logId = _uuid.v4();
       final data = jsonEncode({
@@ -564,27 +670,22 @@ class Singleton extends ChangeNotifier {
         'severity': severity,
       });
 
-      final result = await _db.saveLog(logId, uid, symptom, 0, 0, data);
+      final saved = await _cloud.saveLog(
+        id: logId,
+        userId: uid,
+        title: symptom,
+        data: data,
+        time: time,
+        symptom: symptom,
+        severity: severity,
+      );
+      if (!saved) return false;
 
-      if (result.success) {
-        log.add([time, symptom, severity]);
-        logIDs.add(logId);
-
-        await _cloud.saveLog(
-          id: logId,
-          userId: uid,
-          title: symptom,
-          data: data,
-          time: time,
-          symptom: symptom,
-          severity: severity,
-        );
-
-        sortTime();
-        notifyListenersSafe();
-        return true;
-      }
-      return false;
+      log.add(<String>[time, symptom, severity]);
+      logIDs.add(logId);
+      sortTime();
+      notifyListenersSafe();
+      return true;
     } catch (e, stackTrace) {
       _logger.error('Error saving log', e, stackTrace);
       return false;
@@ -595,39 +696,36 @@ class Singleton extends ChangeNotifier {
   Future<bool> updateLogEntry(
       int index, String time, String symptom, String severity) async {
     try {
+      if (!_cloud.isEnabled) return false;
       if (index < 0 || index >= logIDs.length) return false;
 
       final logId = logIDs[index];
       if (logId.isEmpty) return false;
+
+      final uid = await _resolveUserId();
+      if (uid == null) return false;
+
       final data = jsonEncode({
         'time': time,
         'symptom': symptom,
         'severity': severity,
       });
 
-      final result = await _db.updateLog(logId, title: symptom, data: data);
+      final updated = await _cloud.saveLog(
+        id: logId,
+        userId: uid,
+        title: symptom,
+        data: data,
+        time: time,
+        symptom: symptom,
+        severity: severity,
+      );
+      if (!updated) return false;
 
-      if (result.success) {
-        log[index] = [time, symptom, severity];
-
-        final uid = await getUID();
-        if (uid != null) {
-          await _cloud.saveLog(
-            id: logId,
-            userId: uid,
-            title: symptom,
-            data: data,
-            time: time,
-            symptom: symptom,
-            severity: severity,
-          );
-        }
-
-        sortTime();
-        notifyListenersSafe();
-        return true;
-      }
-      return false;
+      log[index] = <String>[time, symptom, severity];
+      sortTime();
+      notifyListenersSafe();
+      return true;
     } catch (e, stackTrace) {
       _logger.error('Error updating log', e, stackTrace);
       return false;
@@ -637,20 +735,19 @@ class Singleton extends ChangeNotifier {
   /// Delete a log entry
   Future<bool> deleteLog(int index) async {
     try {
+      if (!_cloud.isEnabled) return false;
       if (index < 0 || index >= logIDs.length) return false;
 
       final logId = logIDs[index];
       if (logId.isEmpty) return false;
-      final result = await _db.deleteLog(logId);
 
-      if (result.success) {
-        log.removeAt(index);
-        logIDs.removeAt(index);
-        await _cloud.deleteLog(logId);
-        notifyListenersSafe();
-        return true;
-      }
-      return false;
+      final deleted = await _cloud.deleteLog(logId);
+      if (!deleted) return false;
+
+      log.removeAt(index);
+      logIDs.removeAt(index);
+      notifyListenersSafe();
+      return true;
     } catch (e, stackTrace) {
       _logger.error('Error deleting log', e, stackTrace);
       return false;
@@ -660,8 +757,11 @@ class Singleton extends ChangeNotifier {
   /// Save a new schedule entry
   Future<bool> saveSchedule(String medName, String details, String days) async {
     try {
-      final uid = await getUID();
+      if (!_cloud.isEnabled) return false;
+
+      final uid = await _resolveUserId();
       if (uid == null) return false;
+      if (!await _ensureCloudUserRecord(uid)) return false;
 
       final scheduleId = _uuid.v4();
       final data = jsonEncode({
@@ -670,27 +770,21 @@ class Singleton extends ChangeNotifier {
         'days': days,
       });
 
-      final result =
-          await _db.saveSchedule(scheduleId, uid, medName, 0, 0, data);
+      final saved = await _cloud.saveSchedule(
+        id: scheduleId,
+        userId: uid,
+        title: medName,
+        data: data,
+        days: days,
+        details: details,
+      );
+      if (!saved) return false;
 
-      if (result.success) {
-        schedule.add([medName, details, days]);
-        scheduleIDs.add(scheduleId);
-
-        await _cloud.saveSchedule(
-          id: scheduleId,
-          userId: uid,
-          title: medName,
-          data: data,
-          days: days,
-          details: details,
-        );
-
-        calcMeds();
-        notifyListenersSafe();
-        return true;
-      }
-      return false;
+      schedule.add(<String>[medName, details, days]);
+      scheduleIDs.add(scheduleId);
+      calcMeds();
+      notifyListenersSafe();
+      return true;
     } catch (e, stackTrace) {
       _logger.error('Error saving schedule', e, stackTrace);
       return false;
@@ -701,39 +795,35 @@ class Singleton extends ChangeNotifier {
   Future<bool> updateScheduleEntry(
       int index, String medName, String details, String days) async {
     try {
+      if (!_cloud.isEnabled) return false;
       if (index < 0 || index >= scheduleIDs.length) return false;
 
       final scheduleId = scheduleIDs[index];
       if (scheduleId.isEmpty) return false;
+
+      final uid = await _resolveUserId();
+      if (uid == null) return false;
+
       final data = jsonEncode({
         'name': medName,
         'details': details,
         'days': days,
       });
 
-      final result =
-          await _db.updateSchedule(scheduleId, title: medName, data: data);
+      final updated = await _cloud.saveSchedule(
+        id: scheduleId,
+        userId: uid,
+        title: medName,
+        data: data,
+        days: days,
+        details: details,
+      );
+      if (!updated) return false;
 
-      if (result.success) {
-        schedule[index] = [medName, details, days];
-
-        final uid = await getUID();
-        if (uid != null) {
-          await _cloud.saveSchedule(
-            id: scheduleId,
-            userId: uid,
-            title: medName,
-            data: data,
-            days: days,
-            details: details,
-          );
-        }
-
-        calcMeds();
-        notifyListenersSafe();
-        return true;
-      }
-      return false;
+      schedule[index] = <String>[medName, details, days];
+      calcMeds();
+      notifyListenersSafe();
+      return true;
     } catch (e, stackTrace) {
       _logger.error('Error updating schedule', e, stackTrace);
       return false;
@@ -743,21 +833,20 @@ class Singleton extends ChangeNotifier {
   /// Delete a schedule entry
   Future<bool> deleteScheduleEntry(int index) async {
     try {
+      if (!_cloud.isEnabled) return false;
       if (index < 0 || index >= scheduleIDs.length) return false;
 
       final scheduleId = scheduleIDs[index];
       if (scheduleId.isEmpty) return false;
-      final result = await _db.deleteSchedule(scheduleId);
 
-      if (result.success) {
-        schedule.removeAt(index);
-        scheduleIDs.removeAt(index);
-        await _cloud.deleteSchedule(scheduleId);
-        calcMeds();
-        notifyListenersSafe();
-        return true;
-      }
-      return false;
+      final deleted = await _cloud.deleteSchedule(scheduleId);
+      if (!deleted) return false;
+
+      schedule.removeAt(index);
+      scheduleIDs.removeAt(index);
+      calcMeds();
+      notifyListenersSafe();
+      return true;
     } catch (e, stackTrace) {
       _logger.error('Error deleting schedule', e, stackTrace);
       return false;
@@ -767,20 +856,19 @@ class Singleton extends ChangeNotifier {
   /// Delete entire account and all associated data
   Future<bool> deleteAccount() async {
     try {
-      final uid = await getUID();
-      if (uid != null) {
-        final result = await _db.deleteUser(uid);
-        if (!result.success) {
-          _logger.error('Failed to delete user from database');
-        }
-        await _cloud.deleteUser(uid);
+      final uid = await _resolveUserId();
+      if (uid != null && !await _cloud.deleteUser(uid)) {
+        _logger.error('Failed to delete user from cloud database');
+        return false;
       }
 
-      // Clear local state
       log.clear();
       logIDs.clear();
       schedule.clear();
       scheduleIDs.clear();
+      communityPosts.clear();
+      communityComments.clear();
+      joinedCommunityGroups.clear();
       name = '[Name]';
       email = '[Email]';
       image = 'images/711128.png';
@@ -789,7 +877,6 @@ class Singleton extends ChangeNotifier {
       firstTime = true;
       age = 0;
 
-      // Clear preferences
       final prefs = await SharedPreferences.getInstance();
       await prefs.clear();
 
@@ -802,39 +889,99 @@ class Singleton extends ChangeNotifier {
     }
   }
 
+  /// Sign out current user while preserving app preferences like theme.
+  Future<bool> signOut() async {
+    try {
+      final cloudSignedOut = await _cloud.signOut();
+
+      log.clear();
+      logIDs.clear();
+      schedule.clear();
+      scheduleIDs.clear();
+      communityPosts.clear();
+      communityComments.clear();
+      joinedCommunityGroups.clear();
+      name = '[Name]';
+      email = '[Email]';
+      image = 'images/711128.png';
+      postNum = 0;
+      exerNum = 0;
+      firstTime = true;
+      age = 0;
+      page = 0;
+      _lastCommunityError = null;
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('userID');
+      await prefs.remove('community_alias');
+
+      notifyListenersSafe();
+      return cloudSignedOut;
+    } catch (e, stackTrace) {
+      _logger.error('Error signing out', e, stackTrace);
+      return false;
+    }
+  }
+
   // ==================== Community Operations ====================
 
-  String _communityDisplayName() {
+  Future<String> _communityDisplayName() async {
     if (name.trim().isNotEmpty && name != '[Name]') {
       return name.trim();
     }
-    return 'Member-${Random().nextInt(9000) + 1000}';
+
+    final prefs = await _prefs;
+    final existingAlias = prefs.getString('community_alias');
+    if (existingAlias != null && existingAlias.trim().isNotEmpty) {
+      return existingAlias;
+    }
+
+    final alias = 'Member-${Random().nextInt(9000) + 1000}';
+    await prefs.setString('community_alias', alias);
+    return alias;
   }
 
   Future<List<Map<String, dynamic>>> loadCommunityPosts({
     int limit = 50,
   }) async {
     try {
-      if (_cloud.isEnabled) {
-        final cloudPosts = await _cloud.getCommunityPosts(limit: limit);
-        if (cloudPosts.isNotEmpty) {
-          communityPosts
-            ..clear()
-            ..addAll(cloudPosts);
-          postNum = communityPosts.length;
-          notifyListenersSafe();
-          return communityPosts;
-        }
+      if (!_cloud.isEnabled) {
+        _lastCommunityError = 'Cloud sync unavailable.';
+        return communityPosts;
       }
 
-      final localPosts = await _db.getCommunityPosts(limit: limit);
-      if (localPosts.success) {
-        communityPosts
-          ..clear()
-          ..addAll(localPosts.dataOrThrow);
-        postNum = communityPosts.length;
-        notifyListenersSafe();
+      final cloudPosts = await _cloud.getCommunityPosts(limit: limit);
+      final uid = await _resolveUserId();
+      final postIds = cloudPosts
+          .map((post) => post['id']?.toString() ?? '')
+          .where((id) => id.isNotEmpty)
+          .toList();
+      Set<String> likedPostIds = <String>{};
+      Map<String, int> commentCounts = <String, int>{};
+
+      if (uid != null && postIds.isNotEmpty) {
+        likedPostIds = await _cloud.getLikedPostIds(
+          userId: uid,
+          postIds: postIds,
+        );
       }
+      if (postIds.isNotEmpty) {
+        commentCounts = await _cloud.getCommunityCommentCounts(postIds);
+      }
+
+      final normalizedPosts = cloudPosts.map((post) {
+        final copy = Map<String, dynamic>.from(post);
+        final postId = copy['id']?.toString() ?? '';
+        copy['liked_by_me'] = likedPostIds.contains(postId);
+        copy['comment_count'] = commentCounts[postId] ?? 0;
+        return copy;
+      }).toList();
+
+      communityPosts
+        ..clear()
+        ..addAll(normalizedPosts);
+      postNum = communityPosts.length;
+      notifyListenersSafe();
       return communityPosts;
     } catch (e, stackTrace) {
       _logger.error('Error loading community posts', e, stackTrace);
@@ -847,61 +994,282 @@ class Singleton extends ChangeNotifier {
     String? category,
   }) async {
     try {
-      final uid = await getUID();
-      if (uid == null || content.trim().isEmpty) return false;
+      _lastCommunityError = null;
+      if (!_cloud.isEnabled) {
+        _lastCommunityError = 'Cloud sync unavailable.';
+        return false;
+      }
+
+      final uid = await _resolveUserId();
+      if (uid == null) {
+        _lastCommunityError = 'Complete profile setup first.';
+        return false;
+      }
+
+      if (!await _ensureCloudUserRecord(uid)) {
+        _lastCommunityError = 'Unable to verify your profile.';
+        return false;
+      }
+
+      final moderation = _moderation.moderateContent(
+        content,
+        allowLinks: false,
+        userId: uid,
+      );
+      if (!moderation.isApproved) {
+        _lastCommunityError = moderation.rejectionReason ??
+            'Post does not meet community safety guidelines.';
+        return false;
+      }
+
+      final safeContent = (moderation.sanitizedContent ?? content).trim();
+      if (safeContent.isEmpty) {
+        _lastCommunityError = 'Post cannot be empty.';
+        return false;
+      }
 
       final postId = _uuid.v4();
-      final displayName = _communityDisplayName();
-      final result =
-          await _db.createPost(postId, uid, displayName, content, category);
-
-      if (!result.success) return false;
-
+      final displayName = await _communityDisplayName();
       final createdAt = DateTime.now().toIso8601String();
+
+      final saved = await _cloud.saveCommunityPost(
+        id: postId,
+        userId: uid,
+        userName: displayName,
+        content: safeContent,
+        category: category,
+        profileImage: image,
+      );
+      if (!saved) {
+        _lastCommunityError = 'Unable to share post right now.';
+        return false;
+      }
+
       communityPosts.insert(0, <String, dynamic>{
         'id': postId,
         'user_id': uid,
         'user_name': displayName,
-        'content': content.trim(),
+        'profile_image': image,
+        'content': safeContent,
         'category': category,
         'likes': 0,
         'created_at': createdAt,
         'updated_at': createdAt,
       });
       postNum = communityPosts.length;
-
-      await _cloud.saveCommunityPost(
-        id: postId,
-        userId: uid,
-        userName: displayName,
-        content: content.trim(),
-        category: category,
-      );
-
       notifyListenersSafe();
       return true;
     } catch (e, stackTrace) {
       _logger.error('Error creating community post', e, stackTrace);
+      _lastCommunityError = 'Unable to share post right now.';
+      return false;
+    }
+  }
+
+  Future<bool> updateCommunityPost({
+    required String postId,
+    required String content,
+    String? category,
+  }) async {
+    try {
+      _lastCommunityError = null;
+      if (!_cloud.isEnabled) {
+        _lastCommunityError = 'Cloud sync unavailable.';
+        return false;
+      }
+
+      final uid = await _resolveUserId();
+      if (uid == null) {
+        _lastCommunityError = 'Complete profile setup first.';
+        return false;
+      }
+
+      final moderation = _moderation.moderateContent(
+        content,
+        allowLinks: false,
+        userId: uid,
+      );
+      if (!moderation.isApproved) {
+        _lastCommunityError = moderation.rejectionReason ??
+            'Post does not meet community safety guidelines.';
+        return false;
+      }
+
+      final safeContent = (moderation.sanitizedContent ?? content).trim();
+      if (safeContent.isEmpty) {
+        _lastCommunityError = 'Post cannot be empty.';
+        return false;
+      }
+
+      final updated = await _cloud.updateCommunityPost(
+        postId: postId,
+        content: safeContent,
+        category: category,
+      );
+      if (!updated) {
+        _lastCommunityError = 'Unable to update post right now.';
+        return false;
+      }
+
+      final index = communityPosts.indexWhere((post) => post['id'] == postId);
+      if (index != -1) {
+        communityPosts[index]['content'] = safeContent;
+        communityPosts[index]['category'] = category;
+        communityPosts[index]['updated_at'] = DateTime.now().toIso8601String();
+      }
+
+      notifyListenersSafe();
+      return true;
+    } catch (e, stackTrace) {
+      _logger.error('Error updating community post', e, stackTrace);
+      _lastCommunityError = 'Unable to update post right now.';
+      return false;
+    }
+  }
+
+  Future<bool> deleteCommunityPost(String postId) async {
+    try {
+      _lastCommunityError = null;
+      if (!_cloud.isEnabled) {
+        _lastCommunityError = 'Cloud sync unavailable.';
+        return false;
+      }
+
+      final deleted = await _cloud.deleteCommunityPost(postId);
+      if (!deleted) {
+        _lastCommunityError = 'Unable to delete post right now.';
+        return false;
+      }
+
+      communityPosts.removeWhere((post) => post['id'] == postId);
+      communityComments.remove(postId);
+      postNum = communityPosts.length;
+      notifyListenersSafe();
+      return true;
+    } catch (e, stackTrace) {
+      _logger.error('Error deleting community post', e, stackTrace);
+      _lastCommunityError = 'Unable to delete post right now.';
       return false;
     }
   }
 
   Future<bool> likeCommunityPost(String postId) async {
     try {
-      final local = await _db.likePost(postId);
-      if (local.success) {
-        final idx = communityPosts.indexWhere((p) => p['id'] == postId);
-        if (idx != -1) {
-          final likes = (communityPosts[idx]['likes'] as num?)?.toInt() ?? 0;
-          communityPosts[idx]['likes'] = likes + 1;
-        }
-        await _cloud.incrementPostLike(postId);
-        notifyListenersSafe();
-        return true;
+      _lastCommunityError = null;
+      if (!_cloud.isEnabled) {
+        _lastCommunityError = 'Cloud sync unavailable.';
+        return false;
       }
-      return false;
+
+      final uid = await _resolveUserId();
+      if (uid == null) {
+        _lastCommunityError = 'Complete profile setup first.';
+        return false;
+      }
+
+      if (!await _ensureCloudUserRecord(uid)) {
+        _lastCommunityError = 'Unable to verify your profile.';
+        return false;
+      }
+
+      final likeResult = await _cloud.likeCommunityPost(
+        postId: postId,
+        userId: uid,
+      );
+      if (likeResult == null) {
+        _lastCommunityError = 'Unable to like post right now.';
+        return false;
+      }
+      if (!likeResult) {
+        _lastCommunityError = 'You already liked this post.';
+        return false;
+      }
+
+      final idx = communityPosts.indexWhere((p) => p['id'] == postId);
+      if (idx != -1) {
+        final likes = (communityPosts[idx]['likes'] as num?)?.toInt() ?? 0;
+        communityPosts[idx]['likes'] = likes + 1;
+        communityPosts[idx]['liked_by_me'] = true;
+      }
+      notifyListenersSafe();
+      return true;
     } catch (e, stackTrace) {
       _logger.error('Error liking post', e, stackTrace);
+      _lastCommunityError = 'Unable to like post right now.';
+      return false;
+    }
+  }
+
+  Future<Set<String>> loadJoinedCommunityGroups() async {
+    try {
+      _lastCommunityError = null;
+      if (!_cloud.isEnabled) {
+        _lastCommunityError = 'Cloud sync unavailable.';
+        return joinedCommunityGroups;
+      }
+
+      final uid = await _resolveUserId();
+      if (uid == null) {
+        _lastCommunityError = 'Complete profile setup first.';
+        return joinedCommunityGroups;
+      }
+
+      final joined = await _cloud.getJoinedCommunityGroupIds(uid);
+      joinedCommunityGroups
+        ..clear()
+        ..addAll(joined);
+      notifyListenersSafe();
+      return joinedCommunityGroups;
+    } catch (e, stackTrace) {
+      _logger.error('Error loading community groups', e, stackTrace);
+      _lastCommunityError = 'Unable to load groups right now.';
+      return joinedCommunityGroups;
+    }
+  }
+
+  Future<bool> setCommunityGroupMembership({
+    required String groupId,
+    required bool isJoined,
+  }) async {
+    try {
+      _lastCommunityError = null;
+      if (!_cloud.isEnabled) {
+        _lastCommunityError = 'Cloud sync unavailable.';
+        return false;
+      }
+
+      final uid = await _resolveUserId();
+      if (uid == null) {
+        _lastCommunityError = 'Complete profile setup first.';
+        return false;
+      }
+
+      if (!await _ensureCloudUserRecord(uid)) {
+        _lastCommunityError = 'Unable to verify your profile.';
+        return false;
+      }
+
+      final updated = await _cloud.setCommunityGroupMembership(
+        userId: uid,
+        groupId: groupId,
+        isJoined: isJoined,
+      );
+      if (!updated) {
+        _lastCommunityError = 'Unable to update group membership.';
+        return false;
+      }
+
+      if (isJoined) {
+        joinedCommunityGroups.add(groupId);
+      } else {
+        joinedCommunityGroups.remove(groupId);
+      }
+
+      notifyListenersSafe();
+      return true;
+    } catch (e, stackTrace) {
+      _logger.error('Error updating community group membership', e, stackTrace);
+      _lastCommunityError = 'Unable to update group membership.';
       return false;
     }
   }
@@ -909,21 +1277,14 @@ class Singleton extends ChangeNotifier {
   Future<List<Map<String, dynamic>>> loadCommunityComments(
       String postId) async {
     try {
-      if (_cloud.isEnabled) {
-        final cloudComments = await _cloud.getCommunityComments(postId);
-        if (cloudComments.isNotEmpty) {
-          communityComments[postId] = cloudComments;
-          notifyListenersSafe();
-          return cloudComments;
-        }
+      if (!_cloud.isEnabled) {
+        return communityComments[postId] ?? <Map<String, dynamic>>[];
       }
 
-      final localComments = await _db.getComments(postId);
-      if (localComments.success) {
-        communityComments[postId] = localComments.dataOrThrow;
-        notifyListenersSafe();
-      }
-      return communityComments[postId] ?? <Map<String, dynamic>>[];
+      final cloudComments = await _cloud.getCommunityComments(postId);
+      communityComments[postId] = cloudComments;
+      notifyListenersSafe();
+      return cloudComments;
     } catch (e, stackTrace) {
       _logger.error('Error loading comments', e, stackTrace);
       return communityComments[postId] ?? <Map<String, dynamic>>[];
@@ -935,17 +1296,57 @@ class Singleton extends ChangeNotifier {
     required String content,
   }) async {
     try {
-      final uid = await getUID();
-      if (uid == null || content.trim().isEmpty) return false;
+      _lastCommunityError = null;
+      if (!_cloud.isEnabled) {
+        _lastCommunityError = 'Cloud sync unavailable.';
+        return false;
+      }
+
+      final uid = await _resolveUserId();
+      if (uid == null) {
+        _lastCommunityError = 'Complete profile setup first.';
+        return false;
+      }
+
+      if (!await _ensureCloudUserRecord(uid)) {
+        _lastCommunityError = 'Unable to verify your profile.';
+        return false;
+      }
+
+      final moderation = _moderation.moderateContent(
+        content,
+        allowLinks: false,
+        userId: uid,
+      );
+      if (!moderation.isApproved) {
+        _lastCommunityError = moderation.rejectionReason ??
+            'Comment does not meet community safety guidelines.';
+        return false;
+      }
+
+      final safeContent = (moderation.sanitizedContent ?? content).trim();
+      if (safeContent.isEmpty) {
+        _lastCommunityError = 'Comment cannot be empty.';
+        return false;
+      }
 
       final commentId = _uuid.v4();
-      final displayName = _communityDisplayName();
-      final result =
-          await _db.createComment(commentId, postId, uid, displayName, content);
-
-      if (!result.success) return false;
-
+      final displayName = await _communityDisplayName();
       final createdAt = DateTime.now().toIso8601String();
+
+      final saved = await _cloud.saveCommunityComment(
+        id: commentId,
+        postId: postId,
+        userId: uid,
+        userName: displayName,
+        content: safeContent,
+        profileImage: image,
+      );
+      if (!saved) {
+        _lastCommunityError = 'Unable to add comment right now.';
+        return false;
+      }
+
       final cache = communityComments.putIfAbsent(
         postId,
         () => <Map<String, dynamic>>[],
@@ -955,22 +1356,23 @@ class Singleton extends ChangeNotifier {
         'post_id': postId,
         'user_id': uid,
         'user_name': displayName,
-        'content': content.trim(),
+        'profile_image': image,
+        'content': safeContent,
         'created_at': createdAt,
       });
 
-      await _cloud.saveCommunityComment(
-        id: commentId,
-        postId: postId,
-        userId: uid,
-        userName: displayName,
-        content: content.trim(),
-      );
+      final postIdx = communityPosts.indexWhere((post) => post['id'] == postId);
+      if (postIdx != -1) {
+        final current =
+            (communityPosts[postIdx]['comment_count'] as num?)?.toInt() ?? 0;
+        communityPosts[postIdx]['comment_count'] = current + 1;
+      }
 
       notifyListenersSafe();
       return true;
     } catch (e, stackTrace) {
       _logger.error('Error creating comment', e, stackTrace);
+      _lastCommunityError = 'Unable to add comment right now.';
       return false;
     }
   }
@@ -984,8 +1386,13 @@ class Singleton extends ChangeNotifier {
     }
   }
 
-  /// Get database statistics for debugging
+  /// Get in-memory cache statistics for debugging
   Future<Map<String, int>> getDatabaseStats() async {
-    return await _db.getStatistics();
+    return <String, int>{
+      'logs': log.length,
+      'schedules': schedule.length,
+      'community_posts_cache': communityPosts.length,
+      'community_comment_threads_cache': communityComments.length,
+    };
   }
 }

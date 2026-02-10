@@ -1,68 +1,60 @@
-# Backend Setup (Supabase)
+# Backend Setup (Supabase, Cloud-Only)
 
-This app works fully offline with local SQLite.  
-Cloud sync is optional and can be enabled with Supabase.
+Levio runs in **cloud-only mode**.
+User profile, logs, schedules, community posts/comments/likes, and group membership all persist in Supabase.
 
 ## 1. Create a Supabase project
 
-1. Create a project in Supabase.
-2. Open SQL Editor and run `supabase/schema.sql`.
-3. Copy:
-- Project URL
-- Project `anon` key
 
-## 2. Run app with cloud backend enabled
-
-Use Dart defines:
+1. Create one Supabase project for active development.
+2. In SQL Editor, run `supabase/schema.sql`.
+3. In Auth settings:
+   - enable **Anonymous sign-in**
+   - enable **Google provider**
+   - set redirect URL to `com.levio.app://login-callback/`
+4. Run locally with Dart defines:
 
 ```bash
 flutter run \
   --dart-define=BACKEND_PROVIDER=supabase \
   --dart-define=SUPABASE_URL=https://YOUR_PROJECT.supabase.co \
-  --dart-define=SUPABASE_ANON_KEY=YOUR_ANON_KEY
+  --dart-define=SUPABASE_ANON_KEY=YOUR_ANON_KEY \
+  --dart-define=SUPABASE_AUTH_REDIRECT_URL=com.levio.app://login-callback/
 ```
 
-Without these values, Levio runs in local-only mode.
+Without these values, sign-in and sync fail (there is no local DB fallback).
 
-## 3. Data model covered
+## 2. Identity Fields Stored
 
-Cloud sync currently supports:
-- user profile (`users`)
-- symptom logs (`logs`)
-- medication schedules (`schedules`)
-- community posts (`community_posts`)
-- community comments (`community_comments`)
+On account creation/Google sign-in Levio stores:
 
-## 4. Capacity for thousands of users
+- `uuid` (Supabase Auth user id) -> `users.id`
+- `name` -> `users.name`
+- `email` -> `users.email`
+- `profile_image` -> `users.profile_image`
 
-The provided schema includes indexes for:
-- per-user reads (`logs.user_id`, `schedules.user_id`)
-- feed pagination (`community_posts.created_at`)
-- comment fan-out (`community_comments.post_id`, `community_comments.created_at`)
+## 3. Production Checklist
 
-Recommended production settings:
-- enable daily backups
-- enable connection pooling
-- enable PITR (Point in Time Recovery)
-- monitor p95 query latency and add composite indexes as feed size grows
-- add moderation workflows for community content
+Schema already includes:
 
-## 5. Production hardening checklist
+- RLS policies tied to authenticated users
+- indexes for logs/schedules/community feeds
+- like increment RPC (`increment_post_like`)
+- unique per-user post likes (`community_post_likes` primary key)
+- persistent group membership (`community_group_memberships`)
 
-Before App Store release, complete:
+Before production:
 
-1. Replace permissive bootstrap RLS policies with auth-bound policies.
-2. Add Supabase Auth (email, OAuth, or anonymous + account linking).
-3. Bind `user_id` columns to `auth.uid()` in policies.
-4. Add request rate limits (Edge Functions/API gateway).
-5. Add abuse controls for post/comment creation.
-6. Run load tests on feed and comment endpoints.
+1. Enable PITR and backups in Supabase.
+2. Add abuse/rate limits for post/comment endpoints.
+3. Add monitoring/alerts for auth failures and latency.
+4. Load test feed pagination and write throughput.
 
-## 6. Staging and production separation
+## 4. GitHub/CI Setup
 
-Use separate Supabase projects:
-- `levio-dev`
-- `levio-staging`
-- `levio-prod`
+If external contributors run CI or deploy from GitHub, configure environment variables/secrets:
 
-Set project-specific Dart defines in CI workflows for staging vs production builds.
+- `BACKEND_PROVIDER=supabase`
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
+- `SUPABASE_AUTH_REDIRECT_URL=com.levio.app://login-callback/`

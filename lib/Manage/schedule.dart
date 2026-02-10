@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import '../singleton.dart';
 import '../theme/app_theme.dart';
 import '../utils/haptic_utils.dart';
-import '../widgets/modern_card.dart';
 import '../widgets/modern_button.dart';
+import '../widgets/modern_card.dart';
 
 class ScheduleScreen extends StatefulWidget {
   const ScheduleScreen({super.key});
@@ -18,12 +18,16 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
 
   String name(int index) => singleton.schedule[index][0];
   String detail(int index) => singleton.schedule[index][1];
-  String time(int index) => singleton.schedule[index][2];
+  String schedule(int index) => singleton.schedule[index][2];
 
-  @override
-  void initState() {
-    super.initState();
-    // Data is loaded from local database via singleton
+  Color _scheduleColor(String value, AppColors colors) {
+    final text = value.toLowerCase();
+    if (text.contains('everyday')) return colors.success;
+    if (text.contains('weekend')) return colors.warning;
+    if (text.contains('monday') || text.contains('tuesday')) {
+      return colors.secondary;
+    }
+    return colors.info;
   }
 
   void _showMedicationDetails(int index) {
@@ -35,10 +39,12 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (BuildContext c) {
+        final scheduleColor = _scheduleColor(schedule(index), colors);
+
         return Container(
           decoration: BoxDecoration(
             color: colors.surface,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
           ),
           child: Padding(
             padding: const EdgeInsets.all(20),
@@ -46,50 +52,60 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Handle bar
                 Center(
                   child: Container(
-                    width: 32,
+                    width: 34,
                     height: 4,
                     decoration: BoxDecoration(
                       color: colors.border,
-                      borderRadius: BorderRadius.circular(2),
+                      borderRadius: BorderRadius.circular(999),
                     ),
                   ),
                 ),
-                const SizedBox(height: 20),
-
-                // Header
-                Text(
-                  name(index),
-                  style: Theme.of(c).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
+                const SizedBox(height: 18),
+                ModernCard(
+                  backgroundColor: colors.surfaceVariant,
+                  border: Border.all(
+                    color: colors.border.withValues(alpha: 0.9),
+                  ),
+                  padding: const EdgeInsets.all(14),
+                  child: Row(
+                    children: [
+                      Icon(Icons.medication_rounded, color: colors.primary),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          name(index).isEmpty ? 'Medication' : name(index),
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: colors.textPrimary,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                        ),
                       ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  'Medication Schedule',
-                  style: Theme.of(c).textTheme.bodySmall?.copyWith(
-                        color: colors.textTertiary,
-                      ),
+                const SizedBox(height: 14),
+                _DetailRow(
+                  label: 'Medication',
+                  value: name(index),
+                  colors: colors,
                 ),
-                const SizedBox(height: 20),
-
-                // Details
+                const SizedBox(height: 10),
                 _DetailRow(
                   label: 'Details',
                   value: detail(index),
                   colors: colors,
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
                 _DetailRow(
                   label: 'Schedule',
-                  value: time(index),
+                  value: schedule(index),
                   colors: colors,
+                  badgeColor: scheduleColor,
                 ),
-                const SizedBox(height: 24),
-
-                // Actions
+                const SizedBox(height: 18),
                 Row(
                   children: [
                     Expanded(
@@ -99,16 +115,16 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                         onPressed: () => Navigator.pop(c),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 10),
                     ModernIconButton(
-                      icon: Icons.delete_outline,
+                      icon: Icons.delete_outline_rounded,
                       backgroundColor: colors.error,
                       onPressed: () async {
                         HapticUtils.lightImpact();
-                        await singleton.deleteEntireList(index, "schedules");
+                        await singleton.deleteEntireList(index, 'schedules');
                         if (!mounted || !c.mounted) return;
                         Navigator.pop(c);
-                        await Navigator.pushNamed(context, '/scheduleScreen');
+                        setState(() {});
                       },
                     ),
                   ],
@@ -122,6 +138,60 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     );
   }
 
+  Widget _buildSummary(AppColors colors) {
+    final total = singleton.schedule.length;
+    final daily = singleton.schedule
+        .where((entry) =>
+            entry.length > 2 && entry[2].toLowerCase().contains('everyday'))
+        .length;
+
+    return ModernCard(
+      backgroundColor: colors.cardBackground,
+      border: Border.all(color: colors.border),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: colors.primary,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Medication overview',
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: colors.textSecondary,
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '$total active medications',
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  color: colors.textPrimary,
+                ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '$daily daily schedules',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: colors.textSecondary,
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
@@ -129,11 +199,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
-          icon: Icon(
-            Icons.arrow_back,
-            color: colors.textPrimary,
-            size: 22,
-          ),
+          icon: Icon(Icons.arrow_back_rounded, color: colors.textPrimary),
           onPressed: () {
             HapticUtils.lightImpact();
             Navigator.pushNamed(context, '/');
@@ -141,14 +207,17 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
         ),
         title: const Text('Medications'),
       ),
-      body: singleton.schedule.isEmpty
-          ? _buildEmptyState(colors)
-          : _buildScheduleList(colors),
+      body: Container(
+        color: colors.background,
+        child: singleton.schedule.isEmpty
+            ? _buildEmptyState(colors)
+            : _buildScheduleList(colors),
+      ),
       floatingActionButton: ModernFAB(
         icon: Icons.add,
-        onPressed: () {
-          Navigator.popAndPushNamed(context, '/editScheduleScreen');
-        },
+        backgroundColor: colors.primaryDark,
+        onPressed: () =>
+            Navigator.popAndPushNamed(context, '/editScheduleScreen'),
         extended: true,
         label: 'Add Medication',
       ),
@@ -158,31 +227,50 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   Widget _buildEmptyState(AppColors colors) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(40),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.medication_outlined,
-              size: 40,
-              color: colors.textTertiary,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'No medications added',
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Add your medications to keep track of your schedule.',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: colors.textTertiary,
-                  ),
-              textAlign: TextAlign.center,
-            ),
-          ],
+        padding: const EdgeInsets.all(26),
+        child: ModernCard(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 70,
+                height: 70,
+                decoration: BoxDecoration(
+                  color: colors.secondary.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.medication_liquid_rounded,
+                  color: colors.secondary,
+                  size: 34,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'No medications added',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Create medication schedules to stay on track with treatments.',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: colors.textSecondary,
+                    ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ModernButton(
+                  text: 'Add First Medication',
+                  icon: Icons.add_rounded,
+                  onPressed: () =>
+                      Navigator.popAndPushNamed(context, '/editScheduleScreen'),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -190,16 +278,25 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
 
   Widget _buildScheduleList(AppColors colors) {
     return ListView.builder(
-      padding: const EdgeInsets.all(20),
-      itemCount: singleton.schedule.length,
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 90),
+      itemCount: singleton.schedule.length + 1,
       itemBuilder: (BuildContext context, int index) {
+        if (index == 0) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: _buildSummary(colors),
+          );
+        }
+
+        final row = index - 1;
+
         return Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: _ScheduleCard(
-            name: name(index),
-            detail: detail(index),
-            schedule: time(index),
-            onTap: () => _showMedicationDetails(index),
+            name: name(row),
+            detail: detail(row),
+            schedule: schedule(row),
+            onTap: () => _showMedicationDetails(row),
           ),
         );
       },
@@ -220,36 +317,67 @@ class _ScheduleCard extends StatelessWidget {
     required this.onTap,
   });
 
+  Color _scheduleColor(String value, AppColors colors) {
+    final text = value.toLowerCase();
+    if (text.contains('everyday')) return colors.success;
+    if (text.contains('weekend')) return colors.warning;
+    if (text.contains('monday') || text.contains('tuesday')) {
+      return colors.secondary;
+    }
+    return colors.info;
+  }
+
+  String _compactScheduleLabel(String value) {
+    final text = value.trim();
+    if (text.toLowerCase().contains('everyday')) return 'Everyday';
+    if (text.length <= 18) return text;
+    if (text.startsWith('Every ')) {
+      final days = text.substring(6).split(',');
+      if (days.length > 1) {
+        return '${days.first.trim()} +${days.length - 1}';
+      }
+    }
+    return '${text.substring(0, 15)}...';
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final scheduleColor = _scheduleColor(schedule, colors);
+    final compactSchedule = _compactScheduleLabel(schedule);
 
     return ModernCard(
       onTap: onTap,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       child: Row(
         children: [
-          Icon(
-            Icons.medication_outlined,
-            color: colors.textSecondary,
-            size: 20,
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: colors.secondary.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              Icons.medication_rounded,
+              color: colors.secondary,
+              size: 22,
+            ),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   name.isEmpty ? 'Medication' : name,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w500,
-                      ),
+                  style: Theme.of(context).textTheme.titleSmall,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 3),
                 Text(
-                  schedule,
+                  detail.isEmpty ? schedule : detail,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: colors.textTertiary,
                       ),
@@ -259,10 +387,22 @@ class _ScheduleCard extends StatelessWidget {
               ],
             ),
           ),
-          Icon(
-            Icons.chevron_right,
-            color: colors.textTertiary,
-            size: 20,
+          const SizedBox(width: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: scheduleColor.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              compactSchedule,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: scheduleColor,
+                    fontWeight: FontWeight.w700,
+                  ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
         ],
       ),
@@ -274,43 +414,51 @@ class _DetailRow extends StatelessWidget {
   final String label;
   final String value;
   final AppColors colors;
+  final Color? badgeColor;
 
   const _DetailRow({
     required this.label,
     required this.value,
     required this.colors,
+    this.badgeColor,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: colors.surfaceVariant,
-        borderRadius: BorderRadius.circular(8),
-      ),
+    return ModernCard(
+      margin: EdgeInsets.zero,
+      padding: const EdgeInsets.all(12),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  label,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: colors.textTertiary,
-                      ),
-                ),
-                const SizedBox(height: 2),
+                Text(label, style: Theme.of(context).textTheme.labelSmall),
+                const SizedBox(height: 4),
                 Text(
                   value.isEmpty ? 'Not specified' : value,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w500,
-                      ),
+                  style: Theme.of(context).textTheme.bodyMedium,
                 ),
               ],
             ),
           ),
+          if (badgeColor != null)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: badgeColor!.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                value,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: badgeColor,
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+            ),
         ],
       ),
     );

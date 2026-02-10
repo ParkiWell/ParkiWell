@@ -162,7 +162,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
           _ActivityItem(
             icon: Icons.favorite_outline,
-            title: 'Symptoms Logged',
+            title: 'Symptoms',
             value: '${singleton.log.length}',
           ),
           const SizedBox(height: 8),

@@ -7,39 +7,33 @@ Levio is a Parkinson's care companion app for symptom tracking, medication sched
 - Symptom logging with severity tracking
 - Medication schedule management
 - Recovery hub (speech + physical exercise videos)
-- Community feed with posts and comments
-- Light and dark mode UI with animated onboarding/splash
-- Local-first persistence (SQLite) with optional cloud sync
+- Community feed with posts, comments, likes, and sharing
+- Group membership and resource links in Community
+- Light/dark mode with animated splash and onboarding
+- Cloud-only persistence with Supabase
 
 ## Tech Stack
 
 - Flutter 3.x
-- Local DB: `sqflite` + secure key storage
-- Optional cloud backend: `supabase_flutter`
-- Charts: `fl_chart`
-- Media: `youtube_player_iframe`
+- Supabase (`supabase_flutter`) for auth + database
+- Charts (`fl_chart`)
+- Media (`youtube_player_iframe`, `video_player`)
 
-## Run Locally
+## Solo Maintainer Setup (Primary)
+
+Levio is configured for cloud-only storage.  
+Run with Supabase defines:
 
 ```bash
 flutter pub get
-flutter run
-```
-
-## Optional Cloud Backend (Supabase)
-
-By default, Levio runs local-only.
-
-Enable cloud sync:
-
-```bash
 flutter run \
   --dart-define=BACKEND_PROVIDER=supabase \
   --dart-define=SUPABASE_URL=https://YOUR_PROJECT.supabase.co \
-  --dart-define=SUPABASE_ANON_KEY=YOUR_ANON_KEY
+  --dart-define=SUPABASE_ANON_KEY=YOUR_ANON_KEY \
+  --dart-define=SUPABASE_AUTH_REDIRECT_URL=com.levio.app://login-callback/
 ```
 
-Setup details:
+Full backend setup:
 - `docs/BACKEND_SETUP.md`
 - `supabase/schema.sql`
 
@@ -64,7 +58,7 @@ Run before pushing:
 
 ```bash
 dart format --set-exit-if-changed lib test
-flutter analyze --no-fatal-infos
+flutter analyze
 flutter test
 ```
 

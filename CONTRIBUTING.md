@@ -29,7 +29,11 @@ Thank you for your interest in contributing to Levio.
    ```
 5. Run the app:
    ```bash
-   flutter run
+   flutter run \
+     --dart-define=BACKEND_PROVIDER=supabase \
+     --dart-define=SUPABASE_URL=https://YOUR_PROJECT.supabase.co \
+     --dart-define=SUPABASE_ANON_KEY=YOUR_ANON_KEY \
+     --dart-define=SUPABASE_AUTH_REDIRECT_URL=com.levio.app://login-callback/
    ```
 
 ## Branch Strategy
@@ -82,7 +86,7 @@ lib/
 ├── Manage/          # Symptom + medication flows
 ├── Recovery/        # Recovery exercise flows
 ├── screens/         # Intro/splash and shared entry screens
-├── services/        # Local DB, cloud sync, logging, filtering
+├── services/        # Cloud backend, logging, moderation, state services
 ├── theme/           # Theme and color system
 ├── utils/           # Utility functions
 └── widgets/         # Reusable UI components

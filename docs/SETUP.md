@@ -1,126 +1,115 @@
-# Environment Setup Guide
+# GitHub Environment Setup Guide
 
-## Branch Protection Rules
+This document is for **GitHub repository operations** (external contributors, CI/CD hardening, release process).  
+If you are the sole maintainer, use this as optional reference.
 
-Configure these rules in GitHub repository settings under Settings > Branches.
+## 1. Solo Maintainer Mode (Recommended Default)
 
-### Main Branch Protection
+If you are working alone:
 
-Branch: `main`
+1. Keep `main` as your primary branch.
+2. Run checks locally before push:
+   - `dart format --set-exit-if-changed lib test`
+   - `flutter analyze`
+   - `flutter test`
+3. Use production workflow when you are ready to build/release.
 
-- [x] Require a pull request before merging
-  - [x] Require approvals: 1
-  - [x] Dismiss stale pull request approvals when new commits are pushed
-  - [x] Require review from Code Owners
-- [x] Require status checks to pass before merging
-  - [x] Require branches to be up to date before merging
-  - Status checks required:
-    - `Code Analysis`
-    - `Run Tests`
-    - `Build Android`
-    - `Build iOS`
-- [x] Require conversation resolution before merging
-- [x] Do not allow bypassing the above settings
+You do not need strict PR approvals/branch protection for solo development unless you want them.
 
-### Staging Branch Protection
+## 2. Collaboration Mode (For Other People)
 
-Branch: `staging`
+If others contribute through GitHub, configure branch protection under **Settings > Branches**:
 
-- [x] Require a pull request before merging
-  - [x] Require approvals: 1
-- [x] Require status checks to pass before merging
-  - Status checks required:
-    - `Code Analysis`
-    - `Run Tests`
+### `main`
 
-### Develop Branch Protection
+- Require pull request before merge
+- Require status checks:
+  - `Code Analysis`
+  - `Run Tests`
+  - `Build Android`
+  - `Build iOS`
+- Require conversation resolution
+- Restrict direct pushes
 
-Branch: `develop`
+### `staging`
 
-- [x] Require status checks to pass before merging
-  - Status checks required:
-    - `Code Analysis`
+- Require pull request before merge
+- Require status checks:
+  - `Code Analysis`
+  - `Run Tests`
 
-## GitHub Environments
+### `develop`
 
-Create these environments in Settings > Environments:
+- Require status checks:
+  - `Code Analysis`
 
-### staging
+## 3. GitHub Environments
 
-- Protection rules: None (auto-deploy on push)
-- Environment secrets:
-  - `ANDROID_KEYSTORE_BASE64` (optional for staging)
+Create environments in **Settings > Environments**:
+
+### `staging`
+
+- Optional protection rules
+- Secrets:
+  - `ANDROID_KEYSTORE_BASE64` (optional)
   - `ANDROID_KEY_ALIAS`
   - `ANDROID_KEY_PASSWORD`
   - `ANDROID_STORE_PASSWORD`
 
-### production
+### `production`
 
-- Protection rules:
-  - [x] Required reviewers: 1
-  - [x] Wait timer: 5 minutes (optional)
-- Environment secrets:
-  - `ANDROID_KEYSTORE_BASE64` (required)
-  - `ANDROID_KEY_ALIAS` (required)
-  - `ANDROID_KEY_PASSWORD` (required)
-  - `ANDROID_STORE_PASSWORD` (required)
+- Optional required reviewer / wait timer
+- Secrets:
+  - `ANDROID_KEYSTORE_BASE64`
+  - `ANDROID_KEY_ALIAS`
+  - `ANDROID_KEY_PASSWORD`
+  - `ANDROID_STORE_PASSWORD`
   - `APPLE_CERTIFICATE_BASE64`
   - `APPLE_CERTIFICATE_PASSWORD`
   - `APPLE_PROVISIONING_PROFILE_BASE64`
   - `KEYCHAIN_PASSWORD`
 
-## Creating Android Keystore Secret
+## 4. Android Keystore Secret
 
-1. Generate a keystore:
+1. Generate keystore:
    ```bash
    keytool -genkey -v -keystore levio-release.jks -keyalias levio -keyalg RSA -keysize 2048 -validity 10000
    ```
-
 2. Convert to base64:
    ```bash
    base64 -i levio-release.jks -o keystore.txt
    ```
+3. Save as `ANDROID_KEYSTORE_BASE64` secret.
 
-3. Add the contents of `keystore.txt` as `ANDROID_KEYSTORE_BASE64` secret
+## 5. Release Flow (When Using GitHub Collaboration)
 
-## Release Process
+### Staging
 
-### Staging Release
+1. Merge features to `develop`
+2. PR `develop -> staging`
+3. Merge PR to trigger staging builds
 
-1. Merge feature branches into `develop`
-2. Create PR from `develop` to `staging`
-3. Merge PR - triggers staging build automatically
-4. Download and test staging APK from GitHub Actions artifacts
+### Production
 
-### Production Release
-
-1. Ensure staging is tested and approved
-2. Create PR from `staging` to `main`
-3. Get required approvals
-4. Merge PR
-5. Create a version tag:
+1. PR `staging -> main`
+2. Merge after checks
+3. Tag release:
    ```bash
    git tag v1.0.0
    git push origin v1.0.0
    ```
-6. Production build triggers automatically
-7. Verify draft release in GitHub Releases
-8. Edit release notes and publish
+4. Publish release artifacts from GitHub Actions
 
-## Backend Environments (Supabase)
+## 6. Backend Environment Variables
 
-For cloud sync, create separate Supabase projects:
-
-- `levio-dev` - Development
-- `levio-staging` - Staging
-- `levio-prod` - Production
-
-Set environment-specific Dart defines in your build and run commands:
+Levio is cloud-only (Supabase).  
+Use these defines for local/CI builds:
 
 ```bash
 --dart-define=BACKEND_PROVIDER=supabase \
 --dart-define=SUPABASE_URL=... \
---dart-define=SUPABASE_ANON_KEY=...
+--dart-define=SUPABASE_ANON_KEY=... \
+--dart-define=SUPABASE_AUTH_REDIRECT_URL=com.levio.app://login-callback/
 ```
 
-When these values are not provided, Levio runs in local-only mode (SQLite on-device).
+If defines are missing, authentication and sync will fail.

@@ -1,11 +1,11 @@
 {
-    "name": "parkinson",
-    "short_name": "parkinson",
+    "name": "Levio",
+    "short_name": "Levio",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "Levio helps people manage Parkinson's care with tracking, schedules, recovery guidance, and community support.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

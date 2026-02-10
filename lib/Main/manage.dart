@@ -110,143 +110,157 @@ class _ManageScreenState extends State<ManageScreen> {
     final totalLogs = singleton.log.length;
     final totalMeds = singleton.schedule.length;
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Track symptoms and manage medications',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: colors.textSecondary,
-                ),
-          ),
-          const SizedBox(height: 20),
-          ModernCard(
-            padding: const EdgeInsets.all(18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Today at a glance',
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                ),
-                const SizedBox(height: 14),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _InsightChip(
-                        label: 'Symptom logs',
-                        value: '$totalLogs',
-                        icon: Icons.favorite_outline_rounded,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _InsightChip(
-                        label: 'Meds today',
-                        value: '$dueToday',
-                        icon: Icons.medication_outlined,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _InsightChip(
-                        label: 'Streak',
-                        value: '${streak}d',
-                        icon: Icons.local_fire_department_outlined,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Color.lerp(colors.background, colors.primaryLight, 0.06)!,
+            colors.background,
+          ],
+        ),
+      ),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 26),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Track symptoms and manage medications',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: colors.textSecondary,
+                    height: 1.35,
+                  ),
             ),
-          ),
-          const SizedBox(height: 14),
-          ModernCard(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Icon(Icons.insights_outlined, color: colors.primary, size: 22),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    totalLogs == 0
-                        ? 'Start with your first symptom log to unlock trend insights.'
-                        : 'Great consistency. Keep logging symptoms and medication timing for clearer trend analysis.',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: colors.textSecondary,
+            const SizedBox(height: 18),
+            ModernCard(
+              padding: const EdgeInsets.all(18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Today at a glance',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: colors.textPrimary,
                         ),
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _InsightChip(
+                          label: 'Symptom logs',
+                          value: '$totalLogs',
+                          icon: Icons.favorite_outline_rounded,
+                          accentColor: colors.primary,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _InsightChip(
+                          label: 'Meds today',
+                          value: '$dueToday',
+                          icon: Icons.medication_outlined,
+                          accentColor: colors.secondary,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _InsightChip(
+                          label: 'Streak',
+                          value: '${streak}d',
+                          icon: Icons.local_fire_department_outlined,
+                          accentColor: colors.warning,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Quick actions',
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: _QuickAction(
+                    icon: Icons.add_chart_rounded,
+                    label: 'Log Symptom',
+                    accentColor: colors.primary,
+                    onTap: () {
+                      HapticUtils.lightImpact();
+                      Navigator.pushNamed(context, '/editLogScreen');
+                    },
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _QuickAction(
+                    icon: Icons.add_alarm_rounded,
+                    label: 'Add Medication',
+                    accentColor: colors.secondary,
+                    onTap: () {
+                      HapticUtils.lightImpact();
+                      Navigator.pushNamed(context, '/editScheduleScreen');
+                    },
                   ),
                 ),
               ],
             ),
-          ),
-          const SizedBox(height: 18),
-          Row(
-            children: [
-              Expanded(
-                child: _QuickAction(
-                  icon: Icons.add_chart_rounded,
-                  label: 'Log Symptom',
-                  onTap: () {
-                    HapticUtils.lightImpact();
-                    Navigator.pushNamed(context, '/editLogScreen');
-                  },
-                ),
+            const SizedBox(height: 6),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: () {
+                  HapticUtils.lightImpact();
+                  singleton.setPage(0);
+                },
+                icon: const Icon(Icons.show_chart_rounded, size: 18),
+                label: const Text('View trends'),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _QuickAction(
-                  icon: Icons.add_alarm_rounded,
-                  label: 'Add Med',
-                  onTap: () {
-                    HapticUtils.lightImpact();
-                    Navigator.pushNamed(context, '/editScheduleScreen');
-                  },
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _QuickAction(
-                  icon: Icons.bar_chart_rounded,
-                  label: 'View Trends',
-                  onTap: () {
-                    HapticUtils.lightImpact();
-                    Navigator.pushNamed(context, '/');
-                  },
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 22),
-          _ManageFeatureCard(
-            icon: Icons.favorite_outline,
-            title: 'Symptom Log',
-            subtitle: 'Track and monitor your daily symptoms',
-            statValue: '$totalLogs',
-            statLabel: 'entries',
-            onTap: () {
-              HapticUtils.lightImpact();
-              Navigator.pushNamed(context, '/logScreen');
-            },
-          ),
-          const SizedBox(height: 12),
-          _ManageFeatureCard(
-            icon: Icons.medication_outlined,
-            title: 'Medications',
-            subtitle: 'Set reminders and track your medications',
-            statValue: '$totalMeds',
-            statLabel: 'scheduled',
-            onTap: () {
-              HapticUtils.lightImpact();
-              Navigator.pushNamed(context, '/scheduleScreen');
-            },
-          ),
-          const SizedBox(height: 24),
-        ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Core tools',
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+            const SizedBox(height: 10),
+            _ManageFeatureCard(
+              icon: Icons.favorite_outline_rounded,
+              title: 'Symptom Log',
+              subtitle: 'Track and monitor your daily symptoms',
+              statValue: '$totalLogs',
+              statLabel: 'entries',
+              onTap: () {
+                HapticUtils.lightImpact();
+                Navigator.pushNamed(context, '/logScreen');
+              },
+            ),
+            const SizedBox(height: 12),
+            _ManageFeatureCard(
+              icon: Icons.medication_outlined,
+              title: 'Medications',
+              subtitle: 'Set reminders and track your medications',
+              statValue: '$totalMeds',
+              statLabel: 'scheduled',
+              onTap: () {
+                HapticUtils.lightImpact();
+                Navigator.pushNamed(context, '/scheduleScreen');
+              },
+            ),
+            const SizedBox(height: 24),
+          ],
+        ),
       ),
     );
   }
@@ -255,11 +269,13 @@ class _ManageScreenState extends State<ManageScreen> {
 class _QuickAction extends StatelessWidget {
   final IconData icon;
   final String label;
+  final Color accentColor;
   final VoidCallback onTap;
 
   const _QuickAction({
     required this.icon,
     required this.label,
+    required this.accentColor,
     required this.onTap,
   });
 
@@ -269,18 +285,29 @@ class _QuickAction extends StatelessWidget {
 
     return ModernCard(
       onTap: onTap,
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-      child: Column(
+      backgroundColor: colors.cardBackground,
+      border: Border.all(color: colors.border),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
+      child: Row(
         children: [
-          Icon(icon, color: colors.primary, size: 20),
-          const SizedBox(height: 6),
-          Text(
-            label,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: colors.textSecondary,
-                  fontWeight: FontWeight.w600,
-                ),
-            textAlign: TextAlign.center,
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: accentColor.withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: accentColor, size: 18),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: colors.textPrimary,
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
           ),
         ],
       ),
@@ -292,44 +319,49 @@ class _InsightChip extends StatelessWidget {
   final String label;
   final String value;
   final IconData icon;
+  final Color accentColor;
 
   const _InsightChip({
     required this.label,
     required this.value,
     required this.icon,
+    required this.accentColor,
   });
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-      decoration: BoxDecoration(
-        color: colors.surfaceVariant,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: colors.textSecondary, size: 16),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: colors.textTertiary,
-                ),
-          ),
-        ],
+    return SizedBox(
+      height: 120,
+      child: ModernCard(
+        margin: EdgeInsets.zero,
+        backgroundColor: colors.cardBackground,
+        border: Border.all(color: colors.border),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: accentColor, size: 16),
+            const SizedBox(height: 8),
+            Text(
+              value,
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: colors.textPrimary,
+                  ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              softWrap: true,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: colors.textSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -361,10 +393,18 @@ class _ManageFeatureCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       child: Row(
         children: [
-          Icon(
-            icon,
-            color: colors.textSecondary,
-            size: 22,
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: colors.primary.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              icon,
+              color: colors.primary,
+              size: 22,
+            ),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -381,7 +421,7 @@ class _ManageFeatureCard extends StatelessWidget {
                 Text(
                   subtitle,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: colors.textTertiary,
+                        color: colors.textSecondary,
                       ),
                 ),
               ],
@@ -391,13 +431,14 @@ class _ManageFeatureCard extends StatelessWidget {
           Text(
             '$statValue $statLabel',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: colors.textTertiary,
+                  color: colors.textSecondary,
+                  fontWeight: FontWeight.w600,
                 ),
           ),
           const SizedBox(width: 8),
           Icon(
-            Icons.chevron_right,
-            color: colors.textTertiary,
+            Icons.chevron_right_rounded,
+            color: colors.textSecondary,
             size: 20,
           ),
         ],
