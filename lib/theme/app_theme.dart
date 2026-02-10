@@ -150,14 +150,14 @@ class AppTheme {
           color: lightColors.textPrimary,
         ),
       ),
-      cardTheme: CardThemeData(
-        color: lightColors.cardBackground,
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-          side: BorderSide(color: lightColors.border),
-        ),
-      ),
+      cardTheme: ThemeData.light().cardTheme.copyWith(
+            color: lightColors.cardBackground,
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+              side: BorderSide(color: lightColors.border),
+            ),
+          ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: lightColors.primary,
@@ -236,22 +236,22 @@ class AppTheme {
           borderRadius: BorderRadius.circular(8),
         ),
       ),
-      dialogTheme: DialogThemeData(
-        backgroundColor: lightColors.surface,
-        elevation: 4,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-        titleTextStyle: GoogleFonts.plusJakartaSans(
-          fontSize: 18,
-          fontWeight: FontWeight.w600,
-          color: lightColors.textPrimary,
-        ),
-        contentTextStyle: GoogleFonts.plusJakartaSans(
-          fontSize: 14,
-          color: lightColors.textSecondary,
-        ),
-      ),
+      dialogTheme: ThemeData.light().dialogTheme.copyWith(
+            backgroundColor: lightColors.surface,
+            elevation: 4,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            titleTextStyle: GoogleFonts.plusJakartaSans(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: lightColors.textPrimary,
+            ),
+            contentTextStyle: GoogleFonts.plusJakartaSans(
+              fontSize: 14,
+              color: lightColors.textSecondary,
+            ),
+          ),
       dividerTheme: DividerThemeData(
         color: lightColors.divider,
         thickness: 1,
@@ -290,14 +290,14 @@ class AppTheme {
           color: darkColors.textPrimary,
         ),
       ),
-      cardTheme: CardThemeData(
-        color: darkColors.cardBackground,
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-          side: BorderSide(color: darkColors.border),
-        ),
-      ),
+      cardTheme: ThemeData.dark().cardTheme.copyWith(
+            color: darkColors.cardBackground,
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+              side: BorderSide(color: darkColors.border),
+            ),
+          ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: darkColors.primary,
@@ -376,22 +376,22 @@ class AppTheme {
           borderRadius: BorderRadius.circular(8),
         ),
       ),
-      dialogTheme: DialogThemeData(
-        backgroundColor: darkColors.surface,
-        elevation: 4,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-        titleTextStyle: GoogleFonts.plusJakartaSans(
-          fontSize: 18,
-          fontWeight: FontWeight.w600,
-          color: darkColors.textPrimary,
-        ),
-        contentTextStyle: GoogleFonts.plusJakartaSans(
-          fontSize: 14,
-          color: darkColors.textSecondary,
-        ),
-      ),
+      dialogTheme: ThemeData.dark().dialogTheme.copyWith(
+            backgroundColor: darkColors.surface,
+            elevation: 4,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            titleTextStyle: GoogleFonts.plusJakartaSans(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: darkColors.textPrimary,
+            ),
+            contentTextStyle: GoogleFonts.plusJakartaSans(
+              fontSize: 14,
+              color: darkColors.textSecondary,
+            ),
+          ),
       dividerTheme: DividerThemeData(
         color: darkColors.divider,
         thickness: 1,
@@ -516,4 +516,31 @@ extension AppColorsExtension on BuildContext {
   }
 
   bool get isDarkMode => Theme.of(this).brightness == Brightness.dark;
+}
+
+// Compatibility for Flutter SDKs that do not expose Color.withValues.
+extension ColorWithValuesCompatibility on Color {
+  Color withValues({
+    double? alpha,
+    double? red,
+    double? green,
+    double? blue,
+  }) {
+    int normalizeToChannel(double component) =>
+        (component.clamp(0.0, 1.0) * 255).round();
+
+    // ignore: deprecated_member_use
+    final int currentValue = value;
+    final int currentAlpha = (currentValue >> 24) & 0xFF;
+    final int currentRed = (currentValue >> 16) & 0xFF;
+    final int currentGreen = (currentValue >> 8) & 0xFF;
+    final int currentBlue = currentValue & 0xFF;
+
+    return Color.fromARGB(
+      alpha != null ? normalizeToChannel(alpha) : currentAlpha,
+      red != null ? normalizeToChannel(red) : currentRed,
+      green != null ? normalizeToChannel(green) : currentGreen,
+      blue != null ? normalizeToChannel(blue) : currentBlue,
+    );
+  }
 }
