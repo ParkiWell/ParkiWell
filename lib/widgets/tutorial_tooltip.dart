@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../theme/app_theme.dart';
 
@@ -31,62 +32,105 @@ class TutorialTooltip extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: Container(
-        width: 292,
-        padding: const EdgeInsets.all(16),
+        constraints: const BoxConstraints(minWidth: 300, maxWidth: 340),
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
         decoration: BoxDecoration(
           color: colors.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: colors.border),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: colors.border, width: 1),
           boxShadow: [
             BoxShadow(
-              color: colors.shadow.withValues(alpha: 0.22),
-              blurRadius: 20,
-              offset: const Offset(0, 10),
+              color: colors.shadow.withValues(alpha: 0.15),
+              blurRadius: 24,
+              offset: const Offset(0, 8),
             ),
           ],
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(999),
-              child: LinearProgressIndicator(
-                minHeight: 6,
-                value: safeStep / safeTotal,
-                backgroundColor: colors.surfaceVariant,
-                valueColor: AlwaysStoppedAnimation<Color>(colors.primary),
-              ),
+            Row(
+              children: [
+                Text(
+                  'Step $safeStep of $safeTotal',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: colors.textTertiary,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+                const Spacer(),
+                SizedBox(
+                  width: 80,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(999),
+                    child: LinearProgressIndicator(
+                      minHeight: 4,
+                      value: safeStep / safeTotal,
+                      backgroundColor: colors.surfaceVariant,
+                      valueColor: AlwaysStoppedAnimation<Color>(colors.primary),
+                    ),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
             Text(
               title,
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                color: colors.textPrimary,
+                height: 1.25,
+              ),
             ),
             const SizedBox(height: 8),
             Text(
               description,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: colors.textSecondary,
-                    height: 1.45,
-                  ),
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: colors.textSecondary,
+                height: 1.45,
+              ),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 18),
             Row(
               children: [
                 TextButton(
                   onPressed: onSkip,
+                  style: TextButton.styleFrom(
+                    foregroundColor: colors.textSecondary,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  ),
                   child: Text(
-                    'Skip',
-                    style: TextStyle(color: colors.textTertiary),
+                    'Skip tutorial',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
                 const Spacer(),
                 FilledButton(
                   onPressed: onNext,
-                  child: Text(actionLabel),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: colors.primary,
+                    foregroundColor: colors.textOnPrimary,
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: Text(
+                    actionLabel,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
               ],
             ),

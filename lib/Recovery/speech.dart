@@ -95,7 +95,12 @@ class _SpeechScreenState extends State<SpeechScreen>
     final colors = context.colors;
 
     return Scaffold(
+      backgroundColor: colors.background,
       appBar: AppBar(
+        backgroundColor: colors.background,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
         leading: IconButton(
           icon: Container(
             padding: const EdgeInsets.all(8),
@@ -116,7 +121,7 @@ class _SpeechScreenState extends State<SpeechScreen>
             }
           },
         ),
-        title: const Text('Speech Therapy'),
+        title: Text('Speech Therapy', style: TextStyle(color: colors.textPrimary, fontWeight: FontWeight.w600)),
         actions: [
           TextButton.icon(
             onPressed: () {

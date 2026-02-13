@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../navbar.dart';
+import '../theme/app_theme.dart';
 
 class OtherProfileScreen extends StatefulWidget {
   const OtherProfileScreen({super.key});
@@ -16,10 +17,15 @@ class _OtherProfileScreenState extends State<OtherProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Scaffold(
+      backgroundColor: colors.background,
       appBar: AppBar(
+        backgroundColor: colors.background,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: Icon(Icons.arrow_back_rounded, color: colors.textPrimary),
           onPressed: () {
             Navigator.of(context).pushReplacement(MaterialPageRoute(
               builder: (context) => const Navbar(),
@@ -27,7 +33,9 @@ class _OtherProfileScreenState extends State<OtherProfileScreen> {
           },
         ),
       ),
-      body: Padding(
+      body: Container(
+        color: colors.background,
+        child: Padding(
           padding: const EdgeInsets.all(16.0),
           child: Column(
               mainAxisAlignment: MainAxisAlignment.start,
@@ -84,6 +92,7 @@ class _OtherProfileScreenState extends State<OtherProfileScreen> {
                   ],
                 ),
               ])),
+        ),
     );
   }
 }

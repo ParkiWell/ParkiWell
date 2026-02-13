@@ -8,7 +8,9 @@ import '../utils/haptic_utils.dart';
 import '../widgets/modern_card.dart';
 
 class RecoveryScreen extends StatefulWidget {
-  const RecoveryScreen({super.key});
+  final GlobalKey? exerciseCardKey;
+
+  const RecoveryScreen({super.key, this.exerciseCardKey});
 
   @override
   State<RecoveryScreen> createState() => _RecoveryScreenState();
@@ -21,18 +23,22 @@ class _RecoveryScreenState extends State<RecoveryScreen> {
   Widget build(BuildContext context) {
     final colors = context.colors;
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Exercise and therapy to support your health',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: colors.textSecondary,
-                ),
-          ),
-          const SizedBox(height: 24),
+    return SizedBox.expand(
+      child: Container(
+        color: colors.background,
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Exercise and therapy to support your health',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: colors.textSecondary,
+                    ),
+              ),
+              const SizedBox(height: 16),
 
           // Progress stats
           _ProgressCard(
@@ -42,12 +48,15 @@ class _RecoveryScreenState extends State<RecoveryScreen> {
           const SizedBox(height: 24),
 
           // Therapy options
-          Text(
-            'Therapy',
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: colors.textSecondary,
-                  fontWeight: FontWeight.w500,
-                ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Therapy',
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: colors.textSecondary,
+                    fontWeight: FontWeight.w500,
+                  ),
+            ),
           ),
           const SizedBox(height: 12),
 
@@ -67,6 +76,7 @@ class _RecoveryScreenState extends State<RecoveryScreen> {
 
           // Exercise Card
           _RecoveryFeatureCard(
+            key: widget.exerciseCardKey,
             icon: Icons.fitness_center_outlined,
             title: 'Physical Exercises',
             subtitle: 'Video-guided exercises for mobility and strength',
@@ -77,8 +87,10 @@ class _RecoveryScreenState extends State<RecoveryScreen> {
               );
             },
           ),
-          const SizedBox(height: 24),
-        ],
+              const SizedBox(height: 24),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -122,17 +134,16 @@ class _ProgressCard extends StatelessWidget {
           Container(
             width: 48,
             height: 48,
+            alignment: Alignment.center,
             decoration: BoxDecoration(
               color: colors.surfaceVariant,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Center(
-              child: Text(
-                '$exercises',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-              ),
+            child: Text(
+              '$exercises',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
             ),
           ),
         ],
@@ -148,6 +159,7 @@ class _RecoveryFeatureCard extends StatelessWidget {
   final VoidCallback onTap;
 
   const _RecoveryFeatureCard({
+    super.key,
     required this.icon,
     required this.title,
     required this.subtitle,

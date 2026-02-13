@@ -88,10 +88,10 @@ class _ModernCardState extends State<ModernCard> {
                   : null),
           boxShadow: [
             BoxShadow(
-              color: colors.shadow.withValues(alpha: _isPressed ? 0.09 : 0.13),
-              blurRadius: _isPressed ? 8 : 18,
+              color: colors.shadow.withValues(alpha: _isPressed ? 0.06 : 0.08),
+              blurRadius: _isPressed ? 6 : 14,
               spreadRadius: 0,
-              offset: Offset(0, _isPressed ? 3 : 8),
+              offset: Offset(0, _isPressed ? 2 : 4),
             ),
           ],
         ),

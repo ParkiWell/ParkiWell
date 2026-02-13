@@ -263,7 +263,12 @@ class _EditScheduleScreenState extends State<EditScheduleScreen>
     final colors = context.colors;
 
     return Scaffold(
+      backgroundColor: colors.background,
       appBar: AppBar(
+        backgroundColor: colors.background,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
         leading: IconButton(
           icon: Icon(
             Icons.arrow_back_rounded,
@@ -275,92 +280,103 @@ class _EditScheduleScreenState extends State<EditScheduleScreen>
             Navigator.popAndPushNamed(context, '/scheduleScreen');
           },
         ),
-        title: const Text('Medication Log'),
+        title: Text('Medication Log', style: TextStyle(color: colors.textPrimary, fontWeight: FontWeight.w600)),
       ),
       body: FadeTransition(
         opacity: _animation,
-        child: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(20, 6, 20, 24),
+        child: Container(
+          color: colors.background,
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 'Create medication schedule',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.w700,
                     ),
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 4),
               Text(
                 'Add medication details and assign the days to take it.',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: colors.textSecondary,
-                      height: 1.4,
+                      height: 1.3,
                     ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               ModernCard(
-                padding: const EdgeInsets.all(18),
+                padding: const EdgeInsets.all(14),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       'Medication Name',
-                      style: Theme.of(context).textTheme.titleSmall,
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 8),
                     ModernTextField(
                       controller: _nameController,
                       hint: 'e.g., Levodopa 100mg',
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 12),
                     Text(
                       'Details (optional)',
-                      style: Theme.of(context).textTheme.titleSmall,
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 8),
                     ModernTextField(
                       controller: _detailsController,
                       hint: 'Dosage notes or instructions',
                       maxLines: 2,
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 12),
                     Divider(
-                        color: colors.border.withValues(alpha: 0.6), height: 1),
-                    const SizedBox(height: 16),
+                        color: colors.border, height: 1),
+                    const SizedBox(height: 12),
                     Text(
                       'Quick templates',
-                      style: Theme.of(context).textTheme.titleSmall,
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: colors.textPrimary,
+                          ),
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 8),
                     _buildTemplateSelector(),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 14),
                     Text(
                       'Select days',
-                      style: Theme.of(context).textTheme.titleSmall,
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: colors.textPrimary,
+                          ),
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 8),
                     _buildDaySelector(),
                   ],
                 ),
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 12),
               Container(
                 width: double.infinity,
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
                 decoration: BoxDecoration(
                   color: colors.surfaceVariant,
-                  borderRadius: BorderRadius.circular(12),
-                  border:
-                      Border.all(color: colors.border.withValues(alpha: 0.7)),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: colors.border, width: 1),
                 ),
                 child: Row(
                   children: [
                     Icon(
                       Icons.schedule_rounded,
-                      color: colors.textSecondary,
+                      color: colors.textPrimary,
                       size: 18,
                     ),
                     const SizedBox(width: 10),
@@ -368,7 +384,7 @@ class _EditScheduleScreenState extends State<EditScheduleScreen>
                       child: Text(
                         _formatSchedule(),
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: colors.textSecondary,
+                              color: colors.textPrimary,
                               fontWeight: FontWeight.w600,
                             ),
                       ),
@@ -376,7 +392,7 @@ class _EditScheduleScreenState extends State<EditScheduleScreen>
                   ],
                 ),
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 14),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
@@ -400,11 +416,12 @@ class _EditScheduleScreenState extends State<EditScheduleScreen>
           ),
         ),
       ),
+    ),
     );
   }
 }
 
-class _SelectionChip extends StatelessWidget {
+class _SelectionChip extends StatefulWidget {
   final String label;
   final bool selected;
   final VoidCallback onTap;
@@ -418,34 +435,54 @@ class _SelectionChip extends StatelessWidget {
   });
 
   @override
+  State<_SelectionChip> createState() => _SelectionChipState();
+}
+
+class _SelectionChipState extends State<_SelectionChip> {
+  bool _pressed = false;
+
+  @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final selected = widget.selected;
 
     return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 160),
-        padding: EdgeInsets.symmetric(
-          horizontal: compact ? 14 : 16,
-          vertical: compact ? 9 : 10,
-        ),
-        decoration: BoxDecoration(
-          color: selected
-              ? colors.primary.withValues(alpha: 0.12)
-              : colors.surfaceVariant.withValues(alpha: 0.65),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: selected
-                ? colors.primary.withValues(alpha: 0.5)
-                : colors.border.withValues(alpha: 0.8),
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) => setState(() => _pressed = false),
+      onTapCancel: () => setState(() => _pressed = false),
+      onTap: widget.onTap,
+      child: AnimatedScale(
+        scale: _pressed ? 0.96 : 1.0,
+        duration: const Duration(milliseconds: 100),
+        curve: Curves.easeOut,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+          padding: EdgeInsets.symmetric(
+            horizontal: widget.compact ? 12 : 14,
+            vertical: widget.compact ? 8 : 9,
           ),
-        ),
-        child: Text(
-          label,
-          style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                color: selected ? colors.primaryDark : colors.textSecondary,
-                fontWeight: FontWeight.w700,
-              ),
+          decoration: BoxDecoration(
+            color: selected
+                ? colors.primary.withValues(alpha: 0.12)
+                : colors.surfaceVariant,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: selected
+                  ? colors.primary
+                  : colors.border,
+              width: selected ? 1.5 : 1,
+            ),
+          ),
+          child: Text(
+            widget.label,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: selected
+                      ? colors.primary
+                      : colors.textSecondary,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                ),
+          ),
         ),
       ),
     );

@@ -120,6 +120,45 @@ void main() {
     expect(singleton.medsPerDay['Sunday'], equals(1));
   });
 
+  test('Offline log save writes local state and marks pending sync', () async {
+    final saved = await singleton.saveLog(
+      '08:30, 12 February 2026',
+      'Tremor',
+      'Moderate',
+    );
+
+    expect(saved, isTrue);
+    expect(singleton.log.length, equals(1));
+    expect(singleton.log.first[1], equals('Tremor'));
+    expect(singleton.lastSyncStatus.toLowerCase(), contains('pending'));
+  });
+
+  test('Backup export and import round-trips core data', () async {
+    singleton.name = 'Alex';
+    singleton.email = 'alex@example.com';
+    singleton.log.add(<String>['09:00, 10 February 2026', 'Fatigue', 'Mild']);
+    singleton.logIDs.add('log-1');
+    singleton.schedule.add(<String>['Levodopa', '100mg', 'Everyday']);
+    singleton.scheduleIDs.add('schedule-1');
+
+    final backup = singleton.exportBackupJson();
+
+    singleton.name = '[Name]';
+    singleton.email = '[Email]';
+    singleton.log.clear();
+    singleton.logIDs.clear();
+    singleton.schedule.clear();
+    singleton.scheduleIDs.clear();
+
+    final imported = await singleton.importBackupJson(backup);
+
+    expect(imported, isTrue);
+    expect(singleton.name, equals('Alex'));
+    expect(singleton.email, equals('alex@example.com'));
+    expect(singleton.log.length, equals(1));
+    expect(singleton.schedule.length, equals(1));
+  });
+
   testWidgets('Manage and recovery screens expose core feature cards', (
     tester,
   ) async {

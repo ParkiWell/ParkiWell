@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:levio/main.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:terminate_restart/terminate_restart.dart';
 
 import 'legal/legal_document_screen.dart';
@@ -20,11 +22,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final singleton = Singleton();
   final tutorialService = TutorialService();
   bool theme = false;
+  String _appVersion = 'Loading...';
+  bool _isSyncing = false;
 
   @override
   void initState() {
     super.initState();
     theme = singleton.colorMode == 1;
+    _loadAppVersion();
+  }
+
+  Future<void> _loadAppVersion() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      if (!mounted) return;
+      setState(() {
+        _appVersion = '${info.version} (${info.buildNumber})';
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _appVersion = 'Unknown';
+      });
+    }
   }
 
   void _showDeleteAccountDialog() {
@@ -122,6 +142,104 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  Future<void> _syncNow() async {
+    if (_isSyncing || singleton.isSyncInProgress) return;
+    setState(() => _isSyncing = true);
+    final synced = await singleton.syncNow();
+    if (!mounted) return;
+    setState(() => _isSyncing = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          synced ? 'Sync complete' : 'Sync unavailable, using local cache',
+        ),
+      ),
+    );
+  }
+
+  Future<void> _exportBackup() async {
+    final payload = singleton.exportBackupJson();
+    try {
+      await SharePlus.instance.share(
+        ShareParams(
+          text: payload,
+          subject: 'Levio backup',
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Unable to export backup right now.'),
+        ),
+      );
+    }
+  }
+
+  Future<void> _showImportBackupDialog() async {
+    final colors = context.colors;
+    final controller = TextEditingController();
+    await showDialog(
+      context: context,
+      builder: (c) {
+        return AlertDialog(
+          title: const Text('Import Backup'),
+          content: SizedBox(
+            width: 520,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Paste backup JSON below to restore local data.',
+                  style: Theme.of(c).textTheme.bodySmall?.copyWith(
+                        color: colors.textSecondary,
+                      ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: controller,
+                  maxLines: 8,
+                  decoration: InputDecoration(
+                    hintText: '{"backup_version":1,...}',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(c),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final success =
+                    await singleton.importBackupJson(controller.text.trim());
+                if (!c.mounted || !mounted) return;
+                Navigator.pop(c);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      success
+                          ? 'Backup imported into local cache'
+                          : 'Backup import failed',
+                    ),
+                  ),
+                );
+              },
+              child: const Text('Import'),
+            ),
+          ],
+        );
+      },
+    );
+    controller.dispose();
+  }
+
   void _showDeletingDialog() {
     final colors = context.colors;
 
@@ -175,10 +293,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final colors = context.colors;
 
     return Scaffold(
+      backgroundColor: colors.background,
       appBar: AppBar(
+        backgroundColor: colors.background,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
         leading: IconButton(
           icon: Icon(
-            Icons.arrow_back,
+            Icons.arrow_back_rounded,
             color: colors.textPrimary,
             size: 22,
           ),
@@ -190,9 +313,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
             );
           },
         ),
-        title: const Text('Settings'),
+        title: Text('Settings', style: TextStyle(color: colors.textPrimary, fontWeight: FontWeight.w600)),
       ),
-      body: SingleChildScrollView(
+      body: Container(
+        color: colors.background,
+        child: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -216,6 +341,61 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const SizedBox(height: 24),
 
+            Text(
+              'Data & Sync',
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: colors.textSecondary,
+                    fontWeight: FontWeight.w500,
+                  ),
+            ),
+            const SizedBox(height: 12),
+
+            _SettingsTile(
+              icon: singleton.isOnline
+                  ? Icons.cloud_done_outlined
+                  : Icons.cloud_off_outlined,
+              title: 'Sync Status',
+              subtitle:
+                  '${singleton.lastSyncStatus} • ${singleton.lastSyncDisplay}',
+            ),
+            const SizedBox(height: 8),
+
+            _SettingsTile(
+              icon: Icons.sync_rounded,
+              title: 'Sync Now',
+              subtitle: _isSyncing || singleton.isSyncInProgress
+                  ? 'Syncing...'
+                  : 'Refresh cloud data',
+              trailing: _isSyncing || singleton.isSyncInProgress
+                  ? SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: colors.primary,
+                      ),
+                    )
+                  : null,
+              onTap: _isSyncing ? null : _syncNow,
+            ),
+            const SizedBox(height: 8),
+
+            _SettingsTile(
+              icon: Icons.upload_file_outlined,
+              title: 'Export Backup',
+              subtitle: 'Share JSON backup of your local data',
+              onTap: _exportBackup,
+            ),
+            const SizedBox(height: 8),
+
+            _SettingsTile(
+              icon: Icons.download_for_offline_outlined,
+              title: 'Import Backup',
+              subtitle: 'Restore from backup JSON',
+              onTap: _showImportBackupDialog,
+            ),
+            const SizedBox(height: 24),
+
             // About section
             Text(
               'About',
@@ -226,10 +406,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const SizedBox(height: 12),
 
-            const _SettingsTile(
+            _SettingsTile(
               icon: Icons.info_outlined,
               title: 'App Version',
-              subtitle: '1.0.0',
+              subtitle: _appVersion,
             ),
             const SizedBox(height: 8),
 
@@ -344,6 +524,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ],
         ),
       ),
+    ),
     );
   }
 

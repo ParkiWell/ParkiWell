@@ -22,6 +22,10 @@ flutter run \
   --dart-define=SUPABASE_AUTH_REDIRECT_URL=com.levio.app://login-callback/
 ```
 
+Optional local helper:
+- Create `.env.local` with `SUPABASE_URL`, `SUPABASE_ANON_KEY` (and optional `BACKEND_PROVIDER`, `SUPABASE_AUTH_REDIRECT_URL`).
+- Run `scripts/run-backend.sh`.
+
 Without these values, sign-in and sync fail (there is no local DB fallback).
 
 ## 2. Identity Fields Stored

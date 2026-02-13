@@ -61,6 +61,16 @@ class LineChartSample1State extends State<LineChartSample1>
     return List.generate(6, (index) => (currentYear - 5 + index).toString());
   }
 
+  bool get _symptomChartHasData => singleton.log.isNotEmpty;
+
+  bool get _medicationChartHasData => singleton.schedule.isNotEmpty;
+
+  String get _welcomeTitle {
+    final n = singleton.name.trim();
+    if (n.isEmpty || n == '[Name]') return 'Welcome';
+    return 'Welcome back, $n';
+  }
+
   DateTime? _parseLogTimestamp(String value) {
     final parts = value.split(',');
     if (parts.length != 2) return null;
@@ -362,7 +372,7 @@ class LineChartSample1State extends State<LineChartSample1>
 
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -370,19 +380,21 @@ class LineChartSample1State extends State<LineChartSample1>
           FadeTransition(
             opacity: _animation,
             child: Text(
-              'Welcome back, ${singleton.name}',
+              _welcomeTitle,
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.3,
                   ),
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
           FadeTransition(
             opacity: _animation,
             child: Text(
               'Here\'s your health overview',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: colors.textSecondary,
+                    height: 1.4,
                   ),
             ),
           ),
@@ -420,6 +432,7 @@ class LineChartSample1State extends State<LineChartSample1>
           // Symptom chart
           ModernCard(
             padding: const EdgeInsets.all(20),
+            borderRadius: 16,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -429,15 +442,15 @@ class LineChartSample1State extends State<LineChartSample1>
                     Row(
                       children: [
                         Container(
-                          padding: const EdgeInsets.all(8),
+                          padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
-                            color: colors.chartLine.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(8),
+                            color: colors.chartLine.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(12),
                           ),
                           child: Icon(
                             Icons.show_chart_rounded,
                             color: colors.chartLine,
-                            size: 20,
+                            size: 22,
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -445,7 +458,7 @@ class LineChartSample1State extends State<LineChartSample1>
                           'Symptoms',
                           style:
                               Theme.of(context).textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.bold,
+                                    fontWeight: FontWeight.w700,
                                   ),
                         ),
                       ],
@@ -494,18 +507,41 @@ class LineChartSample1State extends State<LineChartSample1>
                   ],
                 ),
                 const SizedBox(height: 24),
-                SizedBox(
-                  height: 200,
-                  child: AnimatedBuilder(
-                    animation: _animation,
-                    builder: (context, child) {
-                      return LineChart(
-                        sampleData1,
-                        duration: const Duration(milliseconds: 300),
-                      );
-                    },
-                  ),
-                ),
+                _symptomChartHasData
+                    ? SizedBox(
+                        height: 200,
+                        child: AnimatedBuilder(
+                          animation: _animation,
+                          builder: (context, child) {
+                            return LineChart(
+                              sampleData1,
+                              duration: const Duration(milliseconds: 300),
+                            );
+                          },
+                        ),
+                      )
+                    : Container(
+                        height: 200,
+                        alignment: Alignment.center,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.show_chart_rounded,
+                              size: 44,
+                              color: colors.textTertiary.withValues(alpha: 0.6),
+                            ),
+                            const SizedBox(height: 14),
+                            Text(
+                              'Log symptoms to see your trend',
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: colors.textTertiary,
+                                  ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      ),
               ],
             ),
           ),
@@ -514,34 +550,58 @@ class LineChartSample1State extends State<LineChartSample1>
           // Medication chart
           ModernCard(
             padding: const EdgeInsets.all(20),
+            borderRadius: 16,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(8),
+                      padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: colors.chartBar.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8),
+                        color: colors.chartBar.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(12),
                       ),
                       child: Icon(
                         Icons.medication_rounded,
                         color: colors.chartBar,
-                        size: 20,
+                        size: 22,
                       ),
                     ),
                     const SizedBox(width: 12),
                     Text(
                       'Weekly Medications',
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
+                            fontWeight: FontWeight.w700,
                           ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 24),
-                const BarChartSample3(),
+                _medicationChartHasData
+                    ? const BarChartSample3()
+                    : Container(
+                        height: 180,
+                        alignment: Alignment.center,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.medication_rounded,
+                              size: 44,
+                              color: colors.textTertiary.withValues(alpha: 0.6),
+                            ),
+                            const SizedBox(height: 14),
+                            Text(
+                              'Add medications to see your weekly schedule',
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: colors.textTertiary,
+                                  ),
+                            ),
+                          ],
+                        ),
+                      ),
               ],
             ),
           ),
@@ -560,34 +620,40 @@ class LineChartSample1State extends State<LineChartSample1>
   ) {
     return ModernCard(
       padding: const EdgeInsets.all(16),
+      borderRadius: 14,
+      margin: const EdgeInsets.symmetric(vertical: 0),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
+              color: color.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(icon, color: color, size: 24),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   value,
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w700,
+                        color: colors.textPrimary,
                       ),
                 ),
+                const SizedBox(height: 2),
                 Text(
                   label,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: colors.textSecondary,
-                      ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: colors.textSecondary,
+                        fontWeight: FontWeight.w500,
+                      ),
                 ),
               ],
             ),

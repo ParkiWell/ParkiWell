@@ -17,6 +17,19 @@ class BarChartSample3State extends State<BarChartSample3> {
   void initState() {
     super.initState();
     singleton.calcMeds();
+    singleton.addListener(_onSingletonUpdate);
+  }
+
+  @override
+  void dispose() {
+    singleton.removeListener(_onSingletonUpdate);
+    super.dispose();
+  }
+
+  void _onSingletonUpdate() {
+    if (!mounted) return;
+    singleton.calcMeds();
+    setState(() {});
   }
 
   @override

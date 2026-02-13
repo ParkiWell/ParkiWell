@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:levio/services/app_logger.dart';
 import 'package:levio/services/cloud_backend_service.dart';
@@ -21,6 +23,12 @@ class Singleton extends ChangeNotifier {
   final ContentModerationService _moderation = ContentModerationService();
   final AppLogger _logger = AppLogger();
   final Uuid _uuid = const Uuid();
+  final Connectivity _connectivity = Connectivity();
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
+
+  static const String _localCacheKey = 'levio_local_cache_v1';
+  static const String _syncStatusKey = 'levio_last_sync_status_v1';
+  static const String _syncTimestampKey = 'levio_last_sync_time_v1';
 
   factory Singleton() => _instance;
 
@@ -34,6 +42,12 @@ class Singleton extends ChangeNotifier {
 
   // App state
   bool _initialized = false;
+  bool _isOnline = true;
+  ConnectivityResult _connectionType = ConnectivityResult.none;
+  bool _isSyncInProgress = false;
+  DateTime? _lastSyncAt;
+  String _lastSyncStatus = 'Not synced yet';
+  bool _hasHydratedLocalCache = false;
   bool firstTime = true;
   int page = 0;
   List<List<String>> log = [];
@@ -138,13 +152,24 @@ class Singleton extends ChangeNotifier {
     if (_initialized) return;
 
     _logger.init(isProduction: isProduction);
+    await _readSyncMetadata();
+    await _hydrateFromLocalCache();
+    await _initializeConnectivityMonitoring();
     await _cloud.initialize();
+    if (_cloud.isEnabled) {
+      await _markSyncSuccess('Cloud connected');
+    } else if (_hasHydratedLocalCache) {
+      await _markSyncPending('Cloud unavailable - using local cache');
+    } else {
+      await _markSyncFailure('Cloud unavailable');
+    }
     _initialized = true;
     _logger.info('Singleton initialized');
   }
 
   void setFirstTime(b) {
     firstTime = b;
+    _persistLocalCache();
     notifyListenersSafe();
   }
 
@@ -180,31 +205,37 @@ class Singleton extends ChangeNotifier {
 
   void setPage(int n) {
     page = n;
+    _persistLocalCache();
     notifyListenersSafe();
   }
 
   void setName(String n) {
     name = n;
+    _persistLocalCache();
     notifyListenersSafe();
   }
 
   void setImage(String i) {
     image = i;
+    _persistLocalCache();
     notifyListenersSafe();
   }
 
   void setEmail(String e) {
     email = e;
+    _persistLocalCache();
     notifyListenersSafe();
   }
 
   void setPostNum(int p) {
     postNum = p;
+    _persistLocalCache();
     notifyListenersSafe();
   }
 
   void setExerNum(int e) {
     exerNum = e;
+    _persistLocalCache();
     notifyListenersSafe();
   }
 
@@ -304,6 +335,7 @@ class Singleton extends ChangeNotifier {
     log.add(logList);
     logIDs.add('');
     sortTime();
+    _persistLocalCache();
     notifyListenersSafe();
   }
 
@@ -311,6 +343,7 @@ class Singleton extends ChangeNotifier {
     List<String> scheduleList = [name, details, days];
     schedule.add(scheduleList);
     scheduleIDs.add('');
+    _persistLocalCache();
     notifyListenersSafe();
   }
 
@@ -400,11 +433,108 @@ class Singleton extends ChangeNotifier {
   bool get isCloudConfigured => _cloud.isConfigured;
   String get backendStatusDescription => _cloud.statusDescription;
   String? get cloudSessionUserId => _cloud.cloudUserId;
+  bool get isOnline => _isOnline;
+  bool get isSyncInProgress => _isSyncInProgress;
+  DateTime? get lastSyncAt => _lastSyncAt;
+  String get lastSyncStatus => _lastSyncStatus;
+  bool get hasCachedData =>
+      _hasHydratedLocalCache ||
+      log.isNotEmpty ||
+      schedule.isNotEmpty ||
+      name != '[Name]';
+
+  String get lastSyncDisplay {
+    if (_lastSyncAt == null) return 'Never';
+    final local = _lastSyncAt!.toLocal();
+    final month = local.month.toString().padLeft(2, '0');
+    final day = local.day.toString().padLeft(2, '0');
+    final hour = local.hour.toString().padLeft(2, '0');
+    final minute = local.minute.toString().padLeft(2, '0');
+    return '${local.year}-$month-$day $hour:$minute';
+  }
+
+  String get connectivityLabel {
+    switch (_connectionType) {
+      case ConnectivityResult.wifi:
+        return 'Wi-Fi';
+      case ConnectivityResult.mobile:
+        return 'Cellular';
+      case ConnectivityResult.ethernet:
+        return 'Ethernet';
+      case ConnectivityResult.vpn:
+        return 'VPN';
+      case ConnectivityResult.bluetooth:
+        return 'Bluetooth';
+      case ConnectivityResult.other:
+        return 'Network';
+      case ConnectivityResult.none:
+        return 'Offline';
+    }
+  }
 
   String? consumeLastCommunityError() {
     final error = _lastCommunityError;
     _lastCommunityError = null;
     return error;
+  }
+
+  void _applyConnectivityResults(List<ConnectivityResult> results) {
+    final hasConnection = results.any((r) => r != ConnectivityResult.none);
+    final primaryResult =
+        results.isNotEmpty ? results.first : ConnectivityResult.none;
+    if (_isOnline == hasConnection && _connectionType == primaryResult) return;
+    _isOnline = hasConnection;
+    _connectionType = primaryResult;
+    notifyListenersSafe();
+  }
+
+  Future<void> _initializeConnectivityMonitoring() async {
+    try {
+      final initial = await _connectivity.checkConnectivity();
+      _applyConnectivityResults(initial);
+      _connectivitySubscription = _connectivity.onConnectivityChanged.listen(
+        _applyConnectivityResults,
+      );
+    } catch (e, stackTrace) {
+      _logger.warning(
+          'Unable to initialize connectivity monitoring', e, stackTrace);
+    }
+  }
+
+  Future<void> _readSyncMetadata() async {
+    final prefs = await _prefs;
+    final syncIso = prefs.getString(_syncTimestampKey);
+    if (syncIso != null && syncIso.isNotEmpty) {
+      _lastSyncAt = DateTime.tryParse(syncIso);
+    }
+    _lastSyncStatus = prefs.getString(_syncStatusKey) ??
+        (_lastSyncAt == null ? 'Not synced yet' : 'Synced');
+  }
+
+  Future<void> _writeSyncMetadata() async {
+    final prefs = await _prefs;
+    if (_lastSyncAt != null) {
+      await prefs.setString(_syncTimestampKey, _lastSyncAt!.toIso8601String());
+    } else {
+      await prefs.remove(_syncTimestampKey);
+    }
+    await prefs.setString(_syncStatusKey, _lastSyncStatus);
+  }
+
+  Future<void> _markSyncSuccess(String message) async {
+    _lastSyncAt = DateTime.now();
+    _lastSyncStatus = message;
+    await _writeSyncMetadata();
+  }
+
+  Future<void> _markSyncFailure(String message) async {
+    _lastSyncStatus = message;
+    await _writeSyncMetadata();
+  }
+
+  Future<void> _markSyncPending(String message) async {
+    _lastSyncStatus = message;
+    await _writeSyncMetadata();
   }
 
   void setCurrentUrl(url) {
@@ -441,6 +571,175 @@ class Singleton extends ChangeNotifier {
     return <String, dynamic>{};
   }
 
+  Map<String, dynamic> _buildLocalCacheSnapshot() {
+    return <String, dynamic>{
+      'version': 1,
+      'cached_at': DateTime.now().toIso8601String(),
+      'profile': <String, dynamic>{
+        'name': name,
+        'email': email,
+        'age': age,
+        'image': image,
+        'post_num': postNum,
+        'exer_num': exerNum,
+        'first_time': firstTime,
+        'page': page,
+      },
+      'logs': List<Map<String, dynamic>>.generate(
+        log.length,
+        (index) => <String, dynamic>{
+          'id': index < logIDs.length ? logIDs[index] : '',
+          'time': log[index].isNotEmpty ? log[index][0] : '',
+          'symptom': log[index].length > 1 ? log[index][1] : '',
+          'severity': log[index].length > 2 ? log[index][2] : '',
+        },
+      ),
+      'schedules': List<Map<String, dynamic>>.generate(
+        schedule.length,
+        (index) => <String, dynamic>{
+          'id': index < scheduleIDs.length ? scheduleIDs[index] : '',
+          'name': schedule[index].isNotEmpty ? schedule[index][0] : '',
+          'details': schedule[index].length > 1 ? schedule[index][1] : '',
+          'days': schedule[index].length > 2 ? schedule[index][2] : '',
+        },
+      ),
+      'community_posts': List<Map<String, dynamic>>.from(
+        communityPosts.map((post) => Map<String, dynamic>.from(post)),
+      ),
+      'community_comments': communityComments.map(
+        (postId, comments) => MapEntry(
+          postId,
+          List<Map<String, dynamic>>.from(
+            comments.map((comment) => Map<String, dynamic>.from(comment)),
+          ),
+        ),
+      ),
+      'joined_groups': joinedCommunityGroups.toList(),
+    };
+  }
+
+  void _applyLocalCacheSnapshot(Map<String, dynamic> snapshot) {
+    final profile = snapshot['profile'];
+    if (profile is Map) {
+      final profileMap = Map<String, dynamic>.from(profile);
+      name = profileMap['name']?.toString() ?? '[Name]';
+      email = profileMap['email']?.toString() ?? '[Email]';
+      age = (profileMap['age'] as num?)?.toInt() ?? 0;
+      image = _effectiveProfileImage(profileMap['image']?.toString());
+      postNum = (profileMap['post_num'] as num?)?.toInt() ?? postNum;
+      exerNum = (profileMap['exer_num'] as num?)?.toInt() ?? exerNum;
+      firstTime = profileMap['first_time'] as bool? ?? firstTime;
+      page = (profileMap['page'] as num?)?.toInt() ?? page;
+    }
+
+    log
+      ..clear()
+      ..addAll(
+        (snapshot['logs'] as List<dynamic>? ?? const <dynamic>[])
+            .whereType<Map>()
+            .map((entry) {
+          final map = Map<String, dynamic>.from(entry);
+          return <String>[
+            map['time']?.toString() ?? '',
+            map['symptom']?.toString() ?? '',
+            map['severity']?.toString() ?? '',
+          ];
+        }),
+      );
+
+    logIDs
+      ..clear()
+      ..addAll(
+        (snapshot['logs'] as List<dynamic>? ?? const <dynamic>[])
+            .whereType<Map>()
+            .map((entry) =>
+                Map<String, dynamic>.from(entry)['id']?.toString() ?? ''),
+      );
+
+    schedule
+      ..clear()
+      ..addAll(
+        (snapshot['schedules'] as List<dynamic>? ?? const <dynamic>[])
+            .whereType<Map>()
+            .map((entry) {
+          final map = Map<String, dynamic>.from(entry);
+          return <String>[
+            map['name']?.toString() ?? '',
+            map['details']?.toString() ?? '',
+            map['days']?.toString() ?? '',
+          ];
+        }),
+      );
+
+    scheduleIDs
+      ..clear()
+      ..addAll(
+        (snapshot['schedules'] as List<dynamic>? ?? const <dynamic>[])
+            .whereType<Map>()
+            .map((entry) =>
+                Map<String, dynamic>.from(entry)['id']?.toString() ?? ''),
+      );
+
+    communityPosts
+      ..clear()
+      ..addAll(
+        (snapshot['community_posts'] as List<dynamic>? ?? const <dynamic>[])
+            .whereType<Map>()
+            .map((post) => Map<String, dynamic>.from(post)),
+      );
+
+    communityComments.clear();
+    final comments = snapshot['community_comments'];
+    if (comments is Map) {
+      comments.forEach((key, value) {
+        final postId = key.toString();
+        final rawThread = value is List ? value : const <dynamic>[];
+        final thread = rawThread
+            .whereType<Map>()
+            .map((comment) => Map<String, dynamic>.from(comment))
+            .toList();
+        communityComments[postId] = thread;
+      });
+    }
+
+    joinedCommunityGroups
+      ..clear()
+      ..addAll(
+        (snapshot['joined_groups'] as List<dynamic>? ?? const <dynamic>[])
+            .map((groupId) => groupId.toString())
+            .where((groupId) => groupId.isNotEmpty),
+      );
+
+    postNum = communityPosts.length;
+    calcMeds();
+  }
+
+  Future<void> _hydrateFromLocalCache() async {
+    try {
+      final prefs = await _prefs;
+      final raw = prefs.getString(_localCacheKey);
+      if (raw == null || raw.isEmpty) return;
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map<String, dynamic>) return;
+      _applyLocalCacheSnapshot(decoded);
+      _hasHydratedLocalCache = true;
+      _logger.info('Local cache hydrated');
+      notifyListenersSafe();
+    } catch (e, stackTrace) {
+      _logger.warning('Unable to hydrate local cache', e, stackTrace);
+    }
+  }
+
+  Future<void> _persistLocalCache() async {
+    try {
+      final prefs = await _prefs;
+      final snapshot = _buildLocalCacheSnapshot();
+      await prefs.setString(_localCacheKey, jsonEncode(snapshot));
+    } catch (e, stackTrace) {
+      _logger.warning('Unable to persist local cache', e, stackTrace);
+    }
+  }
+
   String _normalizedDisplayName(String value) {
     final trimmed = value.trim();
     return trimmed.isEmpty ? 'Levio Member' : trimmed;
@@ -466,7 +765,8 @@ class Singleton extends ChangeNotifier {
     try {
       if (!_cloud.isEnabled) {
         _logger.warning('Cloud backend is not available for user loading.');
-        return false;
+        await _markSyncPending('Cloud unavailable - showing local cache');
+        return hasCachedData;
       }
 
       final uid = await _resolveUserId();
@@ -478,6 +778,7 @@ class Singleton extends ChangeNotifier {
       final userData = await _cloud.getUser(uid);
       if (userData == null) {
         _logger.debug('User not found in cloud database');
+        await _markSyncFailure('Cloud user profile not found');
         return false;
       }
 
@@ -522,17 +823,88 @@ class Singleton extends ChangeNotifier {
       }
 
       calcMeds();
+      await _persistLocalCache();
+      await _markSyncSuccess('Synced successfully');
       notifyListenersSafe();
       _logger.info('User data loaded from cloud successfully');
       return true;
     } catch (e, stackTrace) {
       _logger.error('Error loading user', e, stackTrace);
+      await _markSyncFailure('Sync failed - using local cache');
       return false;
     }
   }
 
   Future<CloudAuthProfile?> signInWithGoogle() async {
     return _cloud.signInWithGoogle();
+  }
+
+  Future<bool> syncNow({bool includeCommunity = true}) async {
+    if (_isSyncInProgress) return false;
+
+    _isSyncInProgress = true;
+    notifyListenersSafe();
+
+    try {
+      if (!_cloud.isEnabled) {
+        await _markSyncFailure('Cloud unavailable');
+        return false;
+      }
+
+      final userLoaded = await loadUser();
+      if (!userLoaded) {
+        await _markSyncFailure('Sync failed');
+        return false;
+      }
+
+      if (includeCommunity) {
+        await loadCommunityPosts(limit: 100);
+        await loadJoinedCommunityGroups();
+      }
+
+      await _persistLocalCache();
+      await _markSyncSuccess('Synced successfully');
+      return true;
+    } catch (e, stackTrace) {
+      _logger.error('Manual sync failed', e, stackTrace);
+      await _markSyncFailure('Sync failed');
+      return false;
+    } finally {
+      _isSyncInProgress = false;
+      notifyListenersSafe();
+    }
+  }
+
+  String exportBackupJson() {
+    final payload = <String, dynamic>{
+      'backup_version': 1,
+      'exported_at': DateTime.now().toIso8601String(),
+      'sync': <String, dynamic>{
+        'last_sync_at': _lastSyncAt?.toIso8601String(),
+        'last_sync_status': _lastSyncStatus,
+      },
+      'snapshot': _buildLocalCacheSnapshot(),
+    };
+    return const JsonEncoder.withIndent('  ').convert(payload);
+  }
+
+  Future<bool> importBackupJson(String rawJson) async {
+    try {
+      final decoded = jsonDecode(rawJson);
+      if (decoded is! Map<String, dynamic>) return false;
+      final snapshot = decoded['snapshot'];
+      if (snapshot is! Map<String, dynamic>) return false;
+
+      _applyLocalCacheSnapshot(snapshot);
+      _hasHydratedLocalCache = true;
+      await _persistLocalCache();
+      await _markSyncPending('Backup restored locally');
+      notifyListenersSafe();
+      return true;
+    } catch (e, stackTrace) {
+      _logger.error('Backup import failed', e, stackTrace);
+      return false;
+    }
   }
 
   Future<bool> createOrSyncAuthenticatedUser({
@@ -601,6 +973,8 @@ class Singleton extends ChangeNotifier {
       name = normalizedName;
       this.age = age;
 
+      await _persistLocalCache();
+      await _markSyncSuccess('Profile created');
       notifyListenersSafe();
       _logger.info('User created successfully');
       return true;
@@ -646,6 +1020,8 @@ class Singleton extends ChangeNotifier {
       this.age = nextAge;
       image = nextImage;
 
+      await _persistLocalCache();
+      await _markSyncSuccess('Profile updated');
       notifyListenersSafe();
       return true;
     } catch (e, stackTrace) {
@@ -657,33 +1033,38 @@ class Singleton extends ChangeNotifier {
   /// Save a new log entry
   Future<bool> saveLog(String time, String symptom, String severity) async {
     try {
-      if (!_cloud.isEnabled) return false;
-
-      final uid = await _resolveUserId();
-      if (uid == null) return false;
-      if (!await _ensureCloudUserRecord(uid)) return false;
-
       final logId = _uuid.v4();
-      final data = jsonEncode({
+      final payload = <String, dynamic>{
         'time': time,
         'symptom': symptom,
         'severity': severity,
-      });
+      };
 
-      final saved = await _cloud.saveLog(
-        id: logId,
-        userId: uid,
-        title: symptom,
-        data: data,
-        time: time,
-        symptom: symptom,
-        severity: severity,
-      );
-      if (!saved) return false;
+      var synced = false;
+      if (_cloud.isEnabled) {
+        final uid = await _resolveUserId();
+        if (uid != null && await _ensureCloudUserRecord(uid)) {
+          synced = await _cloud.saveLog(
+            id: logId,
+            userId: uid,
+            title: symptom,
+            data: jsonEncode(payload),
+            time: time,
+            symptom: symptom,
+            severity: severity,
+          );
+        }
+      }
 
       log.add(<String>[time, symptom, severity]);
       logIDs.add(logId);
       sortTime();
+      await _persistLocalCache();
+      if (synced) {
+        await _markSyncSuccess('Log synced');
+      } else {
+        await _markSyncPending('Saved locally - log pending sync');
+      }
       notifyListenersSafe();
       return true;
     } catch (e, stackTrace) {
@@ -696,34 +1077,41 @@ class Singleton extends ChangeNotifier {
   Future<bool> updateLogEntry(
       int index, String time, String symptom, String severity) async {
     try {
-      if (!_cloud.isEnabled) return false;
       if (index < 0 || index >= logIDs.length) return false;
 
       final logId = logIDs[index];
       if (logId.isEmpty) return false;
 
-      final uid = await _resolveUserId();
-      if (uid == null) return false;
-
-      final data = jsonEncode({
+      var synced = false;
+      final payload = <String, dynamic>{
         'time': time,
         'symptom': symptom,
         'severity': severity,
-      });
+      };
 
-      final updated = await _cloud.saveLog(
-        id: logId,
-        userId: uid,
-        title: symptom,
-        data: data,
-        time: time,
-        symptom: symptom,
-        severity: severity,
-      );
-      if (!updated) return false;
+      if (_cloud.isEnabled) {
+        final uid = await _resolveUserId();
+        if (uid != null) {
+          synced = await _cloud.saveLog(
+            id: logId,
+            userId: uid,
+            title: symptom,
+            data: jsonEncode(payload),
+            time: time,
+            symptom: symptom,
+            severity: severity,
+          );
+        }
+      }
 
       log[index] = <String>[time, symptom, severity];
       sortTime();
+      await _persistLocalCache();
+      if (synced) {
+        await _markSyncSuccess('Log update synced');
+      } else {
+        await _markSyncPending('Saved locally - log update pending sync');
+      }
       notifyListenersSafe();
       return true;
     } catch (e, stackTrace) {
@@ -735,17 +1123,24 @@ class Singleton extends ChangeNotifier {
   /// Delete a log entry
   Future<bool> deleteLog(int index) async {
     try {
-      if (!_cloud.isEnabled) return false;
       if (index < 0 || index >= logIDs.length) return false;
 
       final logId = logIDs[index];
       if (logId.isEmpty) return false;
 
-      final deleted = await _cloud.deleteLog(logId);
-      if (!deleted) return false;
+      var synced = false;
+      if (_cloud.isEnabled) {
+        synced = await _cloud.deleteLog(logId);
+      }
 
       log.removeAt(index);
       logIDs.removeAt(index);
+      await _persistLocalCache();
+      if (synced) {
+        await _markSyncSuccess('Log deletion synced');
+      } else {
+        await _markSyncPending('Saved locally - log deletion pending sync');
+      }
       notifyListenersSafe();
       return true;
     } catch (e, stackTrace) {
@@ -757,32 +1152,37 @@ class Singleton extends ChangeNotifier {
   /// Save a new schedule entry
   Future<bool> saveSchedule(String medName, String details, String days) async {
     try {
-      if (!_cloud.isEnabled) return false;
-
-      final uid = await _resolveUserId();
-      if (uid == null) return false;
-      if (!await _ensureCloudUserRecord(uid)) return false;
-
       final scheduleId = _uuid.v4();
-      final data = jsonEncode({
+      final payload = <String, dynamic>{
         'name': medName,
         'details': details,
         'days': days,
-      });
+      };
 
-      final saved = await _cloud.saveSchedule(
-        id: scheduleId,
-        userId: uid,
-        title: medName,
-        data: data,
-        days: days,
-        details: details,
-      );
-      if (!saved) return false;
+      var synced = false;
+      if (_cloud.isEnabled) {
+        final uid = await _resolveUserId();
+        if (uid != null && await _ensureCloudUserRecord(uid)) {
+          synced = await _cloud.saveSchedule(
+            id: scheduleId,
+            userId: uid,
+            title: medName,
+            data: jsonEncode(payload),
+            days: days,
+            details: details,
+          );
+        }
+      }
 
       schedule.add(<String>[medName, details, days]);
       scheduleIDs.add(scheduleId);
       calcMeds();
+      await _persistLocalCache();
+      if (synced) {
+        await _markSyncSuccess('Schedule synced');
+      } else {
+        await _markSyncPending('Saved locally - schedule pending sync');
+      }
       notifyListenersSafe();
       return true;
     } catch (e, stackTrace) {
@@ -795,33 +1195,40 @@ class Singleton extends ChangeNotifier {
   Future<bool> updateScheduleEntry(
       int index, String medName, String details, String days) async {
     try {
-      if (!_cloud.isEnabled) return false;
       if (index < 0 || index >= scheduleIDs.length) return false;
 
       final scheduleId = scheduleIDs[index];
       if (scheduleId.isEmpty) return false;
 
-      final uid = await _resolveUserId();
-      if (uid == null) return false;
-
-      final data = jsonEncode({
+      final payload = <String, dynamic>{
         'name': medName,
         'details': details,
         'days': days,
-      });
+      };
 
-      final updated = await _cloud.saveSchedule(
-        id: scheduleId,
-        userId: uid,
-        title: medName,
-        data: data,
-        days: days,
-        details: details,
-      );
-      if (!updated) return false;
+      var synced = false;
+      if (_cloud.isEnabled) {
+        final uid = await _resolveUserId();
+        if (uid != null) {
+          synced = await _cloud.saveSchedule(
+            id: scheduleId,
+            userId: uid,
+            title: medName,
+            data: jsonEncode(payload),
+            days: days,
+            details: details,
+          );
+        }
+      }
 
       schedule[index] = <String>[medName, details, days];
       calcMeds();
+      await _persistLocalCache();
+      if (synced) {
+        await _markSyncSuccess('Schedule update synced');
+      } else {
+        await _markSyncPending('Saved locally - schedule update pending sync');
+      }
       notifyListenersSafe();
       return true;
     } catch (e, stackTrace) {
@@ -833,18 +1240,26 @@ class Singleton extends ChangeNotifier {
   /// Delete a schedule entry
   Future<bool> deleteScheduleEntry(int index) async {
     try {
-      if (!_cloud.isEnabled) return false;
       if (index < 0 || index >= scheduleIDs.length) return false;
 
       final scheduleId = scheduleIDs[index];
       if (scheduleId.isEmpty) return false;
 
-      final deleted = await _cloud.deleteSchedule(scheduleId);
-      if (!deleted) return false;
+      var synced = false;
+      if (_cloud.isEnabled) {
+        synced = await _cloud.deleteSchedule(scheduleId);
+      }
 
       schedule.removeAt(index);
       scheduleIDs.removeAt(index);
       calcMeds();
+      await _persistLocalCache();
+      if (synced) {
+        await _markSyncSuccess('Schedule deletion synced');
+      } else {
+        await _markSyncPending(
+            'Saved locally - schedule deletion pending sync');
+      }
       notifyListenersSafe();
       return true;
     } catch (e, stackTrace) {
@@ -879,6 +1294,9 @@ class Singleton extends ChangeNotifier {
 
       final prefs = await SharedPreferences.getInstance();
       await prefs.clear();
+      _lastSyncAt = null;
+      _lastSyncStatus = 'Not synced yet';
+      _hasHydratedLocalCache = false;
 
       notifyListenersSafe();
       _logger.info('Account deleted successfully');
@@ -914,6 +1332,12 @@ class Singleton extends ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('userID');
       await prefs.remove('community_alias');
+      await prefs.remove(_localCacheKey);
+      await prefs.remove(_syncStatusKey);
+      await prefs.remove(_syncTimestampKey);
+      _lastSyncAt = null;
+      _lastSyncStatus = 'Not synced yet';
+      _hasHydratedLocalCache = false;
 
       notifyListenersSafe();
       return cloudSignedOut;
@@ -947,6 +1371,7 @@ class Singleton extends ChangeNotifier {
     try {
       if (!_cloud.isEnabled) {
         _lastCommunityError = 'Cloud sync unavailable.';
+        await _markSyncPending('Cloud unavailable - showing local cache');
         return communityPosts;
       }
 
@@ -981,6 +1406,7 @@ class Singleton extends ChangeNotifier {
         ..clear()
         ..addAll(normalizedPosts);
       postNum = communityPosts.length;
+      await _persistLocalCache();
       notifyListenersSafe();
       return communityPosts;
     } catch (e, stackTrace) {
@@ -1057,6 +1483,8 @@ class Singleton extends ChangeNotifier {
         'updated_at': createdAt,
       });
       postNum = communityPosts.length;
+      await _persistLocalCache();
+      await _markSyncSuccess('Community post synced');
       notifyListenersSafe();
       return true;
     } catch (e, stackTrace) {
@@ -1118,6 +1546,8 @@ class Singleton extends ChangeNotifier {
         communityPosts[index]['updated_at'] = DateTime.now().toIso8601String();
       }
 
+      await _persistLocalCache();
+      await _markSyncSuccess('Community post update synced');
       notifyListenersSafe();
       return true;
     } catch (e, stackTrace) {
@@ -1144,6 +1574,8 @@ class Singleton extends ChangeNotifier {
       communityPosts.removeWhere((post) => post['id'] == postId);
       communityComments.remove(postId);
       postNum = communityPosts.length;
+      await _persistLocalCache();
+      await _markSyncSuccess('Community post deletion synced');
       notifyListenersSafe();
       return true;
     } catch (e, stackTrace) {
@@ -1191,6 +1623,7 @@ class Singleton extends ChangeNotifier {
         communityPosts[idx]['likes'] = likes + 1;
         communityPosts[idx]['liked_by_me'] = true;
       }
+      await _persistLocalCache();
       notifyListenersSafe();
       return true;
     } catch (e, stackTrace) {
@@ -1204,7 +1637,7 @@ class Singleton extends ChangeNotifier {
     try {
       _lastCommunityError = null;
       if (!_cloud.isEnabled) {
-        _lastCommunityError = 'Cloud sync unavailable.';
+        // Use locally persisted groups when cloud is off
         return joinedCommunityGroups;
       }
 
@@ -1218,6 +1651,7 @@ class Singleton extends ChangeNotifier {
       joinedCommunityGroups
         ..clear()
         ..addAll(joined);
+      await _persistLocalCache();
       notifyListenersSafe();
       return joinedCommunityGroups;
     } catch (e, stackTrace) {
@@ -1234,8 +1668,15 @@ class Singleton extends ChangeNotifier {
     try {
       _lastCommunityError = null;
       if (!_cloud.isEnabled) {
-        _lastCommunityError = 'Cloud sync unavailable.';
-        return false;
+        // Work offline: update local state and persist
+        if (isJoined) {
+          joinedCommunityGroups.add(groupId);
+        } else {
+          joinedCommunityGroups.remove(groupId);
+        }
+        await _persistLocalCache();
+        notifyListenersSafe();
+        return true;
       }
 
       final uid = await _resolveUserId();
@@ -1265,6 +1706,7 @@ class Singleton extends ChangeNotifier {
         joinedCommunityGroups.remove(groupId);
       }
 
+      await _persistLocalCache();
       notifyListenersSafe();
       return true;
     } catch (e, stackTrace) {
@@ -1283,6 +1725,7 @@ class Singleton extends ChangeNotifier {
 
       final cloudComments = await _cloud.getCommunityComments(postId);
       communityComments[postId] = cloudComments;
+      await _persistLocalCache();
       notifyListenersSafe();
       return cloudComments;
     } catch (e, stackTrace) {
@@ -1368,6 +1811,8 @@ class Singleton extends ChangeNotifier {
         communityPosts[postIdx]['comment_count'] = current + 1;
       }
 
+      await _persistLocalCache();
+      await _markSyncSuccess('Community comment synced');
       notifyListenersSafe();
       return true;
     } catch (e, stackTrace) {
@@ -1394,5 +1839,11 @@ class Singleton extends ChangeNotifier {
       'community_posts_cache': communityPosts.length,
       'community_comment_threads_cache': communityComments.length,
     };
+  }
+
+  @override
+  void dispose() {
+    _connectivitySubscription?.cancel();
+    super.dispose();
   }
 }

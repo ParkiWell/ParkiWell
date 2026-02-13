@@ -182,7 +182,12 @@ class _LogScreenState extends State<LogScreen> {
     final colors = context.colors;
 
     return Scaffold(
+      backgroundColor: colors.background,
       appBar: AppBar(
+        backgroundColor: colors.background,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
         leading: IconButton(
           icon: Icon(Icons.arrow_back_rounded, color: colors.textPrimary),
           onPressed: () {
@@ -190,7 +195,7 @@ class _LogScreenState extends State<LogScreen> {
             Navigator.pushNamed(context, '/');
           },
         ),
-        title: const Text('Symptom Log'),
+        title: Text('Symptom Log', style: TextStyle(color: colors.textPrimary, fontWeight: FontWeight.w600)),
       ),
       body: Container(
         color: colors.background,

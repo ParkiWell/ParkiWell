@@ -6,7 +6,9 @@ import '../utils/haptic_utils.dart';
 import '../widgets/modern_card.dart';
 
 class ManageScreen extends StatefulWidget {
-  const ManageScreen({super.key});
+  final GlobalKey? addMedicationKey;
+
+  const ManageScreen({super.key, this.addMedicationKey});
 
   @override
   State<ManageScreen> createState() => _ManageScreenState();
@@ -111,16 +113,7 @@ class _ManageScreenState extends State<ManageScreen> {
     final totalMeds = singleton.schedule.length;
 
     return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Color.lerp(colors.background, colors.primaryLight, 0.06)!,
-            colors.background,
-          ],
-        ),
-      ),
+      color: colors.background,
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 26),
         child: Column(
@@ -135,18 +128,24 @@ class _ManageScreenState extends State<ManageScreen> {
             ),
             const SizedBox(height: 18),
             ModernCard(
-              padding: const EdgeInsets.all(18),
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Today at a glance',
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: colors.textPrimary,
-                        ),
+                  Row(
+                    children: [
+                      Icon(Icons.insights_rounded, size: 15, color: colors.textTertiary),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Today at a glance',
+                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: colors.textTertiary,
+                            ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 10),
                   Row(
                     children: [
                       Expanded(
@@ -157,7 +156,7 @@ class _ManageScreenState extends State<ManageScreen> {
                           accentColor: colors.primary,
                         ),
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 8),
                       Expanded(
                         child: _InsightChip(
                           label: 'Meds today',
@@ -166,7 +165,7 @@ class _ManageScreenState extends State<ManageScreen> {
                           accentColor: colors.secondary,
                         ),
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 8),
                       Expanded(
                         child: _InsightChip(
                           label: 'Streak',
@@ -203,31 +202,22 @@ class _ManageScreenState extends State<ManageScreen> {
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: _QuickAction(
-                    icon: Icons.add_alarm_rounded,
-                    label: 'Add Medication',
-                    accentColor: colors.secondary,
-                    onTap: () {
-                      HapticUtils.lightImpact();
-                      Navigator.pushNamed(context, '/editScheduleScreen');
-                    },
+                  child: KeyedSubtree(
+                    key: widget.addMedicationKey,
+                    child: _QuickAction(
+                      icon: Icons.add_alarm_rounded,
+                      label: 'Add Medication',
+                      accentColor: colors.secondary,
+                      onTap: () {
+                        HapticUtils.lightImpact();
+                        Navigator.pushNamed(context, '/editScheduleScreen');
+                      },
+                    ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 6),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                onPressed: () {
-                  HapticUtils.lightImpact();
-                  singleton.setPage(0);
-                },
-                icon: const Icon(Icons.show_chart_rounded, size: 18),
-                label: const Text('View trends'),
-              ),
-            ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 20),
             Text(
               'Core tools',
               style: Theme.of(context).textTheme.titleSmall?.copyWith(
@@ -332,36 +322,43 @@ class _InsightChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
 
-    return SizedBox(
-      height: 120,
-      child: ModernCard(
-        margin: EdgeInsets.zero,
-        backgroundColor: colors.cardBackground,
-        border: Border.all(color: colors.border),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, color: accentColor, size: 16),
-            const SizedBox(height: 8),
-            Text(
-              value,
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: colors.textPrimary,
-                  ),
+    return ModernCard(
+      margin: EdgeInsets.zero,
+      backgroundColor: colors.cardBackground,
+      border: Border.all(color: colors.border.withValues(alpha: 0.7)),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 24,
+            height: 24,
+            decoration: BoxDecoration(
+              color: accentColor.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(7),
             ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              softWrap: true,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: colors.textSecondary,
-                    fontWeight: FontWeight.w600,
-                  ),
-            ),
-          ],
-        ),
+            child: Icon(icon, color: accentColor, size: 13),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: colors.textPrimary,
+                ),
+          ),
+          const SizedBox(height: 1),
+          Text(
+            label,
+            softWrap: true,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: colors.textTertiary,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 10.5,
+                ),
+          ),
+        ],
       ),
     );
   }
