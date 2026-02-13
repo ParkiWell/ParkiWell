@@ -11,7 +11,11 @@ class GamesScreen extends StatelessWidget {
     final colors = context.colors;
 
     return Scaffold(
+      backgroundColor: colors.background,
       appBar: AppBar(
+        backgroundColor: colors.background,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
         leading: IconButton(
           icon: Container(
             padding: const EdgeInsets.all(8),
@@ -30,9 +34,11 @@ class GamesScreen extends StatelessWidget {
             Navigator.pushNamed(context, '/');
           },
         ),
-        title: const Text('Games'),
+        title: Text('Games', style: TextStyle(color: colors.textPrimary, fontWeight: FontWeight.w600)),
       ),
-      body: Center(
+      body: Container(
+        color: colors.background,
+        child: Center(
         child: Padding(
           padding: const EdgeInsets.all(32),
           child: Column(
@@ -97,6 +103,7 @@ class GamesScreen extends StatelessWidget {
           ),
         ),
       ),
+    ),
     );
   }
 }

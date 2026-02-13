@@ -95,7 +95,12 @@ class _ExerciseScreenState extends State<ExerciseScreen>
     final colors = context.colors;
 
     return Scaffold(
+      backgroundColor: colors.background,
       appBar: AppBar(
+        backgroundColor: colors.background,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
         leading: IconButton(
           icon: Container(
             padding: const EdgeInsets.all(8),
@@ -116,7 +121,7 @@ class _ExerciseScreenState extends State<ExerciseScreen>
             }
           },
         ),
-        title: const Text('Exercises'),
+        title: Text('Exercises', style: TextStyle(color: colors.textPrimary, fontWeight: FontWeight.w600)),
         actions: [
           TextButton.icon(
             onPressed: () {

@@ -73,12 +73,28 @@ class _TutorialOverlayState extends State<TutorialOverlay> {
       return;
     }
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    void tryFindRect({int attempt = 0}) {
       if (!mounted) return;
-      final rect = _findTargetRect(step);
-      if (rect == null) return;
-      setState(() => _targetRect = rect);
-    });
+      final current = _service.currentStep;
+      if (current == null) return;
+      final rect = _findTargetRect(current);
+      if (rect != null) {
+        setState(() => _targetRect = rect);
+        return;
+      }
+      // Retry after layout (e.g. after tab switch); multiple delays for slow builds
+      const delays = [100, 300, 550];
+      if (attempt < delays.length) {
+        Future.delayed(Duration(milliseconds: delays[attempt]), () {
+          if (!mounted) return;
+          tryFindRect(attempt: attempt + 1);
+        });
+      } else {
+        setState(() => _targetRect = null);
+      }
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) => tryFindRect());
   }
 
   Rect? _findTargetRect(TutorialStep step) {
@@ -112,45 +128,52 @@ class _TutorialOverlayState extends State<TutorialOverlay> {
     return Stack(
       children: [
         widget.child,
-        if (_service.isActive && step != null && _targetRect != null)
-          _buildOverlay(context, step, _targetRect!),
+        if (_service.isActive && step != null)
+          _buildOverlay(context, step, _targetRect),
       ],
     );
   }
 
   Widget _buildOverlay(
-      BuildContext context, TutorialStep step, Rect targetRect) {
+      BuildContext context, TutorialStep step, Rect? targetRect) {
     final colors = context.colors;
     final size = MediaQuery.of(context).size;
     final padding = MediaQuery.of(context).padding;
-    const tooltipWidth = 292.0;
-    const tooltipHeight = 190.0;
-    const horizontalInset = 16.0;
-    const bubbleGap = 10.0;
+    const tooltipWidth = 320.0;
+    const tooltipHeight = 200.0;
+    const horizontalInset = 20.0;
+    const bubbleGap = 12.0;
 
-    double left = targetRect.center.dx - (tooltipWidth / 2);
+    final hasTarget = targetRect != null;
+    final rect = targetRect ?? Rect.fromLTWH(0, 0, 1, 1);
+
+    double left = rect.center.dx - (tooltipWidth / 2);
     left = left.clamp(
         horizontalInset, size.width - tooltipWidth - horizontalInset);
 
     final showAbove = step.tooltipPosition == TutorialTooltipPosition.above;
-    final topIfAbove = targetRect.top - tooltipHeight - bubbleGap;
-    final topIfBelow = targetRect.bottom + bubbleGap;
+    final topIfAbove = rect.top - tooltipHeight - bubbleGap;
+    final topIfBelow = rect.bottom + bubbleGap;
     final minTop = padding.top + 10;
     final maxTop = size.height - padding.bottom - tooltipHeight - 10;
 
     double top;
-    if (showAbove) {
-      if (topIfAbove >= minTop) {
-        top = topIfAbove;
+    if (hasTarget) {
+      if (showAbove) {
+        if (topIfAbove >= minTop) {
+          top = topIfAbove;
+        } else {
+          top = topIfBelow.clamp(minTop, maxTop);
+        }
       } else {
-        top = topIfBelow.clamp(minTop, maxTop);
+        if (topIfBelow <= maxTop) {
+          top = topIfBelow;
+        } else {
+          top = topIfAbove.clamp(minTop, maxTop);
+        }
       }
     } else {
-      if (topIfBelow <= maxTop) {
-        top = topIfBelow;
-      } else {
-        top = topIfAbove.clamp(minTop, maxTop);
-      }
+      top = (size.height - padding.bottom - tooltipHeight - 24).clamp(minTop, maxTop);
     }
 
     final isLast = _service.currentStepIndex == _service.totalSteps - 1;
@@ -166,8 +189,9 @@ class _TutorialOverlayState extends State<TutorialOverlay> {
                 behavior: HitTestBehavior.opaque,
                 child: CustomPaint(
                   painter: _SpotlightPainter(
-                    targetRect: targetRect,
-                    overlayColor: colors.textPrimary.withValues(alpha: 0.68),
+                    targetRect: rect,
+                    overlayColor: colors.textPrimary.withValues(alpha: 0.52),
+                    showSpotlight: hasTarget,
                   ),
                 ),
               ),
@@ -196,43 +220,53 @@ class _TutorialOverlayState extends State<TutorialOverlay> {
 class _SpotlightPainter extends CustomPainter {
   final Rect targetRect;
   final Color overlayColor;
+  final bool showSpotlight;
 
   _SpotlightPainter({
     required this.targetRect,
     required this.overlayColor,
+    this.showSpotlight = true,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
-    final overlayPath = Path()
-      ..addRect(Rect.fromLTWH(0, 0, size.width, size.height));
-    final spotlight =
-        RRect.fromRectAndRadius(targetRect, const Radius.circular(14));
-    final spotlightPath = Path()..addRRect(spotlight);
-
-    final diffPath = Path.combine(
-      PathOperation.difference,
-      overlayPath,
-      spotlightPath,
-    );
-
-    canvas.drawPath(
-      diffPath,
-      Paint()..color = overlayColor,
-    );
-
-    canvas.drawRRect(
-      spotlight,
-      Paint()
-        ..color = Colors.white.withValues(alpha: 0.9)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.5,
-    );
+    if (showSpotlight &&
+        targetRect.width > 1 &&
+        targetRect.height > 1 &&
+        targetRect.left < size.width &&
+        targetRect.top < size.height &&
+        targetRect.right > 0 &&
+        targetRect.bottom > 0) {
+      final overlayPath = Path()
+        ..addRect(Rect.fromLTWH(0, 0, size.width, size.height));
+      final spotlight =
+          RRect.fromRectAndRadius(targetRect, const Radius.circular(18));
+      final spotlightPath = Path()..addRRect(spotlight);
+      final diffPath = Path.combine(
+        PathOperation.difference,
+        overlayPath,
+        spotlightPath,
+      );
+      canvas.drawPath(diffPath, Paint()..color = overlayColor);
+      canvas.drawRRect(
+        spotlight,
+        Paint()
+          ..color = Colors.white.withValues(alpha: 0.95)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2,
+      );
+    } else {
+      canvas.drawRect(
+        Rect.fromLTWH(0, 0, size.width, size.height),
+        Paint()..color = overlayColor,
+      );
+    }
   }
 
   @override
   bool shouldRepaint(covariant _SpotlightPainter oldDelegate) {
     return oldDelegate.targetRect != targetRect ||
-        oldDelegate.overlayColor != overlayColor;
+        oldDelegate.overlayColor != overlayColor ||
+        oldDelegate.showSpotlight != showSpotlight;
   }
 }

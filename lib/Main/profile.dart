@@ -204,10 +204,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
                 child: ClipOval(
-                  child: Container(
+                  child: SizedBox(
                     width: 86,
                     height: 86,
-                    color: colors.surface,
                     child: _buildProfileImage(colors),
                   ),
                 ),

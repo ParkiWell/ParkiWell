@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -50,6 +51,65 @@ class CloudBackendService {
       return 'Cloud unavailable';
     }
     return 'Connecting...';
+  }
+
+  bool _isTransientError(Object error) {
+    if (error is SocketException || error is TimeoutException) {
+      return true;
+    }
+
+    if (error is PostgrestException) {
+      final code = error.code ?? '';
+      if (code.startsWith('08') ||
+          code == '40001' ||
+          code == '40P01' ||
+          code == '53300' ||
+          code == '57014') {
+        return true;
+      }
+    }
+
+    final message = error.toString().toLowerCase();
+    return message.contains('timeout') ||
+        message.contains('connection') ||
+        message.contains('temporar') ||
+        message.contains('network');
+  }
+
+  Future<T> _withRetry<T>(
+    String operationName,
+    Future<T> Function() operation, {
+    int maxAttempts = 3,
+  }) async {
+    Object? lastError;
+
+    for (var attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        return await operation();
+      } catch (e, stackTrace) {
+        lastError = e;
+
+        final canRetry = attempt < maxAttempts && _isTransientError(e);
+        if (!canRetry) {
+          _logger.error(
+            'Cloud $operationName failed (attempt $attempt/$maxAttempts)',
+            e,
+            stackTrace,
+          );
+          rethrow;
+        }
+
+        final delayMs = 250 * (1 << (attempt - 1));
+        _logger.warning(
+          'Cloud $operationName transient failure (attempt $attempt/$maxAttempts), retrying in ${delayMs}ms',
+          e,
+          stackTrace,
+        );
+        await Future<void>.delayed(Duration(milliseconds: delayMs));
+      }
+    }
+
+    throw lastError ?? Exception('Cloud $operationName failed');
   }
 
   Future<void> initialize() async {
@@ -327,8 +387,12 @@ class CloudBackendService {
       final userId = _effectiveUserId(id);
       if (userId == null) return null;
 
-      final result =
-          await _client!.from('users').select().eq('id', userId).maybeSingle();
+      final result = await _withRetry<Map<String, dynamic>?>(
+        'get user',
+        () async {
+          return _client!.from('users').select().eq('id', userId).maybeSingle();
+        },
+      );
       return result;
     } catch (e, stackTrace) {
       _logger.error('Cloud get user failed', e, stackTrace);
@@ -343,11 +407,16 @@ class CloudBackendService {
       final effectiveUserId = _effectiveUserId(userId);
       if (effectiveUserId == null) return <Map<String, dynamic>>[];
 
-      final result = await _client!
-          .from('logs')
-          .select()
-          .eq('user_id', effectiveUserId)
-          .order('created_at', ascending: false);
+      final result = await _withRetry<List<dynamic>>(
+        'get logs',
+        () async {
+          return _client!
+              .from('logs')
+              .select()
+              .eq('user_id', effectiveUserId)
+              .order('created_at', ascending: false);
+        },
+      );
       return List<Map<String, dynamic>>.from(result);
     } catch (e, stackTrace) {
       _logger.error('Cloud get logs failed', e, stackTrace);
@@ -362,11 +431,16 @@ class CloudBackendService {
       final effectiveUserId = _effectiveUserId(userId);
       if (effectiveUserId == null) return <Map<String, dynamic>>[];
 
-      final result = await _client!
-          .from('schedules')
-          .select()
-          .eq('user_id', effectiveUserId)
-          .order('created_at', ascending: false);
+      final result = await _withRetry<List<dynamic>>(
+        'get schedules',
+        () async {
+          return _client!
+              .from('schedules')
+              .select()
+              .eq('user_id', effectiveUserId)
+              .order('created_at', ascending: false);
+        },
+      );
       return List<Map<String, dynamic>>.from(result);
     } catch (e, stackTrace) {
       _logger.error('Cloud get schedules failed', e, stackTrace);
@@ -389,18 +463,23 @@ class CloudBackendService {
       final effectiveUserId = _effectiveUserId(userId);
       if (effectiveUserId == null) return false;
 
-      await _client!.from('logs').upsert(
-        <String, dynamic>{
-          'id': id,
-          'user_id': effectiveUserId,
-          'title': title,
-          'data': data,
-          'event_time': time,
-          'symptom': symptom,
-          'severity': severity,
-          'updated_at': DateTime.now().toIso8601String(),
+      await _withRetry<void>(
+        'save log',
+        () async {
+          await _client!.from('logs').upsert(
+            <String, dynamic>{
+              'id': id,
+              'user_id': effectiveUserId,
+              'title': title,
+              'data': data,
+              'event_time': time,
+              'symptom': symptom,
+              'severity': severity,
+              'updated_at': DateTime.now().toIso8601String(),
+            },
+            onConflict: 'id',
+          );
         },
-        onConflict: 'id',
       );
       return true;
     } catch (e, stackTrace) {
@@ -412,7 +491,12 @@ class CloudBackendService {
   Future<bool> deleteLog(String id) async {
     if (!isEnabled) return false;
     try {
-      await _client!.from('logs').delete().eq('id', id);
+      await _withRetry<void>(
+        'delete log',
+        () async {
+          await _client!.from('logs').delete().eq('id', id);
+        },
+      );
       return true;
     } catch (e, stackTrace) {
       _logger.error('Cloud delete log failed', e, stackTrace);
@@ -434,17 +518,22 @@ class CloudBackendService {
       final effectiveUserId = _effectiveUserId(userId);
       if (effectiveUserId == null) return false;
 
-      await _client!.from('schedules').upsert(
-        <String, dynamic>{
-          'id': id,
-          'user_id': effectiveUserId,
-          'title': title,
-          'data': data,
-          'days': days,
-          'details': details,
-          'updated_at': DateTime.now().toIso8601String(),
+      await _withRetry<void>(
+        'save schedule',
+        () async {
+          await _client!.from('schedules').upsert(
+            <String, dynamic>{
+              'id': id,
+              'user_id': effectiveUserId,
+              'title': title,
+              'data': data,
+              'days': days,
+              'details': details,
+              'updated_at': DateTime.now().toIso8601String(),
+            },
+            onConflict: 'id',
+          );
         },
-        onConflict: 'id',
       );
       return true;
     } catch (e, stackTrace) {
@@ -456,7 +545,12 @@ class CloudBackendService {
   Future<bool> deleteSchedule(String id) async {
     if (!isEnabled) return false;
     try {
-      await _client!.from('schedules').delete().eq('id', id);
+      await _withRetry<void>(
+        'delete schedule',
+        () async {
+          await _client!.from('schedules').delete().eq('id', id);
+        },
+      );
       return true;
     } catch (e, stackTrace) {
       _logger.error('Cloud delete schedule failed', e, stackTrace);
@@ -470,11 +564,16 @@ class CloudBackendService {
     if (!isEnabled) return <Map<String, dynamic>>[];
 
     try {
-      final result = await _client!
-          .from('community_posts')
-          .select()
-          .order('created_at', ascending: false)
-          .limit(limit);
+      final result = await _withRetry<List<dynamic>>(
+        'get community posts',
+        () async {
+          return _client!
+              .from('community_posts')
+              .select()
+              .order('created_at', ascending: false)
+              .limit(limit);
+        },
+      );
       return List<Map<String, dynamic>>.from(result);
     } catch (e, stackTrace) {
       _logger.error('Cloud get posts failed', e, stackTrace);
@@ -492,11 +591,16 @@ class CloudBackendService {
       final effectiveUserId = _effectiveUserId(userId);
       if (effectiveUserId == null) return <String>{};
 
-      final result = await _client!
-          .from('community_post_likes')
-          .select('post_id')
-          .eq('user_id', effectiveUserId)
-          .inFilter('post_id', postIds);
+      final result = await _withRetry<List<dynamic>>(
+        'get liked post ids',
+        () async {
+          return _client!
+              .from('community_post_likes')
+              .select('post_id')
+              .eq('user_id', effectiveUserId)
+              .inFilter('post_id', postIds);
+        },
+      );
 
       return result
           .map((row) => row['post_id']?.toString() ?? '')
@@ -522,17 +626,22 @@ class CloudBackendService {
       final effectiveUserId = _effectiveUserId(userId);
       if (effectiveUserId == null) return false;
 
-      await _client!.from('community_posts').upsert(
-        <String, dynamic>{
-          'id': id,
-          'user_id': effectiveUserId,
-          'user_name': userName,
-          'profile_image': profileImage,
-          'content': content,
-          'category': category,
-          'updated_at': DateTime.now().toIso8601String(),
+      await _withRetry<void>(
+        'save community post',
+        () async {
+          await _client!.from('community_posts').upsert(
+            <String, dynamic>{
+              'id': id,
+              'user_id': effectiveUserId,
+              'user_name': userName,
+              'profile_image': profileImage,
+              'content': content,
+              'category': category,
+              'updated_at': DateTime.now().toIso8601String(),
+            },
+            onConflict: 'id',
+          );
         },
-        onConflict: 'id',
       );
       return true;
     } catch (e, stackTrace) {
@@ -549,18 +658,23 @@ class CloudBackendService {
     if (!isEnabled) return false;
 
     try {
-      final result = await _client!
-          .from('community_posts')
-          .update(
-            <String, dynamic>{
-              'content': content,
-              'category': category,
-              'updated_at': DateTime.now().toIso8601String(),
-            },
-          )
-          .eq('id', postId)
-          .select('id')
-          .maybeSingle();
+      final result = await _withRetry<Map<String, dynamic>?>(
+        'update community post',
+        () async {
+          return _client!
+              .from('community_posts')
+              .update(
+                <String, dynamic>{
+                  'content': content,
+                  'category': category,
+                  'updated_at': DateTime.now().toIso8601String(),
+                },
+              )
+              .eq('id', postId)
+              .select('id')
+              .maybeSingle();
+        },
+      );
 
       return result != null;
     } catch (e, stackTrace) {
@@ -573,12 +687,17 @@ class CloudBackendService {
     if (!isEnabled) return false;
 
     try {
-      final deleted = await _client!
-          .from('community_posts')
-          .delete()
-          .eq('id', postId)
-          .select('id')
-          .maybeSingle();
+      final deleted = await _withRetry<Map<String, dynamic>?>(
+        'delete community post',
+        () async {
+          return _client!
+              .from('community_posts')
+              .delete()
+              .eq('id', postId)
+              .select('id')
+              .maybeSingle();
+        },
+      );
       return deleted != null;
     } catch (e, stackTrace) {
       _logger.error('Cloud delete post failed', e, stackTrace);
@@ -590,7 +709,13 @@ class CloudBackendService {
     if (!isEnabled) return false;
 
     try {
-      await _client!.rpc('increment_post_like', params: {'p_post_id': postId});
+      await _withRetry<void>(
+        'increment post like via rpc',
+        () async {
+          await _client!
+              .rpc('increment_post_like', params: {'p_post_id': postId});
+        },
+      );
       return true;
     } catch (e, stackTrace) {
       _logger.warning(
@@ -602,18 +727,28 @@ class CloudBackendService {
 
     // Compatibility fallback for older schemas where the RPC does not exist.
     try {
-      final record = await _client!
-          .from('community_posts')
-          .select('likes')
-          .eq('id', postId)
-          .maybeSingle();
-      final currentLikes = (record?['likes'] as num?)?.toInt() ?? 0;
-      await _client!.from('community_posts').update(
-        <String, dynamic>{
-          'likes': currentLikes + 1,
-          'updated_at': DateTime.now().toIso8601String(),
+      final record = await _withRetry<Map<String, dynamic>?>(
+        'fetch post likes fallback',
+        () async {
+          return _client!
+              .from('community_posts')
+              .select('likes')
+              .eq('id', postId)
+              .maybeSingle();
         },
-      ).eq('id', postId);
+      );
+      final currentLikes = (record?['likes'] as num?)?.toInt() ?? 0;
+      await _withRetry<void>(
+        'increment post like fallback',
+        () async {
+          await _client!.from('community_posts').update(
+            <String, dynamic>{
+              'likes': currentLikes + 1,
+              'updated_at': DateTime.now().toIso8601String(),
+            },
+          ).eq('id', postId);
+        },
+      );
       return true;
     } catch (e, stackTrace) {
       _logger.error('Cloud like post failed', e, stackTrace);
@@ -631,10 +766,15 @@ class CloudBackendService {
       final effectiveUserId = _effectiveUserId(userId);
       if (effectiveUserId == null) return null;
 
-      await _client!.from('community_post_likes').insert(
-        <String, dynamic>{
-          'post_id': postId,
-          'user_id': effectiveUserId,
+      await _withRetry<void>(
+        'insert community post like',
+        () async {
+          await _client!.from('community_post_likes').insert(
+            <String, dynamic>{
+              'post_id': postId,
+              'user_id': effectiveUserId,
+            },
+          );
         },
       );
     } on PostgrestException catch (e, stackTrace) {
@@ -657,11 +797,16 @@ class CloudBackendService {
     if (!isEnabled) return <Map<String, dynamic>>[];
 
     try {
-      final result = await _client!
-          .from('community_comments')
-          .select()
-          .eq('post_id', postId)
-          .order('created_at', ascending: true);
+      final result = await _withRetry<List<dynamic>>(
+        'get community comments',
+        () async {
+          return _client!
+              .from('community_comments')
+              .select()
+              .eq('post_id', postId)
+              .order('created_at', ascending: true);
+        },
+      );
       return List<Map<String, dynamic>>.from(result);
     } catch (e, stackTrace) {
       _logger.error('Cloud get comments failed', e, stackTrace);
@@ -674,10 +819,15 @@ class CloudBackendService {
     if (!isEnabled || postIds.isEmpty) return <String, int>{};
 
     try {
-      final result = await _client!
-          .from('community_comments')
-          .select('post_id')
-          .inFilter('post_id', postIds);
+      final result = await _withRetry<List<dynamic>>(
+        'get community comment counts',
+        () async {
+          return _client!
+              .from('community_comments')
+              .select('post_id')
+              .inFilter('post_id', postIds);
+        },
+      );
 
       final counts = <String, int>{};
       for (final row in result) {
@@ -706,16 +856,21 @@ class CloudBackendService {
       final effectiveUserId = _effectiveUserId(userId);
       if (effectiveUserId == null) return false;
 
-      await _client!.from('community_comments').upsert(
-        <String, dynamic>{
-          'id': id,
-          'post_id': postId,
-          'user_id': effectiveUserId,
-          'user_name': userName,
-          'profile_image': profileImage,
-          'content': content,
+      await _withRetry<void>(
+        'save community comment',
+        () async {
+          await _client!.from('community_comments').upsert(
+            <String, dynamic>{
+              'id': id,
+              'post_id': postId,
+              'user_id': effectiveUserId,
+              'user_name': userName,
+              'profile_image': profileImage,
+              'content': content,
+            },
+            onConflict: 'id',
+          );
         },
-        onConflict: 'id',
       );
       return true;
     } catch (e, stackTrace) {
@@ -731,10 +886,15 @@ class CloudBackendService {
       final effectiveUserId = _effectiveUserId(userId);
       if (effectiveUserId == null) return <String>{};
 
-      final result = await _client!
-          .from('community_group_memberships')
-          .select('group_id')
-          .eq('user_id', effectiveUserId);
+      final result = await _withRetry<List<dynamic>>(
+        'get community group memberships',
+        () async {
+          return _client!
+              .from('community_group_memberships')
+              .select('group_id')
+              .eq('user_id', effectiveUserId);
+        },
+      );
 
       return result
           .map((row) => row['group_id']?.toString() ?? '')
@@ -758,20 +918,30 @@ class CloudBackendService {
       if (effectiveUserId == null) return false;
 
       if (isJoined) {
-        await _client!.from('community_group_memberships').upsert(
-          <String, dynamic>{
-            'group_id': groupId,
-            'user_id': effectiveUserId,
-            'updated_at': DateTime.now().toIso8601String(),
+        await _withRetry<void>(
+          'join community group',
+          () async {
+            await _client!.from('community_group_memberships').upsert(
+              <String, dynamic>{
+                'group_id': groupId,
+                'user_id': effectiveUserId,
+                'updated_at': DateTime.now().toIso8601String(),
+              },
+              onConflict: 'group_id,user_id',
+            );
           },
-          onConflict: 'group_id,user_id',
         );
       } else {
-        await _client!
-            .from('community_group_memberships')
-            .delete()
-            .eq('group_id', groupId)
-            .eq('user_id', effectiveUserId);
+        await _withRetry<void>(
+          'leave community group',
+          () async {
+            await _client!
+                .from('community_group_memberships')
+                .delete()
+                .eq('group_id', groupId)
+                .eq('user_id', effectiveUserId);
+          },
+        );
       }
       return true;
     } catch (e, stackTrace) {

@@ -1,14 +1,11 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:levio/Main/editProfile.dart';
 import 'package:levio/navbar.dart';
 import 'package:levio/routes.dart';
 import 'package:levio/singleton.dart';
 import 'package:levio/theme/app_theme.dart';
-import 'package:levio/screens/splash_screen.dart';
-import 'package:levio/screens/intro_screen.dart';
-import 'package:levio/screens/welcome_screen.dart';
+import 'package:levio/screens/onboarding_flow.dart';
 import 'package:levio/services/app_logger.dart';
 import 'package:levio/config/environment.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -50,16 +47,25 @@ void main() async {
             // User data loaded successfully, not first time
             singleton.setFirstTime(false);
             logger.info('Existing user loaded successfully');
+          } else if (singleton.hasCachedData && singleton.name != "[Name]") {
+            singleton.setFirstTime(false);
+            logger.info('Loaded cached user data for offline session');
           } else {
-            // User data not found, clear stale userID
-            await prefs.remove('userID');
-            logger.info('Stale user ID cleared');
+            // User data not found, clear stale userID only when cloud is online.
+            if (singleton.isCloudConnected) {
+              await prefs.remove('userID');
+              logger.info('Stale user ID cleared');
+            }
           }
         } catch (e, stackTrace) {
-          // Error loading user, clear stale userID
-          await prefs.remove('userID');
+          // Error loading user, clear stale userID only when cloud is online.
+          if (singleton.isCloudConnected) {
+            await prefs.remove('userID');
+          }
           logger.error('Error loading user', e, stackTrace);
         }
+      } else if (singleton.hasCachedData && singleton.name != "[Name]") {
+        singleton.setFirstTime(false);
       }
       // firstTime remains true by default if no valid user found
 
@@ -95,11 +101,13 @@ class MyApp extends StatefulWidget {
   State<MyApp> createState() => _MyAppState();
 }
 
-enum AppScreen { splash, welcome, intro, editProfile, home }
+enum AppScreen { onboarding, home }
 
 class _MyAppState extends State<MyApp> {
   final singleton = Singleton();
-  AppScreen _currentScreen = AppScreen.splash;
+  AppScreen _currentScreen = Singleton().firstTime
+      ? AppScreen.onboarding
+      : AppScreen.home;
 
   @override
   void initState() {
@@ -119,28 +127,10 @@ class _MyAppState extends State<MyApp> {
     }
   }
 
-  void _onSplashComplete() {
+  void _onOnboardingComplete() {
     if (mounted) {
       setState(() {
-        // If first time, show welcome onboarding. Otherwise go to home.
-        _currentScreen =
-            singleton.firstTime ? AppScreen.welcome : AppScreen.home;
-      });
-    }
-  }
-
-  void _onWelcomeComplete() {
-    if (mounted) {
-      setState(() {
-        _currentScreen = AppScreen.intro;
-      });
-    }
-  }
-
-  void _onIntroComplete() {
-    if (mounted) {
-      setState(() {
-        _currentScreen = AppScreen.editProfile;
+        _currentScreen = AppScreen.home;
       });
     }
   }
@@ -160,24 +150,9 @@ class _MyAppState extends State<MyApp> {
             ),
     );
 
-    Widget home;
-    switch (_currentScreen) {
-      case AppScreen.splash:
-        home = SplashScreen(onComplete: _onSplashComplete);
-        break;
-      case AppScreen.welcome:
-        home = WelcomeScreen(onContinue: _onWelcomeComplete);
-        break;
-      case AppScreen.intro:
-        home = IntroScreen(onComplete: _onIntroComplete);
-        break;
-      case AppScreen.editProfile:
-        home = const EditProfileScreen();
-        break;
-      case AppScreen.home:
-        home = const Navbar();
-        break;
-    }
+    final Widget home = _currentScreen == AppScreen.onboarding
+        ? OnboardingFlowScreen(onComplete: _onOnboardingComplete)
+        : const Navbar();
 
     return MaterialApp(
       title: 'Levio',

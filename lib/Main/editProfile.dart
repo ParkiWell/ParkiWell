@@ -1,7 +1,4 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 
 import '../navbar.dart';
 import '../singleton.dart';
@@ -9,10 +6,11 @@ import '../theme/app_theme.dart';
 import '../utils/haptic_utils.dart';
 import '../widgets/modern_button.dart';
 import '../widgets/modern_card.dart';
-import '../widgets/modern_input.dart';
 
 class EditProfileScreen extends StatefulWidget {
-  const EditProfileScreen({super.key});
+  final VoidCallback? onComplete;
+
+  const EditProfileScreen({super.key, this.onComplete});
 
   @override
   State<EditProfileScreen> createState() => _EditProfileScreenState();
@@ -23,7 +21,6 @@ class _EditProfileScreenState extends State<EditProfileScreen>
   final singleton = Singleton();
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
-  final picker = ImagePicker();
 
   late final AnimationController _fadeController;
   late final Animation<double> _fade;
@@ -32,8 +29,6 @@ class _EditProfileScreenState extends State<EditProfileScreen>
   bool _isLoading = false;
   bool _isGoogleLoading = false;
   int _step = 0;
-  String? _nameError;
-  String? _emailError;
 
   @override
   void initState() {
@@ -47,6 +42,11 @@ class _EditProfileScreenState extends State<EditProfileScreen>
       parent: _fadeController,
       curve: Curves.easeOut,
     );
+
+    // From onboarding: go straight to sign-in (Google only).
+    if (widget.onComplete != null) {
+      _step = 1;
+    }
   }
 
   @override
@@ -55,96 +55,6 @@ class _EditProfileScreenState extends State<EditProfileScreen>
     _nameController.dispose();
     _emailController.dispose();
     super.dispose();
-  }
-
-  Future<void> updateImage() async {
-    HapticUtils.lightImpact();
-    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
-
-    if (pickedFile != null) {
-      setState(() {
-        image = pickedFile.path;
-      });
-      HapticUtils.success();
-    }
-  }
-
-  bool _isEmailValid(String email) {
-    final value = email.trim();
-    if (value.isEmpty) return true;
-    return RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(value);
-  }
-
-  bool _validateForm() {
-    final name = _nameController.text.trim();
-    final email = _emailController.text.trim();
-
-    setState(() {
-      _nameError = name.isEmpty ? 'Name is required' : null;
-      _emailError = _isEmailValid(email) ? null : 'Enter a valid email address';
-    });
-
-    return _nameError == null && _emailError == null;
-  }
-
-  Future<void> _createAccount() async {
-    if (_isGoogleLoading) return;
-
-    if (!_validateForm()) {
-      HapticUtils.error();
-      return;
-    }
-
-    setState(() => _isLoading = true);
-
-    try {
-      final email = _emailController.text.trim();
-      final name = _nameController.text.trim();
-
-      singleton.setEmail(email.isEmpty ? '[Email]' : email);
-      singleton.setName(name);
-      singleton.setImage(image);
-
-      final created = await singleton.createUser(name, 0);
-      if (!created) {
-        throw Exception('Unable to create your account right now');
-      }
-
-      final userUpdated = await singleton.updateUser(
-        userName: name,
-        userEmail: email.isEmpty ? null : email,
-        profileImage: image,
-      );
-      if (!userUpdated) {
-        throw Exception('Unable to finish profile setup');
-      }
-
-      singleton.setFirstTime(false);
-
-      if (!mounted) return;
-      HapticUtils.success();
-
-      await Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const Navbar()),
-        (route) => false,
-      );
-    } catch (e) {
-      HapticUtils.error();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Sign in failed: $e'),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: context.colors.error,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
   }
 
   Future<void> _signInWithGoogle() async {
@@ -172,25 +82,24 @@ class _EditProfileScreenState extends State<EditProfileScreen>
         throw Exception('Google sign-in was cancelled or could not complete.');
       }
 
-      final fallbackFromEmail =
-          profile.email != null && profile.email!.contains('@')
-              ? profile.email!.split('@').first
-              : 'Levio Member';
-      final resolvedName =
-          (profile.fullName != null && profile.fullName!.trim().isNotEmpty)
-              ? profile.fullName!.trim()
-              : (_nameController.text.trim().isNotEmpty
-                  ? _nameController.text.trim()
-                  : fallbackFromEmail);
       final resolvedEmail =
           (profile.email != null && profile.email!.trim().isNotEmpty)
               ? profile.email!.trim()
               : null;
+      if (resolvedEmail == null || !resolvedEmail.contains('@')) {
+        throw Exception(
+          'Please use a Google account with an email address to sign in.',
+        );
+      }
+
+      final fallbackName = resolvedEmail.split('@').first;
+      final resolvedName =
+          (profile.fullName != null && profile.fullName!.trim().isNotEmpty)
+              ? profile.fullName!.trim()
+              : fallbackName;
 
       _nameController.text = resolvedName;
-      if (resolvedEmail != null) {
-        _emailController.text = resolvedEmail;
-      }
+      _emailController.text = resolvedEmail;
 
       final synced = await singleton.createOrSyncAuthenticatedUser(
         displayName: resolvedName,
@@ -202,6 +111,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
       }
 
       singleton.setFirstTime(false);
+      widget.onComplete?.call();
 
       if (!mounted) return;
       HapticUtils.success();
@@ -239,78 +149,12 @@ class _EditProfileScreenState extends State<EditProfileScreen>
     setState(() => _step = 0);
   }
 
-  bool _hasCustomImage() {
-    return image.isNotEmpty &&
-        image != 'images/711128.png' &&
-        !image.contains('711128');
-  }
-
-  Widget _buildProfileImage(double size, AppColors colors) {
-    if (!_hasCustomImage()) {
-      return _buildInitialsAvatar(size, colors);
-    }
-
-    if (image.startsWith('images/')) {
-      return ClipOval(
-        child: Image.asset(
-          image,
-          fit: BoxFit.cover,
-          width: size,
-          height: size,
-          errorBuilder: (_, __, ___) => _buildInitialsAvatar(size, colors),
-        ),
-      );
-    }
-
-    return ClipOval(
-      child: Image.file(
-        File(image),
-        fit: BoxFit.cover,
-        width: size,
-        height: size,
-        errorBuilder: (_, __, ___) => _buildInitialsAvatar(size, colors),
-      ),
-    );
-  }
-
-  Widget _buildInitialsAvatar(double size, AppColors colors) {
-    final displayName = _nameController.text.trim().isNotEmpty
-        ? _nameController.text.trim()
-        : 'U';
-    final initial = displayName[0].toUpperCase();
-
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            colors.primary.withValues(alpha: 0.2),
-            colors.secondary.withValues(alpha: 0.14),
-          ],
-        ),
-        shape: BoxShape.circle,
-      ),
-      child: Center(
-        child: Text(
-          initial,
-          style: TextStyle(
-            fontSize: size * 0.42,
-            fontWeight: FontWeight.w700,
-            color: colors.primary,
-          ),
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
 
     return Scaffold(
+      backgroundColor: colors.background,
       body: FadeTransition(
         opacity: _fade,
         child: Container(
@@ -333,9 +177,21 @@ class _EditProfileScreenState extends State<EditProfileScreen>
                   const SizedBox(height: 18),
                   Expanded(
                     child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 260),
-                      switchInCurve: Curves.easeOut,
-                      switchOutCurve: Curves.easeIn,
+                      duration: const Duration(milliseconds: 320),
+                      switchInCurve: Curves.easeOutCubic,
+                      switchOutCurve: Curves.easeInCubic,
+                      transitionBuilder: (Widget child, Animation<double> animation) {
+                        return FadeTransition(
+                          opacity: animation,
+                          child: SlideTransition(
+                            position: Tween<Offset>(
+                              begin: const Offset(0.02, 0),
+                              end: Offset.zero,
+                            ).animate(animation),
+                            child: child,
+                          ),
+                        );
+                      },
                       child: _step == 0
                           ? _buildWelcomeStep(colors)
                           : _buildSignInStep(colors),
@@ -415,7 +271,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
           ),
           const SizedBox(height: 8),
           Text(
-            'Create your care space in under a minute. Your progress stays on-device, with secure cloud sync when configured.',
+            'Create your care space in under a minute. Sign in with Google to sync your data to the cloud.',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: colors.textSecondary,
                 ),
@@ -473,9 +329,9 @@ class _EditProfileScreenState extends State<EditProfileScreen>
           _buildBulletCard(
             colors,
             icon: Icons.shield_outlined,
-            title: 'Private by default',
+            title: 'Secure in the cloud',
             subtitle:
-                'Your profile data stays local unless cloud sync is enabled.',
+                'Your profile and data sync with an authenticated Google account.',
           ),
           const SizedBox(height: 10),
           _buildBulletCard(
@@ -544,6 +400,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
   }
 
   Widget _buildSignInStep(AppColors colors) {
+    final cloudReady = singleton.isCloudConfigured;
     return SingleChildScrollView(
       key: const ValueKey('signin_step'),
       physics: const BouncingScrollPhysics(),
@@ -559,229 +416,75 @@ class _EditProfileScreenState extends State<EditProfileScreen>
           ),
           const SizedBox(height: 8),
           Text(
-            'Continue with Google for one-tap sign in, or fill your details manually.',
+            'Sign in with your Google account to continue.',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: colors.textSecondary,
                 ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 28),
           SizedBox(
             width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed:
-                  (_isGoogleLoading || _isLoading) ? null : _signInWithGoogle,
+            height: 52,
+            child: FilledButton.icon(
+              onPressed: (cloudReady && !_isGoogleLoading && !_isLoading)
+                  ? _signInWithGoogle
+                  : null,
               icon: _isGoogleLoading
                   ? SizedBox(
-                      width: 16,
-                      height: 16,
+                      width: 20,
+                      height: 20,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
                         valueColor:
-                            AlwaysStoppedAnimation<Color>(colors.primary),
+                            AlwaysStoppedAnimation<Color>(colors.textOnPrimary),
                       ),
                     )
                   : Container(
-                      width: 18,
-                      height: 18,
+                      width: 22,
+                      height: 22,
                       decoration: BoxDecoration(
-                        color: colors.surfaceVariant,
-                        borderRadius: BorderRadius.circular(999),
+                        color: colors.textOnPrimary.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(6),
                       ),
                       child: Center(
                         child: Text(
                           'G',
                           style:
-                              Theme.of(context).textTheme.labelSmall?.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                    color: colors.primary,
+                              Theme.of(context).textTheme.labelMedium?.copyWith(
+                                    fontWeight: FontWeight.w800,
+                                    color: colors.textOnPrimary,
                                   ),
                         ),
                       ),
                     ),
               label: Text(
                 _isGoogleLoading
-                    ? 'Connecting Google...'
+                    ? 'Connecting…'
                     : 'Continue with Google',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: colors.textOnPrimary,
+                    ),
+              ),
+              style: FilledButton.styleFrom(
+                backgroundColor: colors.primary,
+                foregroundColor: colors.textOnPrimary,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
               ),
             ),
           ),
-          if (!singleton.isCloudConfigured) ...[
-            const SizedBox(height: 8),
+          if (!cloudReady) ...[
+            const SizedBox(height: 16),
             Text(
-              'Google sign-in is available when cloud backend is configured.',
+              'Cloud backend must be configured to sign in.',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: colors.textTertiary,
                   ),
             ),
           ],
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(child: Divider(color: colors.border)),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 10),
-                child: Text(
-                  'or continue manually',
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: colors.textTertiary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                ),
-              ),
-              Expanded(child: Divider(color: colors.border)),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Center(
-            child: GestureDetector(
-              onTap: updateImage,
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Container(
-                    width: 116,
-                    height: 116,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: colors.border, width: 3),
-                    ),
-                    child: _buildProfileImage(110, colors),
-                  ),
-                  Positioned(
-                    bottom: -2,
-                    right: -2,
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: colors.primary,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: colors.surface, width: 2),
-                      ),
-                      child: const Icon(
-                        Icons.camera_alt_rounded,
-                        color: Colors.white,
-                        size: 16,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
-          Center(
-            child: Text(
-              'Tap to add profile photo',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: colors.textTertiary,
-                  ),
-            ),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            'Name',
-            style: Theme.of(context).textTheme.labelLarge,
-          ),
-          const SizedBox(height: 8),
-          ModernTextField(
-            controller: _nameController,
-            hint: 'Enter your full name',
-            prefixIcon: Icons.person_outline_rounded,
-            errorText: _nameError,
-            onChanged: (_) {
-              if (_nameError != null) {
-                setState(() => _nameError = null);
-              }
-            },
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Email (optional)',
-            style: Theme.of(context).textTheme.labelLarge,
-          ),
-          const SizedBox(height: 8),
-          ModernTextField(
-            controller: _emailController,
-            hint: 'you@example.com',
-            prefixIcon: Icons.alternate_email_rounded,
-            keyboardType: TextInputType.emailAddress,
-            errorText: _emailError,
-            onChanged: (_) {
-              if (_emailError != null) {
-                setState(() => _emailError = null);
-              }
-            },
-          ),
-          const SizedBox(height: 16),
-          ModernCard(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            child: Row(
-              children: [
-                Container(
-                  width: 34,
-                  height: 34,
-                  decoration: BoxDecoration(
-                    color: singleton.isCloudConnected
-                        ? colors.success.withValues(alpha: 0.12)
-                        : colors.info.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(
-                    singleton.isCloudConnected
-                        ? Icons.cloud_done_outlined
-                        : Icons.cloud_off_outlined,
-                    color: singleton.isCloudConnected
-                        ? colors.success
-                        : colors.info,
-                    size: 18,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        singleton.isCloudConnected
-                            ? 'Backend connected'
-                            : 'Running local-first',
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        singleton.backendStatusDescription,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: colors.textSecondary,
-                            ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 18),
-          ModernCard(
-            padding: const EdgeInsets.all(14),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.lock_outline, size: 18, color: colors.info),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Your data is encrypted on-device. Cloud sync uses an authenticated session when enabled.',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: colors.textSecondary,
-                        ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
         ],
       ),
     );
@@ -799,25 +502,13 @@ class _EditProfileScreenState extends State<EditProfileScreen>
       );
     }
 
-    return Row(
-      children: [
-        Expanded(
-          child: ModernButton(
-            text: 'Back',
-            isOutlined: true,
-            onPressed: _goBack,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: ModernButton(
-            text: 'Sign In',
-            icon: Icons.login_rounded,
-            isLoading: _isLoading || _isGoogleLoading,
-            onPressed: _createAccount,
-          ),
-        ),
-      ],
+    return SizedBox(
+      width: double.infinity,
+      child: ModernButton(
+        text: 'Back',
+        isOutlined: true,
+        onPressed: _goBack,
+      ),
     );
   }
 }

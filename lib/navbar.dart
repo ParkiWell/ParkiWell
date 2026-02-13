@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:levio/linechart.dart';
 import 'dart:io';
 
+import 'Main/home.dart';
 import 'Main/manage.dart';
 import 'Main/recovery.dart';
 import 'Main/community.dart';
@@ -37,15 +37,17 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
   final GlobalKey _avatarKey = GlobalKey();
   final GlobalKey _settingsKey = GlobalKey();
   final GlobalKey _fabKey = GlobalKey();
+  final GlobalKey _exerciseCardKey = GlobalKey();
+  final GlobalKey _addMedicationKey = GlobalKey();
   final List<GlobalKey> _navItemKeys =
       List<GlobalKey>.generate(5, (_) => GlobalKey());
 
-  final List<Widget> tabs = [
-    const LineChartSample1(),
-    const ManageScreen(),
-    const RecoveryScreen(),
+  late final List<Widget> _tabs = [
+    const HomeScreen(),
+    ManageScreen(addMedicationKey: _addMedicationKey),
+    RecoveryScreen(exerciseCardKey: _exerciseCardKey),
     const CommunityScreen(),
-    const ProfileScreen()
+    const ProfileScreen(),
   ];
 
   final List<_NavItem> navItems = [
@@ -173,16 +175,16 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
   void _onSingletonPageChange() {
     if (!mounted) return;
     final targetIndex = singleton.page;
-    if (targetIndex == currentIndex) return;
-
     setState(() {
-      currentIndex = targetIndex;
-      button = false;
-      if (currentIndex == 3 || currentIndex == 4) {
-        checkTab();
-        _fabAnimationController.forward(from: 0);
-      } else {
-        _fabAnimationController.reverse();
+      if (targetIndex != currentIndex) {
+        currentIndex = targetIndex;
+        button = false;
+        if (currentIndex == 3 || currentIndex == 4) {
+          checkTab();
+          _fabAnimationController.forward(from: 0);
+        } else {
+          _fabAnimationController.reverse();
+        }
       }
     });
   }
@@ -193,42 +195,56 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
         targetKey: _navItemKeys[0],
         title: 'Home Dashboard',
         description:
-            'This is your home dashboard for symptom and medication trend snapshots.',
+            'Your home for symptom and medication trends. Use the buttons below to log a symptom or add a medication.',
         onStepStarted: () => _switchTabForTutorial(0),
       ),
       TutorialStep(
         targetKey: _navItemKeys[1],
         title: 'Manage',
         description:
-            'Use Manage to log symptoms, add medication schedules, and review care activity.',
+            'Manage is where you log symptoms and add medication schedules. Quick actions are right here.',
+        onStepStarted: () => _switchTabForTutorial(1),
+      ),
+      TutorialStep(
+        targetKey: _addMedicationKey,
+        title: 'Log a medication',
+        description:
+            'Tap Add Medication to create a schedule. Enter the name, pick days (e.g. Everyday or Weekdays), and save.',
         onStepStarted: () => _switchTabForTutorial(1),
       ),
       TutorialStep(
         targetKey: _navItemKeys[2],
         title: 'Recovery',
         description:
-            'Recovery gives you guided speech, movement, and exercise sessions.',
+            'Recovery has guided speech and exercise videos. Tap the tab to open it.',
+        onStepStarted: () => _switchTabForTutorial(2),
+      ),
+      TutorialStep(
+        targetKey: _exerciseCardKey,
+        title: 'Watch a video',
+        description:
+            'Tap Physical Exercises to open the list, then tap any exercise to watch the video. Use the back button when you\'re done.',
         onStepStarted: () => _switchTabForTutorial(2),
       ),
       TutorialStep(
         targetKey: _navItemKeys[3],
         title: 'Community',
         description:
-            'Community lets you connect with peers, groups, and trusted external resources.',
+            'Share and read posts in the community feed. Tap Feed or Resources in the tabs.',
         onStepStarted: () => _switchTabForTutorial(3),
       ),
       TutorialStep(
         targetKey: _navItemKeys[4],
         title: 'Profile',
         description:
-            'Profile keeps your account and progress summary in one place.',
+            'Your profile and progress summary. Tap the tab to open it.',
         onStepStarted: () => _switchTabForTutorial(4),
       ),
       TutorialStep(
         targetKey: _avatarKey,
         title: 'Quick Profile',
         description:
-            'Tap your avatar to jump to profile from anywhere in the app.',
+            'Tap your avatar anytime to jump to profile.',
         onStepStarted: () => _switchTabForTutorial(4),
         tooltipPosition: TutorialTooltipPosition.above,
       ),
@@ -236,7 +252,7 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
         targetKey: _settingsKey,
         title: 'Settings',
         description:
-            'Open Settings to change theme, review legal docs, replay tutorial, or sign out.',
+            'Theme, legal docs, replay this tutorial, or sign out.',
         onStepStarted: () => _switchTabForTutorial(4),
         tooltipPosition: TutorialTooltipPosition.above,
       ),
@@ -244,7 +260,7 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
         targetKey: _fabKey,
         title: 'Quick Edit',
         description:
-            'Use this quick edit button to update your profile details.',
+            'On Profile, this button opens edit profile.',
         onStepStarted: () => _switchTabForTutorial(4),
         tooltipPosition: TutorialTooltipPosition.above,
       ),
@@ -430,22 +446,54 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
       steps: _tutorialSteps,
       child: Scaffold(
         resizeToAvoidBottomInset: false,
+        backgroundColor: colors.background,
         appBar: _buildAppBar(colors),
-        body: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 300),
-          transitionBuilder: (child, animation) {
-            return FadeTransition(
-              opacity: animation,
-              child: child,
-            );
-          },
-          child: Container(
-            key: ValueKey(currentIndex),
-            child: tabs[currentIndex],
-          ),
+        body: Column(
+          children: [
+            if (singleton.isCloudConfigured && !singleton.isOnline)
+              _buildConnectionBanner(colors),
+            Expanded(
+              child: IndexedStack(
+                index: currentIndex,
+                children: _tabs,
+              ),
+            ),
+          ],
         ),
         bottomNavigationBar: _buildBottomNavBar(colors),
         floatingActionButton: _buildFAB(colors),
+      ),
+    );
+  }
+
+  Widget _buildConnectionBanner(AppColors colors) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: colors.warning.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: colors.warning.withValues(alpha: 0.45)),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.wifi_off_rounded,
+            size: 16,
+            color: colors.warning,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Offline mode: showing local data',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: colors.warning,
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -514,9 +562,9 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
   Widget _buildBottomNavBar(AppColors colors) {
     return Container(
       decoration: BoxDecoration(
-        color: colors.navBackground,
+        color: colors.background,
         border: Border(
-          top: BorderSide(color: colors.border, width: 1),
+          top: BorderSide(color: colors.border.withValues(alpha: 0.8), width: 1),
         ),
       ),
       child: SafeArea(

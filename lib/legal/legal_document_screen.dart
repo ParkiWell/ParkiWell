@@ -21,12 +21,21 @@ class LegalDocumentScreen extends StatelessWidget {
     final sections = _sectionsFor(type);
 
     return Scaffold(
+      backgroundColor: colors.background,
       appBar: AppBar(
-        title: Text(type == LegalDocumentType.termsOfService
-            ? 'Terms of Service'
-            : 'Privacy Policy'),
+        backgroundColor: colors.background,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        title: Text(
+          type == LegalDocumentType.termsOfService
+              ? 'Terms of Service'
+              : 'Privacy Policy',
+          style: TextStyle(color: colors.textPrimary, fontWeight: FontWeight.w600),
+        ),
       ),
-      body: ListView.separated(
+      body: Container(
+        color: colors.background,
+        child: ListView.separated(
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
         itemBuilder: (context, index) {
           final section = sections[index];
@@ -53,6 +62,7 @@ class LegalDocumentScreen extends StatelessWidget {
         separatorBuilder: (_, __) => const SizedBox(height: 18),
         itemCount: sections.length,
       ),
+    ),
     );
   }
 

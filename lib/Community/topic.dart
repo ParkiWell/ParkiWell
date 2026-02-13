@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:levio/Community/otherProfile.dart';
 import 'package:levio/navbar.dart';
+import 'package:levio/theme/app_theme.dart';
 
 class TopicScreen extends StatefulWidget {
   const TopicScreen({super.key});
@@ -23,10 +24,15 @@ class _TopicScreenState extends State<TopicScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Scaffold(
+        backgroundColor: colors.background,
         appBar: AppBar(
+          backgroundColor: colors.background,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
+            icon: Icon(Icons.arrow_back_rounded, color: colors.textPrimary),
             onPressed: () {
               Navigator.of(context).pushReplacement(MaterialPageRoute(
                 builder: (context) => const Navbar(),
@@ -34,7 +40,9 @@ class _TopicScreenState extends State<TopicScreen> {
             },
           ),
         ),
-        body: Padding(
+        body: Container(
+          color: colors.background,
+          child: Padding(
           padding: const EdgeInsets.all(16.0),
           child: SingleChildScrollView(
             child: Column(
@@ -180,6 +188,7 @@ class _TopicScreenState extends State<TopicScreen> {
                           ])),
                 ]),
           ),
+        ),
         ),
         floatingActionButton: Ink(
             decoration: const ShapeDecoration(

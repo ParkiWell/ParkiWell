@@ -81,9 +81,17 @@ class CommunityScreen extends StatefulWidget {
 
 class _CommunityScreenState extends State<CommunityScreen>
     with SingleTickerProviderStateMixin {
+  static const int _maxPostLength = 420;
+
   late TabController _tabController;
   final singleton = Singleton();
   List<CommunityPost> _posts = [];
+  final TextEditingController _feedSearchController = TextEditingController();
+  String _feedSearchQuery = '';
+  String _feedFilterCategory = 'All';
+  String _feedSortMode = 'Newest';
+  bool _feedOnlyMine = false;
+  bool _isSubmittingPost = false;
   final List<SupportGroup> _groups = <SupportGroup>[
     SupportGroup(
       id: 'caregivers',
@@ -123,7 +131,7 @@ class _CommunityScreenState extends State<CommunityScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 2, vsync: this);
     _loadFeedData();
     _loadGroupMemberships();
   }
@@ -322,6 +330,7 @@ class _CommunityScreenState extends State<CommunityScreen>
 
   @override
   void dispose() {
+    _feedSearchController.dispose();
     _tabController.dispose();
     super.dispose();
   }
@@ -419,6 +428,8 @@ class _CommunityScreenState extends State<CommunityScreen>
                 TextField(
                   controller: textController,
                   maxLines: 4,
+                  maxLength: _maxPostLength,
+                  onChanged: (_) => setModalState(() {}),
                   decoration: InputDecoration(
                     hintText:
                         'Share your thoughts, experience, or questions...',
@@ -429,14 +440,18 @@ class _CommunityScreenState extends State<CommunityScreen>
                       borderRadius: BorderRadius.circular(8),
                       borderSide: BorderSide.none,
                     ),
+                    counterStyle: Theme.of(ctx).textTheme.labelSmall?.copyWith(
+                          color: colors.textTertiary,
+                        ),
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
                 Row(
                   children: [
                     Expanded(
                       child: TextButton(
-                        onPressed: () => Navigator.pop(ctx),
+                        onPressed:
+                            _isSubmittingPost ? null : () => Navigator.pop(ctx),
                         style: TextButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 12),
                         ),
@@ -449,17 +464,27 @@ class _CommunityScreenState extends State<CommunityScreen>
                       child: ElevatedButton(
                         onPressed: () async {
                           final content = textController.text.trim();
-                          if (content.isEmpty) return;
+                          if (content.isEmpty ||
+                              _isSubmittingPost ||
+                              content.length > _maxPostLength) {
+                            return;
+                          }
 
                           final messenger = ScaffoldMessenger.of(context);
+                          setState(() => _isSubmittingPost = true);
+                          setModalState(() {});
                           HapticUtils.lightImpact();
                           final success = await singleton.createCommunityPost(
                             content: content,
                             category: selectedCategory ?? 'General',
                           );
-                          if (!mounted || !ctx.mounted) return;
-                          Navigator.pop(ctx);
+                          if (!mounted || !ctx.mounted) {
+                            setState(() => _isSubmittingPost = false);
+                            return;
+                          }
                           if (success) {
+                            setState(() => _isSubmittingPost = false);
+                            Navigator.pop(ctx);
                             await _loadFeedData();
                             if (!mounted) return;
                             messenger.showSnackBar(
@@ -471,6 +496,8 @@ class _CommunityScreenState extends State<CommunityScreen>
                               ),
                             );
                           } else {
+                            setState(() => _isSubmittingPost = false);
+                            setModalState(() {});
                             final errorMessage =
                                 singleton.consumeLastCommunityError() ??
                                     'Unable to share post.';
@@ -487,7 +514,16 @@ class _CommunityScreenState extends State<CommunityScreen>
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 12),
                         ),
-                        child: const Text('Post'),
+                        child: _isSubmittingPost
+                            ? SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: colors.textOnPrimary,
+                                ),
+                              )
+                            : const Text('Post'),
                       ),
                     ),
                   ],
@@ -505,6 +541,49 @@ class _CommunityScreenState extends State<CommunityScreen>
     final uid = singleton.cloudSessionUserId;
     if (uid == null || uid.isEmpty) return false;
     return post.authorId == uid;
+  }
+
+  List<CommunityPost> get _visiblePosts {
+    var results = List<CommunityPost>.from(_posts);
+
+    if (_feedOnlyMine) {
+      results = results.where(_isOwnPost).toList();
+    }
+
+    if (_feedFilterCategory != 'All') {
+      results = results
+          .where((post) => (post.category ?? 'General') == _feedFilterCategory)
+          .toList();
+    }
+
+    final query = _feedSearchQuery.trim().toLowerCase();
+    if (query.isNotEmpty) {
+      results = results.where((post) {
+        final content = post.content.toLowerCase();
+        final author = post.authorName.toLowerCase();
+        final category = (post.category ?? '').toLowerCase();
+        return content.contains(query) ||
+            author.contains(query) ||
+            category.contains(query);
+      }).toList();
+    }
+
+    switch (_feedSortMode) {
+      case 'Oldest':
+        results.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+        break;
+      case 'Most Liked':
+        results.sort((a, b) => b.likes.compareTo(a.likes));
+        break;
+      case 'Most Discussed':
+        results.sort((a, b) => b.commentCount.compareTo(a.commentCount));
+        break;
+      default:
+        results.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+        break;
+    }
+
+    return results;
   }
 
   void _showEditPostSheet(CommunityPost post) {
@@ -767,12 +846,11 @@ class _CommunityScreenState extends State<CommunityScreen>
             dividerColor: Colors.transparent,
             tabs: const [
               Tab(text: 'Feed'),
-              Tab(text: 'Groups'),
               Tab(text: 'Resources'),
             ],
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 20),
 
         // Tab content
         Expanded(
@@ -780,7 +858,6 @@ class _CommunityScreenState extends State<CommunityScreen>
             controller: _tabController,
             children: [
               _buildFeedTab(colors),
-              _buildGroupsTab(colors),
               _buildResourcesTab(colors),
             ],
           ),
@@ -868,39 +945,14 @@ class _CommunityScreenState extends State<CommunityScreen>
   }
 
   Widget _buildFeedTab(AppColors colors) {
+    final visiblePosts = _visiblePosts;
+
     return Column(
       children: [
-        // Create post button
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: GestureDetector(
-            onTap: _showCreatePostSheet,
-            child: ModernCard(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  _buildUserAvatar(40, colors),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 12),
-                      decoration: BoxDecoration(
-                        color: colors.surfaceVariant,
-                        borderRadius: BorderRadius.circular(24),
-                      ),
-                      child: Text(
-                        'Share something with the community...',
-                        style: TextStyle(color: colors.textTertiary),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
+        _buildComposer(colors),
+        const SizedBox(height: 14),
+        _buildFeedControls(colors),
+        const SizedBox(height: 14),
 
         // Posts list or empty state
         Expanded(
@@ -916,27 +968,83 @@ class _CommunityScreenState extends State<CommunityScreen>
                           parent: BouncingScrollPhysics(),
                         ),
                         children: [
-                          const SizedBox(height: 80),
+                          const SizedBox(height: 60),
                           _buildEmptyFeedState(colors),
-                          const SizedBox(height: 24),
+                          const SizedBox(height: 40),
                         ],
                       ),
                     )
-                  : RefreshIndicator(
-                      onRefresh: _refreshFeed,
-                      child: ListView.separated(
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        physics: const AlwaysScrollableScrollPhysics(
-                          parent: BouncingScrollPhysics(),
+                  : visiblePosts.isEmpty
+                      ? RefreshIndicator(
+                          onRefresh: _refreshFeed,
+                          child: ListView(
+                            physics: const AlwaysScrollableScrollPhysics(
+                              parent: BouncingScrollPhysics(),
+                            ),
+                            children: [
+                              const SizedBox(height: 60),
+                              _buildNoResultsState(colors),
+                              const SizedBox(height: 40),
+                            ],
+                          ),
+                        )
+                      : RefreshIndicator(
+                          onRefresh: _refreshFeed,
+                          child: ListView.separated(
+                            padding: const EdgeInsets.fromLTRB(20, 4, 20, 48),
+                            physics: const AlwaysScrollableScrollPhysics(
+                              parent: BouncingScrollPhysics(),
+                            ),
+                            itemCount: visiblePosts.length,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(height: 28),
+                            itemBuilder: (context, index) =>
+                                _buildPostCard(visiblePosts[index], colors),
+                          ),
                         ),
-                        itemCount: _posts.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 12),
-                        itemBuilder: (context, index) =>
-                            _buildPostCard(_posts[index], colors),
-                      ),
-                    ),
         ),
       ],
+    );
+  }
+
+  Widget _buildComposer(AppColors colors) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+      child: GestureDetector(
+        onTap: _showCreatePostSheet,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: colors.surfaceVariant.withValues(alpha: 0.6),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: colors.border.withValues(alpha: 0.6),
+              width: 1,
+            ),
+          ),
+          child: Row(
+            children: [
+              _buildUserAvatar(36, colors),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Share with the community...',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: colors.textTertiary,
+                        fontWeight: FontWeight.w500,
+                        fontSize: 14,
+                      ),
+                ),
+              ),
+              Icon(
+                Icons.edit_outlined,
+                size: 18,
+                color: colors.textTertiary,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -980,6 +1088,168 @@ class _CommunityScreenState extends State<CommunityScreen>
     );
   }
 
+  Widget _buildFeedControls(AppColors colors) {
+    final categories = <String>['All', ..._postCategories];
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TextField(
+            controller: _feedSearchController,
+            onChanged: (value) {
+              setState(() => _feedSearchQuery = value);
+            },
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 14),
+            decoration: InputDecoration(
+              hintText: 'Search',
+              prefixIcon: Icon(Icons.search_rounded, color: colors.textTertiary, size: 18),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              filled: true,
+              fillColor: colors.surfaceVariant.withValues(alpha: 0.5),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+              suffixIcon: _feedSearchQuery.isNotEmpty
+                  ? IconButton(
+                      icon: Icon(Icons.close_rounded, size: 18, color: colors.textTertiary),
+                      onPressed: () {
+                        _feedSearchController.clear();
+                        setState(() {
+                          _feedSearchQuery = '';
+                        });
+                      },
+                    )
+                  : null,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: categories.map((category) {
+              final selected = _feedFilterCategory == category;
+              return GestureDetector(
+                onTap: () {
+                  HapticUtils.selectionClick();
+                  setState(() => _feedFilterCategory = category);
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? colors.primary
+                        : colors.surfaceVariant.withValues(alpha: 0.6),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: selected ? colors.primary : colors.border.withValues(alpha: 0.7),
+                    ),
+                  ),
+                  child: Text(
+                    category,
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                          color: selected
+                              ? colors.textOnPrimary
+                              : colors.textSecondary,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12,
+                        ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              PopupMenuButton<String>(
+                onSelected: (value) {
+                  setState(() => _feedSortMode = value);
+                },
+                offset: const Offset(0, 36),
+                itemBuilder: (_) => const [
+                  PopupMenuItem(value: 'Newest', child: Text('Newest')),
+                  PopupMenuItem(value: 'Oldest', child: Text('Oldest')),
+                  PopupMenuItem(value: 'Most Liked', child: Text('Most Liked')),
+                  PopupMenuItem(
+                    value: 'Most Discussed',
+                    child: Text('Most Discussed'),
+                  ),
+                ],
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.sort_rounded, size: 16, color: colors.textTertiary),
+                      const SizedBox(width: 4),
+                      Text(
+                        _feedSortMode,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: colors.textTertiary,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12,
+                            ),
+                      ),
+                      const SizedBox(width: 2),
+                      Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: colors.textTertiary),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              GestureDetector(
+                onTap: () {
+                  setState(() => _feedOnlyMine = !_feedOnlyMine);
+                },
+                child: Text(
+                  _feedOnlyMine ? 'My posts' : 'All posts',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: _feedOnlyMine ? colors.primary : colors.textTertiary,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12,
+                      ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNoResultsState(AppColors colors) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(30),
+        child: Column(
+          children: [
+            Icon(Icons.filter_alt_off_rounded,
+                size: 36, color: colors.textTertiary),
+            const SizedBox(height: 10),
+            Text(
+              'No posts match your filters',
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Try another search, category, or sort option.',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: colors.textTertiary,
+                  ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildEmptyFeedState(AppColors colors) {
     return Center(
       child: Padding(
@@ -1020,29 +1290,32 @@ class _CommunityScreenState extends State<CommunityScreen>
 
   Widget _buildPostCard(CommunityPost post, AppColors colors) {
     return ModernCard(
-      padding: const EdgeInsets.all(16),
+      borderRadius: 20,
+      padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Author row
           Row(
             children: [
-              _buildPostAuthorAvatar(post, 40, colors),
-              const SizedBox(width: 12),
+              _buildPostAuthorAvatar(post, 44, colors),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       post.authorName,
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w600,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
                           ),
                     ),
+                    const SizedBox(height: 2),
                     Text(
                       _formatTimestamp(post.timestamp),
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             color: colors.textTertiary,
+                            fontSize: 13,
                           ),
                     ),
                   ],
@@ -1050,22 +1323,21 @@ class _CommunityScreenState extends State<CommunityScreen>
               ),
               if (post.category != null) ...[
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: colors.primary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
+                    color: colors.primary.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
                   ),
                   child: Text(
                     post.category!,
                     style: TextStyle(
                       color: colors.primary,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
-                const SizedBox(width: 4),
+                const SizedBox(width: 8),
               ],
               if (_isOwnPost(post))
                 PopupMenuButton<String>(
@@ -1098,17 +1370,18 @@ class _CommunityScreenState extends State<CommunityScreen>
                 ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 18),
 
           // Content
           Text(
             post.content,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                   color: colors.textPrimary,
-                  height: 1.5,
+                  height: 1.55,
+                  fontWeight: FontWeight.w500,
                 ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 22),
 
           // Actions row
           Row(
@@ -1154,14 +1427,14 @@ class _CommunityScreenState extends State<CommunityScreen>
                   }
                 },
               ),
-              const SizedBox(width: 24),
+              const SizedBox(width: 28),
               _buildActionButton(
                 icon: Icons.chat_bubble_outline_rounded,
                 label: post.commentCount.toString(),
                 color: colors.textSecondary,
                 onTap: () => _openCommentsSheet(post),
               ),
-              const SizedBox(width: 24),
+              const SizedBox(width: 28),
               _buildActionButton(
                 icon: Icons.share_outlined,
                 label: 'Share',
@@ -1445,6 +1718,8 @@ class _CommunityScreenState extends State<CommunityScreen>
     );
   }
 
+  // Kept for potential future use when Groups tab is re-enabled.
+  // ignore: unused_element
   Widget _buildGroupsTab(AppColors colors) {
     if (_isLoadingGroups) {
       return Center(child: CircularProgressIndicator(color: colors.primary));
@@ -1477,6 +1752,17 @@ class _CommunityScreenState extends State<CommunityScreen>
         ),
         padding: const EdgeInsets.symmetric(horizontal: 20),
         children: [
+          if (!singleton.isCloudConnected)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Text(
+                'Group membership is saved on this device when offline.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: colors.textTertiary,
+                      fontStyle: FontStyle.italic,
+                    ),
+              ),
+            ),
           if (joinedGroups.isNotEmpty) ...[
             Text(
               'Your Groups',

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 import 'package:levio/singleton.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../theme/app_theme.dart';
@@ -14,28 +13,10 @@ class SpeechAudio extends StatefulWidget {
 
 class _SpeechAudioState extends State<SpeechAudio> {
   final singleton = Singleton();
-  late YoutubePlayerController _controller;
   String get _youtubeUrl =>
       'https://www.youtube.com/watch?v=${singleton.currentURL}';
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = YoutubePlayerController.fromVideoId(
-      videoId: singleton.currentURL,
-      autoPlay: false,
-      params: const YoutubePlayerParams(
-        showFullscreenButton: true,
-        showControls: true,
-      ),
-    );
-  }
-
-  @override
-  void dispose() {
-    _controller.close();
-    super.dispose();
-  }
+  String get _thumbnailUrl =>
+      'https://img.youtube.com/vi/${singleton.currentURL}/hqdefault.jpg';
 
   Future<void> _openInYouTube() async {
     final uri = Uri.parse(_youtubeUrl);
@@ -124,111 +105,179 @@ class _SpeechAudioState extends State<SpeechAudio> {
 
     if (speechData == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Speech Therapy')),
-        body: const Center(child: Text('Video not found')),
+        backgroundColor: colors.background,
+        appBar: AppBar(
+          backgroundColor: colors.background,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          title: Text('Speech Therapy', style: TextStyle(color: colors.textPrimary, fontWeight: FontWeight.w600)),
+        ),
+        body: Container(color: colors.background, child: const Center(child: Text('Video not found'))),
       );
     }
 
-    return YoutubePlayerScaffold(
-      controller: _controller,
-      aspectRatio: 16 / 9,
-      builder: (context, player) {
-        return Scaffold(
-          appBar: AppBar(
-            leading: IconButton(
-              icon: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: colors.surfaceVariant,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  Icons.arrow_back_rounded,
-                  color: colors.textPrimary,
-                  size: 20,
-                ),
-              ),
-              onPressed: () {
-                HapticUtils.lightImpact();
-                if (Navigator.of(context).canPop()) {
-                  Navigator.of(context).pop();
-                }
-              },
+    return Scaffold(
+      backgroundColor: colors.background,
+      appBar: AppBar(
+        backgroundColor: colors.background,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: IconButton(
+          icon: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: colors.surfaceVariant,
+              borderRadius: BorderRadius.circular(12),
             ),
-            title: const Text('Speech Therapy'),
-            actions: [
-              TextButton.icon(
-                onPressed: () {
-                  HapticUtils.lightImpact();
-                  _showSpeechText();
-                },
-                icon:
-                    Icon(Icons.notes_rounded, color: colors.primary, size: 18),
-                label: Text(
-                  'Text',
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        color: colors.primary,
-                        fontWeight: FontWeight.w700,
+            child: Icon(
+              Icons.arrow_back_rounded,
+              color: colors.textPrimary,
+              size: 20,
+            ),
+          ),
+          onPressed: () {
+            HapticUtils.lightImpact();
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            }
+          },
+        ),
+        title: Text('Speech Therapy', style: TextStyle(color: colors.textPrimary, fontWeight: FontWeight.w600)),
+        actions: [
+          IconButton(
+            tooltip: 'Open in YouTube',
+            onPressed: () {
+              HapticUtils.lightImpact();
+              _openInYouTube();
+            },
+            icon: Icon(
+              Icons.open_in_new_rounded,
+              color: colors.textSecondary,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 4),
+        ],
+      ),
+      body: Container(
+        color: colors.background,
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                speechData[0],
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                speechData[1],
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: colors.textSecondary,
+                    ),
+              ),
+              if (source.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  source,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: colors.textTertiary,
+                        fontWeight: FontWeight.w600,
                       ),
                 ),
-              ),
-              IconButton(
-                tooltip: 'Open in YouTube',
-                onPressed: () {
+              ],
+              const SizedBox(height: 16),
+
+              // Video thumbnail — tap to open in YouTube
+              GestureDetector(
+                onTap: () {
                   HapticUtils.lightImpact();
                   _openInYouTube();
                 },
-                icon: Icon(
-                  Icons.open_in_new_rounded,
-                  color: colors.textSecondary,
-                  size: 20,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: AspectRatio(
+                    aspectRatio: 16 / 9,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        Image.network(
+                          _thumbnailUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
+                            color: colors.surfaceVariant,
+                            child: Icon(Icons.videocam_off_rounded, size: 48, color: colors.textTertiary),
+                          ),
+                        ),
+                        Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.black.withValues(alpha: 0.0),
+                                Colors.black.withValues(alpha: 0.5),
+                              ],
+                            ),
+                          ),
+                        ),
+                        Center(
+                          child: Container(
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: Colors.red.shade600,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.3),
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: const Icon(
+                              Icons.play_arrow_rounded,
+                              color: Colors.white,
+                              size: 36,
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          bottom: 12,
+                          left: 12,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.6),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.play_circle_outline_rounded, color: Colors.white, size: 14),
+                                SizedBox(width: 5),
+                                Text(
+                                  'Watch on YouTube',
+                                  style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
-              const SizedBox(width: 4),
             ],
           ),
-          body: SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Title
-                Text(
-                  speechData[0],
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  speechData[1],
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: colors.textSecondary,
-                      ),
-                ),
-                if (source.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    source,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: colors.textTertiary,
-                          fontWeight: FontWeight.w600,
-                        ),
-                  ),
-                ],
-                const SizedBox(height: 24),
-
-                // Video player
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: player,
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+        ),
+      ),
     );
   }
 }

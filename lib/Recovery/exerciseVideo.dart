@@ -5,7 +5,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:levio/singleton.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
-import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 
 import '../theme/app_theme.dart';
 import '../utils/haptic_utils.dart';
@@ -23,7 +22,6 @@ class _ExerciseVideoState extends State<ExerciseVideo> {
   final singleton = Singleton();
   final ImagePicker _picker = ImagePicker();
 
-  late YoutubePlayerController _controller;
   VideoPlayerController? _recordingController;
 
   String? _recordedVideoPath;
@@ -32,24 +30,12 @@ class _ExerciseVideoState extends State<ExerciseVideo> {
   bool get _hasRecording => _recordedVideoPath != null;
   String get _youtubeUrl =>
       'https://www.youtube.com/watch?v=${singleton.currentURL}';
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = YoutubePlayerController.fromVideoId(
-      videoId: singleton.currentURL,
-      autoPlay: false,
-      params: const YoutubePlayerParams(
-        showFullscreenButton: true,
-        showControls: true,
-      ),
-    );
-  }
+  String get _thumbnailUrl =>
+      'https://img.youtube.com/vi/${singleton.currentURL}/hqdefault.jpg';
 
   @override
   void dispose() {
     _recordingController?.dispose();
-    _controller.close();
     super.dispose();
   }
 
@@ -274,216 +260,287 @@ class _ExerciseVideoState extends State<ExerciseVideo> {
 
     if (exerciseData == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Exercise')),
-        body: const Center(child: Text('Video not found')),
+        backgroundColor: colors.background,
+        appBar: AppBar(
+          backgroundColor: colors.background,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          title: Text('Exercise', style: TextStyle(color: colors.textPrimary, fontWeight: FontWeight.w600)),
+        ),
+        body: Container(color: colors.background, child: const Center(child: Text('Video not found'))),
       );
     }
 
     final source = exerciseData.length > 3 ? exerciseData[3] : '';
 
-    return YoutubePlayerScaffold(
-      controller: _controller,
-      aspectRatio: 16 / 9,
-      builder: (context, player) {
-        return Scaffold(
-          appBar: AppBar(
-            leading: IconButton(
-              icon: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: colors.surfaceVariant,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  Icons.arrow_back_rounded,
-                  color: colors.textPrimary,
-                  size: 20,
-                ),
-              ),
-              onPressed: () {
-                HapticUtils.lightImpact();
-                if (Navigator.of(context).canPop()) {
-                  Navigator.of(context).pop();
-                }
-              },
+    return Scaffold(
+      backgroundColor: colors.background,
+      appBar: AppBar(
+        backgroundColor: colors.background,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: IconButton(
+          icon: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: colors.surfaceVariant,
+              borderRadius: BorderRadius.circular(12),
             ),
-            title: const Text('Exercise'),
-            actions: [
-              TextButton.icon(
-                onPressed: () {
-                  HapticUtils.lightImpact();
-                  _showExerciseText();
-                },
-                icon:
-                    Icon(Icons.notes_rounded, color: colors.primary, size: 18),
-                label: Text(
-                  'Text',
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        color: colors.primary,
-                        fontWeight: FontWeight.w700,
+            child: Icon(
+              Icons.arrow_back_rounded,
+              color: colors.textPrimary,
+              size: 20,
+            ),
+          ),
+          onPressed: () {
+            HapticUtils.lightImpact();
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            }
+          },
+        ),
+        title: Text('Exercise', style: TextStyle(color: colors.textPrimary, fontWeight: FontWeight.w600)),
+        actions: [
+          IconButton(
+            tooltip: 'Open in YouTube',
+            onPressed: () {
+              HapticUtils.lightImpact();
+              _openInYouTube();
+            },
+            icon: Icon(
+              Icons.open_in_new_rounded,
+              color: colors.textSecondary,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 4),
+        ],
+      ),
+      body: Container(
+        color: colors.background,
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                exerciseData[0],
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                exerciseData[1],
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: colors.textSecondary,
+                    ),
+              ),
+              if (source.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  source,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: colors.textTertiary,
+                        fontWeight: FontWeight.w600,
                       ),
                 ),
-              ),
-              IconButton(
-                tooltip: 'Open in YouTube',
-                onPressed: () {
+              ],
+              const SizedBox(height: 16),
+
+              // Video thumbnail — tap to open in YouTube
+              GestureDetector(
+                onTap: () {
                   HapticUtils.lightImpact();
                   _openInYouTube();
                 },
-                icon: Icon(
-                  Icons.open_in_new_rounded,
-                  color: colors.textSecondary,
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 4),
-            ],
-          ),
-          body: SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  exerciseData[0],
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  exerciseData[1],
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: colors.textSecondary,
-                      ),
-                ),
-                if (source.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    source,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: colors.textTertiary,
-                          fontWeight: FontWeight.w600,
-                        ),
-                  ),
-                ],
-                const SizedBox(height: 20),
-                ClipRRect(
+                child: ClipRRect(
                   borderRadius: BorderRadius.circular(16),
-                  child: player,
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: ModernButton(
-                        text: _hasRecording ? 'Re-record' : 'Record Yourself',
-                        icon: Icons.videocam_rounded,
-                        isLoading: _isRecordingVideo,
-                        onPressed: _recordVideo,
-                      ),
-                    ),
-                    if (_hasRecording) ...[
-                      const SizedBox(width: 10),
-                      ModernIconButton(
-                        icon: Icons.delete_outline_rounded,
-                        backgroundColor: colors.error,
-                        onPressed: _clearRecording,
-                      ),
-                    ],
-                  ],
-                ),
-                if (_recordingController != null &&
-                    _recordingController!.value.isInitialized) ...[
-                  const SizedBox(height: 14),
-                  ModernCard(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                  child: AspectRatio(
+                    aspectRatio: 16 / 9,
+                    child: Stack(
+                      fit: StackFit.expand,
                       children: [
-                        Text(
-                          'Your Recording',
-                          style:
-                              Theme.of(context).textTheme.titleSmall?.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                        ),
-                        const SizedBox(height: 10),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: AspectRatio(
-                            aspectRatio:
-                                _recordingController!.value.aspectRatio,
-                            child: VideoPlayer(_recordingController!),
+                        Image.network(
+                          _thumbnailUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
+                            color: colors.surfaceVariant,
+                            child: Icon(Icons.videocam_off_rounded, size: 48, color: colors.textTertiary),
                           ),
                         ),
-                        const SizedBox(height: 10),
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: TextButton.icon(
-                            onPressed: () {
-                              HapticUtils.lightImpact();
-                              final controller = _recordingController;
-                              if (controller == null) return;
-                              if (controller.value.isPlaying) {
-                                controller.pause();
-                              } else {
-                                controller.play();
-                              }
-                              setState(() {});
-                            },
-                            icon: Icon(
-                              _recordingController!.value.isPlaying
-                                  ? Icons.pause_rounded
-                                  : Icons.play_arrow_rounded,
-                              size: 18,
+                        Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.black.withValues(alpha: 0.0),
+                                Colors.black.withValues(alpha: 0.5),
+                              ],
                             ),
-                            label: Text(
-                              _recordingController!.value.isPlaying
-                                  ? 'Pause Preview'
-                                  : 'Play Preview',
+                          ),
+                        ),
+                        Center(
+                          child: Container(
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: Colors.red.shade600,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.3),
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: const Icon(
+                              Icons.play_arrow_rounded,
+                              color: Colors.white,
+                              size: 36,
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          bottom: 12,
+                          left: 12,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.6),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.play_circle_outline_rounded, color: Colors.white, size: 14),
+                                SizedBox(width: 5),
+                                Text(
+                                  'Watch on YouTube',
+                                  style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+                                ),
+                              ],
                             ),
                           ),
                         ),
                       ],
                     ),
                   ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: ModernButton(
+                      text: _hasRecording ? 'Re-record' : 'Record Yourself',
+                      icon: Icons.videocam_rounded,
+                      isLoading: _isRecordingVideo,
+                      onPressed: _recordVideo,
+                    ),
+                  ),
+                  if (_hasRecording) ...[
+                    const SizedBox(width: 10),
+                    ModernIconButton(
+                      icon: Icons.delete_outline_rounded,
+                      backgroundColor: colors.error,
+                      onPressed: _clearRecording,
+                    ),
+                  ],
                 ],
+              ),
+              if (_recordingController != null &&
+                  _recordingController!.value.isInitialized) ...[
                 const SizedBox(height: 14),
-                SizedBox(
-                  width: double.infinity,
-                  child: ModernButton(
-                    text: 'AI Analysis',
-                    icon: Icons.auto_awesome_rounded,
-                    isOutlined: !_hasRecording,
-                    onPressed: !_hasRecording
-                        ? () {
+                ModernCard(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Your Recording',
+                        style:
+                            Theme.of(context).textTheme.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                      ),
+                      const SizedBox(height: 10),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: AspectRatio(
+                          aspectRatio:
+                              _recordingController!.value.aspectRatio,
+                          child: VideoPlayer(_recordingController!),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton.icon(
+                          onPressed: () {
                             HapticUtils.lightImpact();
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: const Text(
-                                  'Record yourself first to run AI analysis.',
-                                ),
-                                behavior: SnackBarBehavior.floating,
-                                backgroundColor: colors.info,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                            );
-                          }
-                        : () {
-                            HapticUtils.mediumImpact();
-                            _showAnalysisDialog();
+                            final controller = _recordingController;
+                            if (controller == null) return;
+                            if (controller.value.isPlaying) {
+                              controller.pause();
+                            } else {
+                              controller.play();
+                            }
+                            setState(() {});
                           },
+                          icon: Icon(
+                            _recordingController!.value.isPlaying
+                                ? Icons.pause_rounded
+                                : Icons.play_arrow_rounded,
+                            size: 18,
+                          ),
+                          label: Text(
+                            _recordingController!.value.isPlaying
+                                ? 'Pause Preview'
+                                : 'Play Preview',
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
-            ),
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                child: ModernButton(
+                  text: 'AI Analysis',
+                  icon: Icons.auto_awesome_rounded,
+                  isOutlined: !_hasRecording,
+                  onPressed: !_hasRecording
+                      ? () {
+                          HapticUtils.lightImpact();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: const Text(
+                                'Record yourself first to run AI analysis.',
+                              ),
+                              behavior: SnackBarBehavior.floating,
+                              backgroundColor: colors.info,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          );
+                        }
+                      : () {
+                          HapticUtils.mediumImpact();
+                          _showAnalysisDialog();
+                        },
+                ),
+              ),
+            ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 }
