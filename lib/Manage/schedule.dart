@@ -210,7 +210,9 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
             Navigator.pushNamed(context, '/');
           },
         ),
-        title: Text('Medications', style: TextStyle(color: colors.textPrimary, fontWeight: FontWeight.w600)),
+        title: Text('Medications',
+            style: TextStyle(
+                color: colors.textPrimary, fontWeight: FontWeight.w600)),
       ),
       body: Container(
         color: colors.background,

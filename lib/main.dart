@@ -105,9 +105,8 @@ enum AppScreen { onboarding, home }
 
 class _MyAppState extends State<MyApp> {
   final singleton = Singleton();
-  AppScreen _currentScreen = Singleton().firstTime
-      ? AppScreen.onboarding
-      : AppScreen.home;
+  AppScreen _currentScreen =
+      Singleton().firstTime ? AppScreen.onboarding : AppScreen.home;
 
   @override
   void initState() {

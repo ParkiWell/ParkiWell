@@ -243,24 +243,21 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
       TutorialStep(
         targetKey: _avatarKey,
         title: 'Quick Profile',
-        description:
-            'Tap your avatar anytime to jump to profile.',
+        description: 'Tap your avatar anytime to jump to profile.',
         onStepStarted: () => _switchTabForTutorial(4),
         tooltipPosition: TutorialTooltipPosition.above,
       ),
       TutorialStep(
         targetKey: _settingsKey,
         title: 'Settings',
-        description:
-            'Theme, legal docs, replay this tutorial, or sign out.',
+        description: 'Theme, legal docs, replay this tutorial, or sign out.',
         onStepStarted: () => _switchTabForTutorial(4),
         tooltipPosition: TutorialTooltipPosition.above,
       ),
       TutorialStep(
         targetKey: _fabKey,
         title: 'Quick Edit',
-        description:
-            'On Profile, this button opens edit profile.',
+        description: 'On Profile, this button opens edit profile.',
         onStepStarted: () => _switchTabForTutorial(4),
         tooltipPosition: TutorialTooltipPosition.above,
       ),
@@ -564,7 +561,8 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
       decoration: BoxDecoration(
         color: colors.background,
         border: Border(
-          top: BorderSide(color: colors.border.withValues(alpha: 0.8), width: 1),
+          top:
+              BorderSide(color: colors.border.withValues(alpha: 0.8), width: 1),
         ),
       ),
       child: SafeArea(

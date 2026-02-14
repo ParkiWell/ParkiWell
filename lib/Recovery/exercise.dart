@@ -121,7 +121,9 @@ class _ExerciseScreenState extends State<ExerciseScreen>
             }
           },
         ),
-        title: Text('Exercises', style: TextStyle(color: colors.textPrimary, fontWeight: FontWeight.w600)),
+        title: Text('Exercises',
+            style: TextStyle(
+                color: colors.textPrimary, fontWeight: FontWeight.w600)),
         actions: [
           TextButton.icon(
             onPressed: () {

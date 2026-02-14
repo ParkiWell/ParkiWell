@@ -66,9 +66,9 @@ void main() {
     await tester.pump(const Duration(milliseconds: 200));
   });
 
-  testWidgets('App starts on splash for first-time users', (tester) async {
+  testWidgets('App starts on onboarding for first-time users', (tester) async {
     await tester.pumpWidget(const MyApp());
-    expect(find.text('Preparing your care workspace'), findsOneWidget);
+    expect(find.text('Getting ready…'), findsOneWidget);
     await tester.pump(const Duration(milliseconds: 200));
   });
 

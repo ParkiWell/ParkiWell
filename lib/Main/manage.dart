@@ -134,14 +134,16 @@ class _ManageScreenState extends State<ManageScreen> {
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.insights_rounded, size: 15, color: colors.textTertiary),
+                      Icon(Icons.insights_rounded,
+                          size: 15, color: colors.textTertiary),
                       const SizedBox(width: 6),
                       Text(
                         'Today at a glance',
-                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
-                              color: colors.textTertiary,
-                            ),
+                        style:
+                            Theme.of(context).textTheme.labelMedium?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  color: colors.textTertiary,
+                                ),
                       ),
                     ],
                   ),

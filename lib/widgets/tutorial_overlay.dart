@@ -145,7 +145,7 @@ class _TutorialOverlayState extends State<TutorialOverlay> {
     const bubbleGap = 12.0;
 
     final hasTarget = targetRect != null;
-    final rect = targetRect ?? Rect.fromLTWH(0, 0, 1, 1);
+    final rect = targetRect ?? const Rect.fromLTWH(0, 0, 1, 1);
 
     double left = rect.center.dx - (tooltipWidth / 2);
     left = left.clamp(
@@ -173,7 +173,8 @@ class _TutorialOverlayState extends State<TutorialOverlay> {
         }
       }
     } else {
-      top = (size.height - padding.bottom - tooltipHeight - 24).clamp(minTop, maxTop);
+      top = (size.height - padding.bottom - tooltipHeight - 24)
+          .clamp(minTop, maxTop);
     }
 
     final isLast = _service.currentStepIndex == _service.totalSteps - 1;

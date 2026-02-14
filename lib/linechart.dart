@@ -534,7 +534,10 @@ class LineChartSample1State extends State<LineChartSample1>
                             const SizedBox(height: 14),
                             Text(
                               'Log symptoms to see your trend',
-                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.copyWith(
                                     color: colors.textTertiary,
                                   ),
                               textAlign: TextAlign.center,
@@ -595,7 +598,10 @@ class LineChartSample1State extends State<LineChartSample1>
                             Text(
                               'Add medications to see your weekly schedule',
                               textAlign: TextAlign.center,
-                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.copyWith(
                                     color: colors.textTertiary,
                                   ),
                             ),

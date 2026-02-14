@@ -30,39 +30,40 @@ class LegalDocumentScreen extends StatelessWidget {
           type == LegalDocumentType.termsOfService
               ? 'Terms of Service'
               : 'Privacy Policy',
-          style: TextStyle(color: colors.textPrimary, fontWeight: FontWeight.w600),
+          style:
+              TextStyle(color: colors.textPrimary, fontWeight: FontWeight.w600),
         ),
       ),
       body: Container(
         color: colors.background,
         child: ListView.separated(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-        itemBuilder: (context, index) {
-          final section = sections[index];
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                section.title,
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                section.body,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: colors.textSecondary,
-                      height: 1.55,
-                    ),
-              ),
-            ],
-          );
-        },
-        separatorBuilder: (_, __) => const SizedBox(height: 18),
-        itemCount: sections.length,
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+          itemBuilder: (context, index) {
+            final section = sections[index];
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  section.title,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  section.body,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: colors.textSecondary,
+                        height: 1.55,
+                      ),
+                ),
+              ],
+            );
+          },
+          separatorBuilder: (_, __) => const SizedBox(height: 18),
+          itemCount: sections.length,
+        ),
       ),
-    ),
     );
   }
 

@@ -399,7 +399,9 @@ class _EditLogScreenState extends State<EditLogScreen>
             Navigator.popAndPushNamed(context, '/logScreen');
           },
         ),
-        title: Text('Symptom Log', style: TextStyle(color: colors.textPrimary, fontWeight: FontWeight.w600)),
+        title: Text('Symptom Log',
+            style: TextStyle(
+                color: colors.textPrimary, fontWeight: FontWeight.w600)),
       ),
       body: FadeTransition(
         opacity: _animation,
@@ -495,7 +497,8 @@ class _DateTimePickerSheetState extends State<_DateTimePickerSheet> {
   @override
   void initState() {
     super.initState();
-    _date = DateTime(widget.initial.year, widget.initial.month, widget.initial.day);
+    _date =
+        DateTime(widget.initial.year, widget.initial.month, widget.initial.day);
     final h = widget.initial.hour;
     _hour12 = h == 0 ? 12 : (h > 12 ? h - 12 : h);
     _minute = widget.initial.minute;
@@ -516,7 +519,8 @@ class _DateTimePickerSheetState extends State<_DateTimePickerSheet> {
 
     // Scroll date list to the selected date after first frame
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final idx = _dates.indexWhere((d) => d.year == _date.year && d.month == _date.month && d.day == _date.day);
+      final idx = _dates.indexWhere((d) =>
+          d.year == _date.year && d.month == _date.month && d.day == _date.day);
       if (idx >= 0 && _dateScrollController.hasClients) {
         // Each chip is 68 wide + 8 gap = 76
         final offset = (idx * 76.0) - 40;
@@ -539,7 +543,9 @@ class _DateTimePickerSheetState extends State<_DateTimePickerSheet> {
   }
 
   DateTime get _result {
-    final hour24 = _isPm ? (_hour12 == 12 ? 12 : _hour12 + 12) : (_hour12 == 12 ? 0 : _hour12);
+    final hour24 = _isPm
+        ? (_hour12 == 12 ? 12 : _hour12 + 12)
+        : (_hour12 == 12 ? 0 : _hour12);
     return DateTime(_date.year, _date.month, _date.day, hour24, _minute);
   }
 
@@ -614,7 +620,8 @@ class _DateTimePickerSheetState extends State<_DateTimePickerSheet> {
                       color: colors.primary.withValues(alpha: 0.10),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Icon(Icons.schedule_rounded, size: 20, color: colors.primary),
+                    child: Icon(Icons.schedule_rounded,
+                        size: 20, color: colors.primary),
                   ),
                   const SizedBox(width: 12),
                   Text(
@@ -646,7 +653,9 @@ class _DateTimePickerSheetState extends State<_DateTimePickerSheet> {
                   separatorBuilder: (_, __) => const SizedBox(width: 8),
                   itemBuilder: (context, i) {
                     final d = _dates[i];
-                    final isSelected = _date.year == d.year && _date.month == d.month && _date.day == d.day;
+                    final isSelected = _date.year == d.year &&
+                        _date.month == d.month &&
+                        _date.day == d.day;
                     final isSpecial = _isSpecialDate(d);
 
                     return GestureDetector(
@@ -678,7 +687,10 @@ class _DateTimePickerSheetState extends State<_DateTimePickerSheet> {
                                 _specialLabel(d),
                                 style: textTheme.labelSmall?.copyWith(
                                   fontWeight: FontWeight.w600,
-                                  color: isSelected ? colors.textOnPrimary.withValues(alpha: 0.8) : colors.textTertiary,
+                                  color: isSelected
+                                      ? colors.textOnPrimary
+                                          .withValues(alpha: 0.8)
+                                      : colors.textTertiary,
                                   fontSize: 10,
                                 ),
                               ),
@@ -688,7 +700,10 @@ class _DateTimePickerSheetState extends State<_DateTimePickerSheet> {
                                 _weekdayShort(d),
                                 style: textTheme.labelSmall?.copyWith(
                                   fontWeight: FontWeight.w500,
-                                  color: isSelected ? colors.textOnPrimary.withValues(alpha: 0.8) : colors.textTertiary,
+                                  color: isSelected
+                                      ? colors.textOnPrimary
+                                          .withValues(alpha: 0.8)
+                                      : colors.textTertiary,
                                   fontSize: 10,
                                 ),
                               ),
@@ -698,14 +713,19 @@ class _DateTimePickerSheetState extends State<_DateTimePickerSheet> {
                               '${d.day}',
                               style: textTheme.titleMedium?.copyWith(
                                 fontWeight: FontWeight.w700,
-                                color: isSelected ? colors.textOnPrimary : colors.textPrimary,
+                                color: isSelected
+                                    ? colors.textOnPrimary
+                                    : colors.textPrimary,
                               ),
                             ),
                             Text(
                               widget.months[d.month - 1].substring(0, 3),
                               style: textTheme.labelSmall?.copyWith(
                                 fontWeight: FontWeight.w500,
-                                color: isSelected ? colors.textOnPrimary.withValues(alpha: 0.8) : colors.textSecondary,
+                                color: isSelected
+                                    ? colors.textOnPrimary
+                                        .withValues(alpha: 0.8)
+                                    : colors.textSecondary,
                                 fontSize: 10,
                               ),
                             ),
@@ -734,7 +754,8 @@ class _DateTimePickerSheetState extends State<_DateTimePickerSheet> {
                 decoration: BoxDecoration(
                   color: colors.surfaceVariant.withValues(alpha: 0.3),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: colors.border.withValues(alpha: 0.3)),
+                  border:
+                      Border.all(color: colors.border.withValues(alpha: 0.3)),
                 ),
                 child: Stack(
                   children: [
@@ -774,8 +795,13 @@ class _DateTimePickerSheetState extends State<_DateTimePickerSheet> {
                                 child: Text(
                                   '$hour',
                                   style: textTheme.headlineSmall?.copyWith(
-                                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w400,
-                                    color: isSelected ? colors.primary : colors.textSecondary.withValues(alpha: 0.6),
+                                    fontWeight: isSelected
+                                        ? FontWeight.w700
+                                        : FontWeight.w400,
+                                    color: isSelected
+                                        ? colors.primary
+                                        : colors.textSecondary
+                                            .withValues(alpha: 0.6),
                                   ),
                                 ),
                               );
@@ -809,8 +835,13 @@ class _DateTimePickerSheetState extends State<_DateTimePickerSheet> {
                                 child: Text(
                                   i.toString().padLeft(2, '0'),
                                   style: textTheme.headlineSmall?.copyWith(
-                                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w400,
-                                    color: isSelected ? colors.primary : colors.textSecondary.withValues(alpha: 0.6),
+                                    fontWeight: isSelected
+                                        ? FontWeight.w700
+                                        : FontWeight.w400,
+                                    color: isSelected
+                                        ? colors.primary
+                                        : colors.textSecondary
+                                            .withValues(alpha: 0.6),
                                   ),
                                 ),
                               );
@@ -831,13 +862,19 @@ class _DateTimePickerSheetState extends State<_DateTimePickerSheet> {
                               setState(() => _isPm = index == 1);
                             },
                             children: ['AM', 'PM'].map((label) {
-                              final isSelected = (label == 'AM' && !_isPm) || (label == 'PM' && _isPm);
+                              final isSelected = (label == 'AM' && !_isPm) ||
+                                  (label == 'PM' && _isPm);
                               return Center(
                                 child: Text(
                                   label,
                                   style: textTheme.titleMedium?.copyWith(
-                                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w400,
-                                    color: isSelected ? colors.primary : colors.textSecondary.withValues(alpha: 0.6),
+                                    fontWeight: isSelected
+                                        ? FontWeight.w700
+                                        : FontWeight.w400,
+                                    color: isSelected
+                                        ? colors.primary
+                                        : colors.textSecondary
+                                            .withValues(alpha: 0.6),
                                   ),
                                 ),
                               );
@@ -862,9 +899,12 @@ class _DateTimePickerSheetState extends State<_DateTimePickerSheet> {
                   style: FilledButton.styleFrom(
                     backgroundColor: colors.primary,
                     foregroundColor: colors.textOnPrimary,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
                   ),
-                  child: const Text('Done', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
+                  child: const Text('Done',
+                      style:
+                          TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
                 ),
               ),
             ],
@@ -919,9 +959,7 @@ class _SeverityChipState extends State<_SeverityChip> {
                 : colors.surfaceVariant,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
-              color: selected
-                  ? widget.chipColor
-                  : colors.border,
+              color: selected ? widget.chipColor : colors.border,
               width: selected ? 1.5 : 1,
             ),
           ),

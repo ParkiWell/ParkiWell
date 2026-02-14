@@ -40,53 +40,56 @@ class _RecoveryScreenState extends State<RecoveryScreen> {
               ),
               const SizedBox(height: 16),
 
-          // Progress stats
-          _ProgressCard(
-            exercises: singleton.exerNum,
-            colors: colors,
-          ),
-          const SizedBox(height: 24),
+              // Progress stats
+              _ProgressCard(
+                exercises: singleton.exerNum,
+                colors: colors,
+              ),
+              const SizedBox(height: 24),
 
-          // Therapy options
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              'Therapy',
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: colors.textSecondary,
-                    fontWeight: FontWeight.w500,
-                  ),
-            ),
-          ),
-          const SizedBox(height: 12),
+              // Therapy options
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Therapy',
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: colors.textSecondary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                ),
+              ),
+              const SizedBox(height: 12),
 
-          // Speech Therapy Card
-          _RecoveryFeatureCard(
-            icon: Icons.mic_outlined,
-            title: 'Speech Therapy',
-            subtitle: 'Video exercises to improve speech clarity and strength',
-            onTap: () {
-              HapticUtils.lightImpact();
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (context) => const SpeechScreen()),
-              );
-            },
-          ),
-          const SizedBox(height: 8),
+              // Speech Therapy Card
+              _RecoveryFeatureCard(
+                icon: Icons.mic_outlined,
+                title: 'Speech Therapy',
+                subtitle:
+                    'Video exercises to improve speech clarity and strength',
+                onTap: () {
+                  HapticUtils.lightImpact();
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                        builder: (context) => const SpeechScreen()),
+                  );
+                },
+              ),
+              const SizedBox(height: 8),
 
-          // Exercise Card
-          _RecoveryFeatureCard(
-            key: widget.exerciseCardKey,
-            icon: Icons.fitness_center_outlined,
-            title: 'Physical Exercises',
-            subtitle: 'Video-guided exercises for mobility and strength',
-            onTap: () {
-              HapticUtils.lightImpact();
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (context) => const ExerciseScreen()),
-              );
-            },
-          ),
+              // Exercise Card
+              _RecoveryFeatureCard(
+                key: widget.exerciseCardKey,
+                icon: Icons.fitness_center_outlined,
+                title: 'Physical Exercises',
+                subtitle: 'Video-guided exercises for mobility and strength',
+                onTap: () {
+                  HapticUtils.lightImpact();
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                        builder: (context) => const ExerciseScreen()),
+                  );
+                },
+              ),
               const SizedBox(height: 24),
             ],
           ),

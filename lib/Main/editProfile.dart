@@ -180,7 +180,8 @@ class _EditProfileScreenState extends State<EditProfileScreen>
                       duration: const Duration(milliseconds: 320),
                       switchInCurve: Curves.easeOutCubic,
                       switchOutCurve: Curves.easeInCubic,
-                      transitionBuilder: (Widget child, Animation<double> animation) {
+                      transitionBuilder:
+                          (Widget child, Animation<double> animation) {
                         return FadeTransition(
                           opacity: animation,
                           child: SlideTransition(
@@ -458,9 +459,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
                       ),
                     ),
               label: Text(
-                _isGoogleLoading
-                    ? 'Connecting…'
-                    : 'Continue with Google',
+                _isGoogleLoading ? 'Connecting…' : 'Continue with Google',
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.w700,
                       color: colors.textOnPrimary,

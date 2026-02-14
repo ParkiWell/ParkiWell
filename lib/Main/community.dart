@@ -1101,11 +1101,14 @@ class _CommunityScreenState extends State<CommunityScreen>
             onChanged: (value) {
               setState(() => _feedSearchQuery = value);
             },
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 14),
+            style:
+                Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 14),
             decoration: InputDecoration(
               hintText: 'Search',
-              prefixIcon: Icon(Icons.search_rounded, color: colors.textTertiary, size: 18),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              prefixIcon: Icon(Icons.search_rounded,
+                  color: colors.textTertiary, size: 18),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               filled: true,
               fillColor: colors.surfaceVariant.withValues(alpha: 0.5),
               border: OutlineInputBorder(
@@ -1114,7 +1117,8 @@ class _CommunityScreenState extends State<CommunityScreen>
               ),
               suffixIcon: _feedSearchQuery.isNotEmpty
                   ? IconButton(
-                      icon: Icon(Icons.close_rounded, size: 18, color: colors.textTertiary),
+                      icon: Icon(Icons.close_rounded,
+                          size: 18, color: colors.textTertiary),
                       onPressed: () {
                         _feedSearchController.clear();
                         setState(() {
@@ -1138,14 +1142,17 @@ class _CommunityScreenState extends State<CommunityScreen>
                 },
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 180),
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
                     color: selected
                         ? colors.primary
                         : colors.surfaceVariant.withValues(alpha: 0.6),
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
-                      color: selected ? colors.primary : colors.border.withValues(alpha: 0.7),
+                      color: selected
+                          ? colors.primary
+                          : colors.border.withValues(alpha: 0.7),
                     ),
                   ),
                   child: Text(
@@ -1184,7 +1191,8 @@ class _CommunityScreenState extends State<CommunityScreen>
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.sort_rounded, size: 16, color: colors.textTertiary),
+                      Icon(Icons.sort_rounded,
+                          size: 16, color: colors.textTertiary),
                       const SizedBox(width: 4),
                       Text(
                         _feedSortMode,
@@ -1195,7 +1203,8 @@ class _CommunityScreenState extends State<CommunityScreen>
                             ),
                       ),
                       const SizedBox(width: 2),
-                      Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: colors.textTertiary),
+                      Icon(Icons.keyboard_arrow_down_rounded,
+                          size: 16, color: colors.textTertiary),
                     ],
                   ),
                 ),
@@ -1208,7 +1217,9 @@ class _CommunityScreenState extends State<CommunityScreen>
                 child: Text(
                   _feedOnlyMine ? 'My posts' : 'All posts',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: _feedOnlyMine ? colors.primary : colors.textTertiary,
+                        color: _feedOnlyMine
+                            ? colors.primary
+                            : colors.textTertiary,
                         fontWeight: FontWeight.w600,
                         fontSize: 12,
                       ),
@@ -1323,7 +1334,8 @@ class _CommunityScreenState extends State<CommunityScreen>
               ),
               if (post.category != null) ...[
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
                     color: colors.primary.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(10),

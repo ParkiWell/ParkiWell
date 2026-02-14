@@ -121,7 +121,9 @@ class _SpeechScreenState extends State<SpeechScreen>
             }
           },
         ),
-        title: Text('Speech Therapy', style: TextStyle(color: colors.textPrimary, fontWeight: FontWeight.w600)),
+        title: Text('Speech Therapy',
+            style: TextStyle(
+                color: colors.textPrimary, fontWeight: FontWeight.w600)),
         actions: [
           TextButton.icon(
             onPressed: () {

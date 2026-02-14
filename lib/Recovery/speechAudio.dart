@@ -34,68 +34,6 @@ class _SpeechAudioState extends State<SpeechAudio> {
     );
   }
 
-  void _showSpeechText() {
-    final colors = context.colors;
-    final speechData = singleton.speeches[singleton.currentURL];
-    final title = speechData != null ? speechData[0] : 'Speech Exercise';
-    final description = speechData != null ? speechData[1] : '';
-    final source =
-        speechData != null && speechData.length > 3 ? speechData[3] : '';
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (BuildContext c) {
-        return Container(
-          decoration: BoxDecoration(
-            color: colors.surface,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Speech Text',
-                  style: Theme.of(c).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  title,
-                  style: Theme.of(c).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  description,
-                  style: Theme.of(c).textTheme.bodySmall?.copyWith(
-                        color: colors.textSecondary,
-                        height: 1.5,
-                      ),
-                ),
-                if (source.isNotEmpty) ...[
-                  const SizedBox(height: 10),
-                  Text(
-                    source,
-                    style: Theme.of(c).textTheme.bodySmall?.copyWith(
-                          color: colors.textTertiary,
-                          fontWeight: FontWeight.w600,
-                        ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
@@ -110,9 +48,13 @@ class _SpeechAudioState extends State<SpeechAudio> {
           backgroundColor: colors.background,
           surfaceTintColor: Colors.transparent,
           elevation: 0,
-          title: Text('Speech Therapy', style: TextStyle(color: colors.textPrimary, fontWeight: FontWeight.w600)),
+          title: Text('Speech Therapy',
+              style: TextStyle(
+                  color: colors.textPrimary, fontWeight: FontWeight.w600)),
         ),
-        body: Container(color: colors.background, child: const Center(child: Text('Video not found'))),
+        body: Container(
+            color: colors.background,
+            child: const Center(child: Text('Video not found'))),
       );
     }
 
@@ -143,7 +85,9 @@ class _SpeechAudioState extends State<SpeechAudio> {
             }
           },
         ),
-        title: Text('Speech Therapy', style: TextStyle(color: colors.textPrimary, fontWeight: FontWeight.w600)),
+        title: Text('Speech Therapy',
+            style: TextStyle(
+                color: colors.textPrimary, fontWeight: FontWeight.w600)),
         actions: [
           IconButton(
             tooltip: 'Open in YouTube',
@@ -211,7 +155,8 @@ class _SpeechAudioState extends State<SpeechAudio> {
                           fit: BoxFit.cover,
                           errorBuilder: (_, __, ___) => Container(
                             color: colors.surfaceVariant,
-                            child: Icon(Icons.videocam_off_rounded, size: 48, color: colors.textTertiary),
+                            child: Icon(Icons.videocam_off_rounded,
+                                size: 48, color: colors.textTertiary),
                           ),
                         ),
                         Container(
@@ -251,7 +196,8 @@ class _SpeechAudioState extends State<SpeechAudio> {
                           bottom: 12,
                           left: 12,
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 5),
                             decoration: BoxDecoration(
                               color: Colors.black.withValues(alpha: 0.6),
                               borderRadius: BorderRadius.circular(8),
@@ -259,11 +205,15 @@ class _SpeechAudioState extends State<SpeechAudio> {
                             child: const Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.play_circle_outline_rounded, color: Colors.white, size: 14),
+                                Icon(Icons.play_circle_outline_rounded,
+                                    color: Colors.white, size: 14),
                                 SizedBox(width: 5),
                                 Text(
                                   'Watch on YouTube',
-                                  style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+                                  style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600),
                                 ),
                               ],
                             ),

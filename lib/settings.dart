@@ -313,218 +313,221 @@ class _SettingsScreenState extends State<SettingsScreen> {
             );
           },
         ),
-        title: Text('Settings', style: TextStyle(color: colors.textPrimary, fontWeight: FontWeight.w600)),
+        title: Text('Settings',
+            style: TextStyle(
+                color: colors.textPrimary, fontWeight: FontWeight.w600)),
       ),
       body: Container(
         color: colors.background,
         child: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Appearance section
-            Text(
-              'Appearance',
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: colors.textSecondary,
-                    fontWeight: FontWeight.w500,
-                  ),
-            ),
-            const SizedBox(height: 12),
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Appearance section
+              Text(
+                'Appearance',
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: colors.textSecondary,
+                      fontWeight: FontWeight.w500,
+                    ),
+              ),
+              const SizedBox(height: 12),
 
-            _SettingsTile(
-              icon:
-                  theme ? Icons.dark_mode_outlined : Icons.light_mode_outlined,
-              title: 'Theme',
-              subtitle: theme ? 'Dark mode' : 'Light mode',
-              trailing: _buildThemeSwitch(colors),
-            ),
-            const SizedBox(height: 24),
+              _SettingsTile(
+                icon: theme
+                    ? Icons.dark_mode_outlined
+                    : Icons.light_mode_outlined,
+                title: 'Theme',
+                subtitle: theme ? 'Dark mode' : 'Light mode',
+                trailing: _buildThemeSwitch(colors),
+              ),
+              const SizedBox(height: 24),
 
-            Text(
-              'Data & Sync',
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: colors.textSecondary,
-                    fontWeight: FontWeight.w500,
-                  ),
-            ),
-            const SizedBox(height: 12),
+              Text(
+                'Data & Sync',
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: colors.textSecondary,
+                      fontWeight: FontWeight.w500,
+                    ),
+              ),
+              const SizedBox(height: 12),
 
-            _SettingsTile(
-              icon: singleton.isOnline
-                  ? Icons.cloud_done_outlined
-                  : Icons.cloud_off_outlined,
-              title: 'Sync Status',
-              subtitle:
-                  '${singleton.lastSyncStatus} • ${singleton.lastSyncDisplay}',
-            ),
-            const SizedBox(height: 8),
+              _SettingsTile(
+                icon: singleton.isOnline
+                    ? Icons.cloud_done_outlined
+                    : Icons.cloud_off_outlined,
+                title: 'Sync Status',
+                subtitle:
+                    '${singleton.lastSyncStatus} • ${singleton.lastSyncDisplay}',
+              ),
+              const SizedBox(height: 8),
 
-            _SettingsTile(
-              icon: Icons.sync_rounded,
-              title: 'Sync Now',
-              subtitle: _isSyncing || singleton.isSyncInProgress
-                  ? 'Syncing...'
-                  : 'Refresh cloud data',
-              trailing: _isSyncing || singleton.isSyncInProgress
-                  ? SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: colors.primary,
+              _SettingsTile(
+                icon: Icons.sync_rounded,
+                title: 'Sync Now',
+                subtitle: _isSyncing || singleton.isSyncInProgress
+                    ? 'Syncing...'
+                    : 'Refresh cloud data',
+                trailing: _isSyncing || singleton.isSyncInProgress
+                    ? SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: colors.primary,
+                        ),
+                      )
+                    : null,
+                onTap: _isSyncing ? null : _syncNow,
+              ),
+              const SizedBox(height: 8),
+
+              _SettingsTile(
+                icon: Icons.upload_file_outlined,
+                title: 'Export Backup',
+                subtitle: 'Share JSON backup of your local data',
+                onTap: _exportBackup,
+              ),
+              const SizedBox(height: 8),
+
+              _SettingsTile(
+                icon: Icons.download_for_offline_outlined,
+                title: 'Import Backup',
+                subtitle: 'Restore from backup JSON',
+                onTap: _showImportBackupDialog,
+              ),
+              const SizedBox(height: 24),
+
+              // About section
+              Text(
+                'About',
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: colors.textSecondary,
+                      fontWeight: FontWeight.w500,
+                    ),
+              ),
+              const SizedBox(height: 12),
+
+              _SettingsTile(
+                icon: Icons.info_outlined,
+                title: 'App Version',
+                subtitle: _appVersion,
+              ),
+              const SizedBox(height: 8),
+
+              _SettingsTile(
+                icon: Icons.description_outlined,
+                title: 'Terms of Service',
+                trailing: Icon(
+                  Icons.chevron_right,
+                  size: 20,
+                  color: colors.textTertiary,
+                ),
+                onTap: () {
+                  HapticUtils.lightImpact();
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const LegalDocumentScreen(
+                        type: LegalDocumentType.termsOfService,
                       ),
-                    )
-                  : null,
-              onTap: _isSyncing ? null : _syncNow,
-            ),
-            const SizedBox(height: 8),
-
-            _SettingsTile(
-              icon: Icons.upload_file_outlined,
-              title: 'Export Backup',
-              subtitle: 'Share JSON backup of your local data',
-              onTap: _exportBackup,
-            ),
-            const SizedBox(height: 8),
-
-            _SettingsTile(
-              icon: Icons.download_for_offline_outlined,
-              title: 'Import Backup',
-              subtitle: 'Restore from backup JSON',
-              onTap: _showImportBackupDialog,
-            ),
-            const SizedBox(height: 24),
-
-            // About section
-            Text(
-              'About',
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: colors.textSecondary,
-                    fontWeight: FontWeight.w500,
-                  ),
-            ),
-            const SizedBox(height: 12),
-
-            _SettingsTile(
-              icon: Icons.info_outlined,
-              title: 'App Version',
-              subtitle: _appVersion,
-            ),
-            const SizedBox(height: 8),
-
-            _SettingsTile(
-              icon: Icons.description_outlined,
-              title: 'Terms of Service',
-              trailing: Icon(
-                Icons.chevron_right,
-                size: 20,
-                color: colors.textTertiary,
-              ),
-              onTap: () {
-                HapticUtils.lightImpact();
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const LegalDocumentScreen(
-                      type: LegalDocumentType.termsOfService,
                     ),
-                  ),
-                );
-              },
-            ),
-            const SizedBox(height: 8),
-
-            _SettingsTile(
-              icon: Icons.privacy_tip_outlined,
-              title: 'Privacy Policy',
-              trailing: Icon(
-                Icons.chevron_right,
-                size: 20,
-                color: colors.textTertiary,
+                  );
+                },
               ),
-              onTap: () {
-                HapticUtils.lightImpact();
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const LegalDocumentScreen(
-                      type: LegalDocumentType.privacyPolicy,
+              const SizedBox(height: 8),
+
+              _SettingsTile(
+                icon: Icons.privacy_tip_outlined,
+                title: 'Privacy Policy',
+                trailing: Icon(
+                  Icons.chevron_right,
+                  size: 20,
+                  color: colors.textTertiary,
+                ),
+                onTap: () {
+                  HapticUtils.lightImpact();
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const LegalDocumentScreen(
+                        type: LegalDocumentType.privacyPolicy,
+                      ),
                     ),
-                  ),
-                );
-              },
-            ),
-            const SizedBox(height: 24),
-
-            // Account section
-            Text(
-              'Account',
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: colors.textSecondary,
-                    fontWeight: FontWeight.w500,
-                  ),
-            ),
-            const SizedBox(height: 12),
-
-            _SettingsTile(
-              icon: Icons.tour_outlined,
-              title: 'Replay Tutorial',
-              subtitle: 'Show the guided app walkthrough again',
-              onTap: _restartTutorial,
-            ),
-            const SizedBox(height: 8),
-
-            _SettingsTile(
-              icon: Icons.logout_rounded,
-              title: 'Sign Out',
-              subtitle: 'Sign out from this device',
-              onTap: _showSignOutDialog,
-            ),
-            const SizedBox(height: 24),
-
-            // Danger zone
-            Text(
-              'Danger Zone',
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: colors.error,
-                    fontWeight: FontWeight.w500,
-                  ),
-            ),
-            const SizedBox(height: 12),
-
-            _SettingsTile(
-              icon: Icons.delete_outline,
-              title: 'Delete Account',
-              subtitle: 'Permanently delete all your data',
-              iconColor: colors.error,
-              onTap: _showDeleteAccountDialog,
-            ),
-            const SizedBox(height: 48),
-
-            // Footer
-            Center(
-              child: Column(
-                children: [
-                  Text(
-                    'Levio',
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Parkinson\'s Care Management',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: colors.textTertiary,
-                        ),
-                  ),
-                ],
+                  );
+                },
               ),
-            ),
-            const SizedBox(height: 24),
-          ],
+              const SizedBox(height: 24),
+
+              // Account section
+              Text(
+                'Account',
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: colors.textSecondary,
+                      fontWeight: FontWeight.w500,
+                    ),
+              ),
+              const SizedBox(height: 12),
+
+              _SettingsTile(
+                icon: Icons.tour_outlined,
+                title: 'Replay Tutorial',
+                subtitle: 'Show the guided app walkthrough again',
+                onTap: _restartTutorial,
+              ),
+              const SizedBox(height: 8),
+
+              _SettingsTile(
+                icon: Icons.logout_rounded,
+                title: 'Sign Out',
+                subtitle: 'Sign out from this device',
+                onTap: _showSignOutDialog,
+              ),
+              const SizedBox(height: 24),
+
+              // Danger zone
+              Text(
+                'Danger Zone',
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: colors.error,
+                      fontWeight: FontWeight.w500,
+                    ),
+              ),
+              const SizedBox(height: 12),
+
+              _SettingsTile(
+                icon: Icons.delete_outline,
+                title: 'Delete Account',
+                subtitle: 'Permanently delete all your data',
+                iconColor: colors.error,
+                onTap: _showDeleteAccountDialog,
+              ),
+              const SizedBox(height: 48),
+
+              // Footer
+              Center(
+                child: Column(
+                  children: [
+                    Text(
+                      'Levio',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Parkinson\'s Care Management',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: colors.textTertiary,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+            ],
+          ),
         ),
       ),
-    ),
     );
   }
 

@@ -195,7 +195,9 @@ class _LogScreenState extends State<LogScreen> {
             Navigator.pushNamed(context, '/');
           },
         ),
-        title: Text('Symptom Log', style: TextStyle(color: colors.textPrimary, fontWeight: FontWeight.w600)),
+        title: Text('Symptom Log',
+            style: TextStyle(
+                color: colors.textPrimary, fontWeight: FontWeight.w600)),
       ),
       body: Container(
         color: colors.background,

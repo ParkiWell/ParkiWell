@@ -280,7 +280,9 @@ class _EditScheduleScreenState extends State<EditScheduleScreen>
             Navigator.popAndPushNamed(context, '/scheduleScreen');
           },
         ),
-        title: Text('Medication Log', style: TextStyle(color: colors.textPrimary, fontWeight: FontWeight.w600)),
+        title: Text('Medication Log',
+            style: TextStyle(
+                color: colors.textPrimary, fontWeight: FontWeight.w600)),
       ),
       body: FadeTransition(
         opacity: _animation,
@@ -289,134 +291,134 @@ class _EditScheduleScreenState extends State<EditScheduleScreen>
           child: SingleChildScrollView(
             physics: const BouncingScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Create medication schedule',
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Add medication details and assign the days to take it.',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: colors.textSecondary,
-                      height: 1.3,
-                    ),
-              ),
-              const SizedBox(height: 12),
-              ModernCard(
-                padding: const EdgeInsets.all(14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Medication Name',
-                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
-                    ),
-                    const SizedBox(height: 8),
-                    ModernTextField(
-                      controller: _nameController,
-                      hint: 'e.g., Levodopa 100mg',
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Details (optional)',
-                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
-                    ),
-                    const SizedBox(height: 8),
-                    ModernTextField(
-                      controller: _detailsController,
-                      hint: 'Dosage notes or instructions',
-                      maxLines: 2,
-                    ),
-                    const SizedBox(height: 12),
-                    Divider(
-                        color: colors.border, height: 1),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Quick templates',
-                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            color: colors.textPrimary,
-                          ),
-                    ),
-                    const SizedBox(height: 8),
-                    _buildTemplateSelector(),
-                    const SizedBox(height: 14),
-                    Text(
-                      'Select days',
-                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            color: colors.textPrimary,
-                          ),
-                    ),
-                    const SizedBox(height: 8),
-                    _buildDaySelector(),
-                  ],
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Create medication schedule',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              Container(
-                width: double.infinity,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-                decoration: BoxDecoration(
-                  color: colors.surfaceVariant,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: colors.border, width: 1),
+                const SizedBox(height: 4),
+                Text(
+                  'Add medication details and assign the days to take it.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: colors.textSecondary,
+                        height: 1.3,
+                      ),
                 ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.schedule_rounded,
-                      color: colors.textPrimary,
-                      size: 18,
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        _formatSchedule(),
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: colors.textPrimary,
+                const SizedBox(height: 12),
+                ModernCard(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Medication Name',
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
                               fontWeight: FontWeight.w600,
                             ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 14),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: _isLoading ? null : _submitSchedule,
-                  icon: _isLoading
-                      ? SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              colors.textOnPrimary,
+                      const SizedBox(height: 8),
+                      ModernTextField(
+                        controller: _nameController,
+                        hint: 'e.g., Levodopa 100mg',
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Details (optional)',
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                              fontWeight: FontWeight.w600,
                             ),
-                          ),
-                        )
-                      : const Icon(Icons.check_rounded, size: 18),
-                  label: Text(_isLoading ? 'Saving...' : 'Save Medication'),
+                      ),
+                      const SizedBox(height: 8),
+                      ModernTextField(
+                        controller: _detailsController,
+                        hint: 'Dosage notes or instructions',
+                        maxLines: 2,
+                      ),
+                      const SizedBox(height: 12),
+                      Divider(color: colors.border, height: 1),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Quick templates',
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: colors.textPrimary,
+                            ),
+                      ),
+                      const SizedBox(height: 8),
+                      _buildTemplateSelector(),
+                      const SizedBox(height: 14),
+                      Text(
+                        'Select days',
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: colors.textPrimary,
+                            ),
+                      ),
+                      const SizedBox(height: 8),
+                      _buildDaySelector(),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                  decoration: BoxDecoration(
+                    color: colors.surfaceVariant,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: colors.border, width: 1),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.schedule_rounded,
+                        color: colors.textPrimary,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          _formatSchedule(),
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: colors.textPrimary,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _isLoading ? null : _submitSchedule,
+                    icon: _isLoading
+                        ? SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                colors.textOnPrimary,
+                              ),
+                            ),
+                          )
+                        : const Icon(Icons.check_rounded, size: 18),
+                    label: Text(_isLoading ? 'Saving...' : 'Save Medication'),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
-    ),
     );
   }
 }
@@ -468,18 +470,14 @@ class _SelectionChipState extends State<_SelectionChip> {
                 : colors.surfaceVariant,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
-              color: selected
-                  ? colors.primary
-                  : colors.border,
+              color: selected ? colors.primary : colors.border,
               width: selected ? 1.5 : 1,
             ),
           ),
           child: Text(
             widget.label,
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: selected
-                      ? colors.primary
-                      : colors.textSecondary,
+                  color: selected ? colors.primary : colors.textSecondary,
                   fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
                 ),
           ),

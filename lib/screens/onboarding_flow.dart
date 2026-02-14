@@ -221,12 +221,18 @@ class _OnboardingFlowScreenState extends State<OnboardingFlowScreen>
                                       animation: _loadController,
                                       builder: (context, _) {
                                         return ClipRRect(
-                                          borderRadius: BorderRadius.circular(999),
+                                          borderRadius:
+                                              BorderRadius.circular(999),
                                           child: LinearProgressIndicator(
-                                            value: Curves.easeInOutCubic.transform(_loadController.value),
+                                            value: Curves.easeInOutCubic
+                                                .transform(
+                                                    _loadController.value),
                                             minHeight: 4,
-                                            backgroundColor: colors.border.withValues(alpha: 0.5),
-                                            valueColor: AlwaysStoppedAnimation<Color>(colors.primary),
+                                            backgroundColor: colors.border
+                                                .withValues(alpha: 0.5),
+                                            valueColor:
+                                                AlwaysStoppedAnimation<Color>(
+                                                    colors.primary),
                                           ),
                                         );
                                       },
@@ -256,4 +262,3 @@ class _OnboardingFlowScreenState extends State<OnboardingFlowScreen>
     );
   }
 }
-
