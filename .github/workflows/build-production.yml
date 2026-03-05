@@ -74,14 +74,14 @@ jobs:
             --dart-define=ENVIRONMENT=production
 
       - name: Upload App Bundle
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: production-aab-${{ steps.version.outputs.version }}
           path: build/app/outputs/bundle/release/app-release.aab
           retention-days: 90
 
       - name: Upload APK
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: production-apk-${{ steps.version.outputs.version }}
           path: build/app/outputs/flutter-apk/app-release.apk
@@ -163,7 +163,7 @@ jobs:
         continue-on-error: true
 
       - name: Upload iOS build
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: production-ios-${{ steps.version.outputs.version }}
           path: |
