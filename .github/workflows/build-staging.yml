@@ -54,7 +54,7 @@ jobs:
             --dart-define=ENVIRONMENT=staging
 
       - name: Upload APK artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: staging-apk-${{ github.run_number }}
           path: build/app/outputs/flutter-apk/app-release.apk
@@ -92,7 +92,7 @@ jobs:
         continue-on-error: true
 
       - name: Upload iOS artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: staging-ios-${{ github.run_number }}
           path: ios-staging-build.zip
