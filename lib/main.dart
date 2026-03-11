@@ -156,6 +156,7 @@ class _MyAppState extends State<MyApp> {
     return MaterialApp(
       title: 'Levio',
       routes: namedRoutes,
+      onGenerateRoute: onGenerateAppRoute,
       home: home,
       theme: AppTheme.lightTheme(),
       darkTheme: AppTheme.darkTheme(),

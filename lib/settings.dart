@@ -8,6 +8,7 @@ import 'legal/legal_document_screen.dart';
 import 'services/tutorial_service.dart';
 import 'singleton.dart';
 import 'theme/app_theme.dart';
+import 'utils/app_routes.dart';
 import 'utils/haptic_utils.dart';
 import 'widgets/modern_card.dart';
 
@@ -126,7 +127,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await singleton.signOut();
     if (!mounted) return;
     await Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const MyApp()),
+      buildSubtleFadeRoute(page: const MyApp()),
       (route) => false,
     );
   }
@@ -137,7 +138,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     singleton.setPage(0);
     if (!mounted) return;
     await Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const MyApp()),
+      buildSubtleFadeRoute(page: const MyApp()),
       (route) => false,
     );
   }
@@ -184,8 +185,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       builder: (c) {
         return AlertDialog(
           title: const Text('Import Backup'),
-          content: SizedBox(
-            width: 520,
+          content: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: MediaQuery.of(c).size.width * 0.85,
+            ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -307,10 +310,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           onPressed: () {
             HapticUtils.lightImpact();
-            Navigator.of(context).pushAndRemoveUntil(
-              MaterialPageRoute(builder: (context) => const MyApp()),
-              (r) => false,
-            );
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            } else {
+              Navigator.of(context).pushReplacement(
+                buildSubtleFadeRoute(page: const MyApp()),
+              );
+            }
           },
         ),
         title: Text('Settings',
@@ -427,8 +433,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 onTap: () {
                   HapticUtils.lightImpact();
                   Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const LegalDocumentScreen(
+                    buildSubtleFadeRoute(
+                      page: const LegalDocumentScreen(
                         type: LegalDocumentType.termsOfService,
                       ),
                     ),
@@ -448,8 +454,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 onTap: () {
                   HapticUtils.lightImpact();
                   Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const LegalDocumentScreen(
+                    buildSubtleFadeRoute(
+                      page: const LegalDocumentScreen(
                         type: LegalDocumentType.privacyPolicy,
                       ),
                     ),
@@ -538,15 +544,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         setState(() {
           theme = !theme;
           singleton.switchColorTheme(theme);
-        });
-        // Delay navigation to show animation
-        Future.delayed(const Duration(milliseconds: 150), () {
-          if (mounted) {
-            Navigator.of(context).pushAndRemoveUntil(
-              MaterialPageRoute(builder: (context) => const MyApp()),
-              (r) => false,
-            );
-          }
         });
       },
       child: AnimatedContainer(

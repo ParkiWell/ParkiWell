@@ -51,19 +51,10 @@ class TutorialTooltip extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Row(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(
-                  'Step $safeStep of $safeTotal',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: colors.textTertiary,
-                    letterSpacing: 0.2,
-                  ),
-                ),
-                const Spacer(),
                 SizedBox(
-                  width: 80,
+                  width: 140,
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(999),
                     child: LinearProgressIndicator(

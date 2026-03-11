@@ -12,10 +12,12 @@ class BarChartSample3 extends StatefulWidget {
 
 class BarChartSample3State extends State<BarChartSample3> {
   final singleton = Singleton();
+  String _lastScheduleSignature = '';
 
   @override
   void initState() {
     super.initState();
+    _lastScheduleSignature = _buildScheduleSignature();
     singleton.calcMeds();
     singleton.addListener(_onSingletonUpdate);
   }
@@ -28,8 +30,18 @@ class BarChartSample3State extends State<BarChartSample3> {
 
   void _onSingletonUpdate() {
     if (!mounted) return;
+    final nextSignature = _buildScheduleSignature();
+    if (nextSignature == _lastScheduleSignature) return;
+    _lastScheduleSignature = nextSignature;
     singleton.calcMeds();
     setState(() {});
+  }
+
+  String _buildScheduleSignature() {
+    if (singleton.schedule.isEmpty) return 'empty';
+    final last = singleton.schedule.last;
+    final lastToken = last.isNotEmpty ? last.first : '';
+    return '${singleton.schedule.length}|$lastToken';
   }
 
   @override

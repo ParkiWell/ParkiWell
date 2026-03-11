@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
 
+import 'Recovery/exercise.dart';
 import 'Main/home.dart';
 import 'Main/manage.dart';
 import 'Main/recovery.dart';
 import 'Main/community.dart';
 import 'Main/profile.dart';
+import 'services/tutorial_targets.dart';
 import 'services/tutorial_service.dart';
 import 'singleton.dart';
 import 'theme/app_theme.dart';
+import 'utils/app_routes.dart';
 import 'utils/haptic_utils.dart';
 import 'widgets/modern_input.dart';
 import 'widgets/tutorial_overlay.dart';
@@ -39,12 +42,16 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
   final GlobalKey _fabKey = GlobalKey();
   final GlobalKey _exerciseCardKey = GlobalKey();
   final GlobalKey _addMedicationKey = GlobalKey();
+  final GlobalKey _logSymptomKey = GlobalKey();
   final List<GlobalKey> _navItemKeys =
       List<GlobalKey>.generate(5, (_) => GlobalKey());
 
   late final List<Widget> _tabs = [
     const HomeScreen(),
-    ManageScreen(addMedicationKey: _addMedicationKey),
+    ManageScreen(
+      addMedicationKey: _addMedicationKey,
+      logSymptomKey: _logSymptomKey,
+    ),
     RecoveryScreen(exerciseCardKey: _exerciseCardKey),
     const CommunityScreen(),
     const ProfileScreen(),
@@ -189,56 +196,150 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
     });
   }
 
+  void _popToNavbarRoot() {
+    final navigator = Navigator.of(context);
+    navigator.popUntil((route) => route.isFirst);
+  }
+
   List<TutorialStep> _buildTutorialSteps() {
     return <TutorialStep>[
       TutorialStep(
         targetKey: _navItemKeys[0],
         title: 'Home Dashboard',
         description:
-            'Your home for symptom and medication trends. Use the buttons below to log a symptom or add a medication.',
-        onStepStarted: () => _switchTabForTutorial(0),
+            'Your home for symptom and medication trends and daily overview cards.',
+        onStepStarted: () {
+          _popToNavbarRoot();
+          _switchTabForTutorial(0);
+        },
       ),
       TutorialStep(
         targetKey: _navItemKeys[1],
         title: 'Manage',
         description:
-            'Manage is where you log symptoms and add medication schedules. Quick actions are right here.',
-        onStepStarted: () => _switchTabForTutorial(1),
+            'Manage is where you create symptom and medication entries.',
+        onStepStarted: () {
+          _popToNavbarRoot();
+          _switchTabForTutorial(1);
+        },
+      ),
+      TutorialStep(
+        targetKey: _logSymptomKey,
+        title: 'Start Symptom Entry',
+        description:
+            'Tap Log Symptom to open the symptom form and capture what you felt.',
+        onStepStarted: () {
+          _popToNavbarRoot();
+          _switchTabForTutorial(1);
+        },
+      ),
+      TutorialStep(
+        targetKey: TutorialTargets.symptomInputKey,
+        title: 'Describe the Symptom',
+        description:
+            'Enter the symptom details here, then choose severity and time.',
+        onStepStarted: () {
+          _switchTabForTutorial(1);
+          Navigator.of(context).pushNamed('/editLogScreen');
+        },
+      ),
+      TutorialStep(
+        targetKey: TutorialTargets.saveSymptomButtonKey,
+        title: 'Save Symptom',
+        description:
+            'When details are ready, save the entry to track symptom trends.',
       ),
       TutorialStep(
         targetKey: _addMedicationKey,
-        title: 'Log a medication',
+        title: 'Start Medication Entry',
         description:
-            'Tap Add Medication to create a schedule. Enter the name, pick days (e.g. Everyday or Weekdays), and save.',
-        onStepStarted: () => _switchTabForTutorial(1),
+            'Next, open Add Medication to create a medication schedule.',
+        onStepStarted: () {
+          _popToNavbarRoot();
+          _switchTabForTutorial(1);
+        },
+      ),
+      TutorialStep(
+        targetKey: TutorialTargets.medicationNameInputKey,
+        title: 'Medication Details',
+        description:
+            'Enter medication name, then choose templates or select specific days.',
+        onStepStarted: () {
+          _switchTabForTutorial(1);
+          Navigator.of(context).pushNamed('/editScheduleScreen');
+        },
+      ),
+      TutorialStep(
+        targetKey: TutorialTargets.saveMedicationButtonKey,
+        title: 'Save Medication',
+        description:
+            'Save to add this medication schedule to your weekly plan.',
       ),
       TutorialStep(
         targetKey: _navItemKeys[2],
         title: 'Recovery',
         description:
             'Recovery has guided speech and exercise videos. Tap the tab to open it.',
-        onStepStarted: () => _switchTabForTutorial(2),
+        onStepStarted: () {
+          _popToNavbarRoot();
+          _switchTabForTutorial(2);
+        },
       ),
       TutorialStep(
         targetKey: _exerciseCardKey,
-        title: 'Watch a video',
+        title: 'Open Physical Exercises',
         description:
-            'Tap Physical Exercises to open the list, then tap any exercise to watch the video. Use the back button when you\'re done.',
-        onStepStarted: () => _switchTabForTutorial(2),
+            'Open Physical Exercises to view official guided recovery lessons.',
+        onStepStarted: () {
+          _popToNavbarRoot();
+          _switchTabForTutorial(2);
+        },
+      ),
+      TutorialStep(
+        targetKey: TutorialTargets.firstExerciseCardKey,
+        title: 'Choose an Exercise Video',
+        description:
+            'Pick a lesson card to open its guided exercise video player.',
+        onStepStarted: () {
+          _switchTabForTutorial(2);
+          Navigator.of(context).push(
+            buildSubtleFadeRoute(page: const ExerciseScreen()),
+          );
+        },
+      ),
+      TutorialStep(
+        targetKey: TutorialTargets.exerciseVideoPlayerKey,
+        title: 'Practice in Video Mode',
+        description:
+            'Use this player to follow the movement routine step by step.',
+        onStepStarted: () {
+          final firstExerciseId = singleton.exercises.keys.isNotEmpty
+              ? singleton.exercises.keys.first
+              : '';
+          if (firstExerciseId.isEmpty) return;
+          singleton.setCurrentUrl(firstExerciseId);
+          Navigator.of(context).pushNamed('/exerciseVideoScreen');
+        },
       ),
       TutorialStep(
         targetKey: _navItemKeys[3],
         title: 'Community',
         description:
             'Share and read posts in the community feed. Tap Feed or Resources in the tabs.',
-        onStepStarted: () => _switchTabForTutorial(3),
+        onStepStarted: () {
+          _popToNavbarRoot();
+          _switchTabForTutorial(3);
+        },
       ),
       TutorialStep(
         targetKey: _navItemKeys[4],
         title: 'Profile',
         description:
             'Your profile and progress summary. Tap the tab to open it.',
-        onStepStarted: () => _switchTabForTutorial(4),
+        onStepStarted: () {
+          _popToNavbarRoot();
+          _switchTabForTutorial(4);
+        },
       ),
       TutorialStep(
         targetKey: _avatarKey,
@@ -605,20 +706,42 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                isSelected ? item.activeIcon : item.icon,
-                color: isSelected ? colors.primary : colors.navUnselected,
-                size: 20,
+              AnimatedScale(
+                scale: isSelected ? 1.06 : 1.0,
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOutCubic,
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 180),
+                  child: Icon(
+                    isSelected ? item.activeIcon : item.icon,
+                    key: ValueKey(isSelected),
+                    color: isSelected ? colors.primary : colors.navUnselected,
+                    size: 20,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 3),
+              AnimatedDefaultTextStyle(
+                duration: const Duration(milliseconds: 200),
+                style: (Theme.of(context).textTheme.labelSmall ??
+                        const TextStyle())
+                    .copyWith(
+                  color: isSelected ? colors.primary : colors.navUnselected,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                  fontSize: 9,
+                ),
+                child: Text(item.label),
               ),
               const SizedBox(height: 2),
-              Text(
-                item.label,
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: isSelected ? colors.primary : colors.navUnselected,
-                      fontWeight:
-                          isSelected ? FontWeight.w500 : FontWeight.w400,
-                      fontSize: 9,
-                    ),
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeOutCubic,
+                width: isSelected ? 16 : 0,
+                height: 2.5,
+                decoration: BoxDecoration(
+                  color: isSelected ? colors.primary : Colors.transparent,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
             ],
           ),

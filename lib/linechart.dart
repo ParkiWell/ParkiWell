@@ -25,6 +25,7 @@ class LineChartSample1State extends State<LineChartSample1>
 
   late AnimationController _animationController;
   late Animation<double> _animation;
+  String _lastLogSignature = '';
 
   final List<String> month = [
     'January',
@@ -136,17 +137,28 @@ class LineChartSample1State extends State<LineChartSample1>
 
   void _handleSingletonUpdate() {
     if (!mounted) return;
+    final signature = _buildLogSignature();
+    if (signature == _lastLogSignature) return;
+    _lastLogSignature = signature;
     setState(_rebuildChartData);
+  }
+
+  String _buildLogSignature() {
+    if (singleton.log.isEmpty) return 'empty';
+    final last = singleton.log.last;
+    final lastToken = last.isNotEmpty ? last.first : '';
+    return '${singleton.log.length}|$lastToken';
   }
 
   @override
   void initState() {
     super.initState();
+    _lastLogSignature = _buildLogSignature();
     _rebuildChartData();
     singleton.addListener(_handleSingletonUpdate);
 
     _animationController = AnimationController(
-      duration: const Duration(milliseconds: 800),
+      duration: const Duration(milliseconds: 520),
       vsync: this,
     );
     _animation = CurvedAnimation(
@@ -488,9 +500,10 @@ class LineChartSample1State extends State<LineChartSample1>
                           dropdownColor: colors.surface,
                           borderRadius: BorderRadius.circular(12),
                           onChanged: (String? newValue) {
+                            if (newValue == null) return;
                             HapticUtils.selectionClick();
                             setState(() {
-                              chosenTime = newValue!;
+                              chosenTime = newValue;
                               _rebuildChartData();
                             });
                           },

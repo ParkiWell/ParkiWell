@@ -26,7 +26,7 @@ class _SpeechScreenState extends State<SpeechScreen>
     videoIds = singleton.speeches.keys.toList();
 
     _animationController = AnimationController(
-      duration: const Duration(milliseconds: 600),
+      duration: const Duration(milliseconds: 380),
       vsync: this,
     );
     _animation = CurvedAnimation(
@@ -152,7 +152,7 @@ class _SpeechScreenState extends State<SpeechScreen>
               opacity: _animation,
               child: SlideTransition(
                 position: Tween<Offset>(
-                  begin: const Offset(0, 0.1),
+                  begin: const Offset(0, 0.05),
                   end: Offset.zero,
                 ).animate(_animation),
                 child: Column(
@@ -190,7 +190,7 @@ class _SpeechScreenState extends State<SpeechScreen>
                   opacity: _animation,
                   child: SlideTransition(
                     position: Tween<Offset>(
-                      begin: const Offset(0, 0.2),
+                      begin: const Offset(0, 0.08),
                       end: Offset.zero,
                     ).animate(CurvedAnimation(
                       parent: _animationController,
@@ -247,6 +247,7 @@ class _SpeechVideoCard extends StatefulWidget {
 
 class _SpeechVideoCardState extends State<_SpeechVideoCard> {
   bool _isPressed = false;
+  bool _useFallbackThumbnail = false;
 
   @override
   Widget build(BuildContext context) {
@@ -289,9 +290,21 @@ class _SpeechVideoCardState extends State<_SpeechVideoCard> {
                   AspectRatio(
                     aspectRatio: 16 / 9,
                     child: Image.network(
-                      widget.thumbnailUrl,
+                      _useFallbackThumbnail
+                          ? widget.thumbnailUrl.replaceFirst(
+                              '/hqdefault.jpg',
+                              '/mqdefault.jpg',
+                            )
+                          : widget.thumbnailUrl,
                       fit: BoxFit.cover,
                       errorBuilder: (context, error, stackTrace) {
+                        if (!_useFallbackThumbnail) {
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (mounted) {
+                              setState(() => _useFallbackThumbnail = true);
+                            }
+                          });
+                        }
                         return Container(
                           color: colors.info.withValues(alpha: 0.1),
                           child: Center(

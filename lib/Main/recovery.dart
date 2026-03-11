@@ -4,6 +4,7 @@ import '../Recovery/exercise.dart';
 import '../Recovery/speech.dart';
 import '../singleton.dart';
 import '../theme/app_theme.dart';
+import '../utils/app_routes.dart';
 import '../utils/haptic_utils.dart';
 import '../widgets/modern_card.dart';
 
@@ -69,8 +70,7 @@ class _RecoveryScreenState extends State<RecoveryScreen> {
                 onTap: () {
                   HapticUtils.lightImpact();
                   Navigator.of(context).push(
-                    MaterialPageRoute(
-                        builder: (context) => const SpeechScreen()),
+                    buildSubtleFadeRoute(page: const SpeechScreen()),
                   );
                 },
               ),
@@ -85,8 +85,7 @@ class _RecoveryScreenState extends State<RecoveryScreen> {
                 onTap: () {
                   HapticUtils.lightImpact();
                   Navigator.of(context).push(
-                    MaterialPageRoute(
-                        builder: (context) => const ExerciseScreen()),
+                    buildSubtleFadeRoute(page: const ExerciseScreen()),
                   );
                 },
               ),

@@ -7,8 +7,9 @@ import '../widgets/modern_card.dart';
 
 class ManageScreen extends StatefulWidget {
   final GlobalKey? addMedicationKey;
+  final GlobalKey? logSymptomKey;
 
-  const ManageScreen({super.key, this.addMedicationKey});
+  const ManageScreen({super.key, this.addMedicationKey, this.logSymptomKey});
 
   @override
   State<ManageScreen> createState() => _ManageScreenState();
@@ -192,14 +193,17 @@ class _ManageScreenState extends State<ManageScreen> {
             Row(
               children: [
                 Expanded(
-                  child: _QuickAction(
-                    icon: Icons.add_chart_rounded,
-                    label: 'Log Symptom',
-                    accentColor: colors.primary,
-                    onTap: () {
-                      HapticUtils.lightImpact();
-                      Navigator.pushNamed(context, '/editLogScreen');
-                    },
+                  child: KeyedSubtree(
+                    key: widget.logSymptomKey,
+                    child: _QuickAction(
+                      icon: Icons.add_chart_rounded,
+                      label: 'Log Symptom',
+                      accentColor: colors.primary,
+                      onTap: () {
+                        HapticUtils.lightImpact();
+                        Navigator.pushNamed(context, '/editLogScreen');
+                      },
+                    ),
                   ),
                 ),
                 const SizedBox(width: 10),

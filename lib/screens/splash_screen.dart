@@ -19,11 +19,14 @@ class _SplashScreenState extends State<SplashScreen>
     with TickerProviderStateMixin {
   late final AnimationController _entryController;
   late final AnimationController _ambientController;
+  late final AnimationController _exitController;
 
   late final Animation<double> _fadeIn;
   late final Animation<double> _brandLift;
   late final Animation<double> _logoScale;
   late final Animation<double> _progress;
+  late final Animation<double> _exitFade;
+  late final Animation<double> _exitScale;
 
   @override
   void initState() {
@@ -38,22 +41,27 @@ class _SplashScreenState extends State<SplashScreen>
       vsync: this,
     )..repeat();
 
+    _exitController = AnimationController(
+      duration: const Duration(milliseconds: 400),
+      vsync: this,
+    );
+
     _fadeIn = CurvedAnimation(
       parent: _entryController,
       curve: const Interval(0.0, 0.55, curve: Curves.easeOutCubic),
     );
 
-    _logoScale = Tween<double>(begin: 0.8, end: 1.0).animate(
+    _logoScale = Tween<double>(begin: 0.7, end: 1.0).animate(
       CurvedAnimation(
         parent: _entryController,
-        curve: const Interval(0.08, 0.58, curve: Curves.easeOutBack),
+        curve: const Interval(0.05, 0.55, curve: Curves.easeOutBack),
       ),
     );
 
-    _brandLift = Tween<double>(begin: 14, end: 0).animate(
+    _brandLift = Tween<double>(begin: 20, end: 0).animate(
       CurvedAnimation(
         parent: _entryController,
-        curve: const Interval(0.25, 0.72, curve: Curves.easeOutCubic),
+        curve: const Interval(0.2, 0.68, curve: Curves.easeOutCubic),
       ),
     );
 
@@ -62,13 +70,22 @@ class _SplashScreenState extends State<SplashScreen>
       curve: const Interval(0.28, 1.0, curve: Curves.easeOutCubic),
     );
 
+    _exitFade = Tween<double>(begin: 1.0, end: 0.0).animate(
+      CurvedAnimation(parent: _exitController, curve: Curves.easeInCubic),
+    );
+    _exitScale = Tween<double>(begin: 1.0, end: 1.06).animate(
+      CurvedAnimation(parent: _exitController, curve: Curves.easeInCubic),
+    );
+
     _start();
   }
 
   Future<void> _start() async {
     await Future.delayed(const Duration(milliseconds: 120));
     await _entryController.forward();
-    await Future.delayed(const Duration(milliseconds: 220));
+    await Future.delayed(const Duration(milliseconds: 180));
+    if (!mounted) return;
+    await _exitController.forward();
     if (mounted) {
       widget.onComplete();
     }
@@ -78,6 +95,7 @@ class _SplashScreenState extends State<SplashScreen>
   void dispose() {
     _entryController.dispose();
     _ambientController.dispose();
+    _exitController.dispose();
     super.dispose();
   }
 
@@ -91,130 +109,136 @@ class _SplashScreenState extends State<SplashScreen>
     );
 
     return Scaffold(
-      body: AnimatedBuilder(
-        animation: _ambientController,
-        builder: (context, _) {
-          return Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Color.lerp(
-                    colors.background,
-                    colors.primaryLight,
-                    isDark ? 0.26 : 0.12,
-                  )!,
-                  Color.lerp(
-                    colors.background,
-                    colors.secondary,
-                    isDark ? 0.18 : 0.06,
-                  )!,
-                  colors.background,
-                ],
-                stops: const [0.0, 0.45, 1.0],
-              ),
-            ),
-            child: Stack(
-              children: [
-                _buildBackgroundGlow(
-                  colors,
-                  diameter: 260,
-                  alignment: Alignment(
-                    -0.85,
-                    -0.92 +
-                        (math.sin(_ambientController.value * 2 * math.pi) *
-                            0.05),
+      body: FadeTransition(
+        opacity: _exitFade,
+        child: ScaleTransition(
+          scale: _exitScale,
+          child: AnimatedBuilder(
+            animation: _ambientController,
+            builder: (context, _) {
+              return Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Color.lerp(
+                        colors.background,
+                        colors.primaryLight,
+                        isDark ? 0.26 : 0.12,
+                      )!,
+                      Color.lerp(
+                        colors.background,
+                        colors.secondary,
+                        isDark ? 0.18 : 0.06,
+                      )!,
+                      colors.background,
+                    ],
+                    stops: const [0.0, 0.45, 1.0],
                   ),
-                  tint: colors.primary,
                 ),
-                _buildBackgroundGlow(
-                  colors,
-                  diameter: 340,
-                  alignment: Alignment(
-                    0.95,
-                    -0.15 +
-                        (math.cos(_ambientController.value * 2 * math.pi) *
-                            0.04),
-                  ),
-                  tint: colors.secondary,
-                ),
-                _buildBackgroundGlow(
-                  colors,
-                  diameter: 300,
-                  alignment: Alignment(
-                    -0.3,
-                    1.1 -
-                        (math.sin(_ambientController.value * 2 * math.pi) *
-                            0.03),
-                  ),
-                  tint: colors.primaryDark,
-                ),
-                SafeArea(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 24, vertical: 20),
-                    child: Column(
-                      children: [
-                        const Spacer(flex: 3),
-                        FadeTransition(
-                          opacity: _fadeIn,
-                          child: Transform.translate(
-                            offset: Offset(0, _brandLift.value),
-                            child: ScaleTransition(
-                              scale: _logoScale,
-                              child: _buildHeroLogo(
-                                colors,
-                                isDark: isDark,
+                child: Stack(
+                  children: [
+                    _buildBackgroundGlow(
+                      colors,
+                      diameter: 260,
+                      alignment: Alignment(
+                        -0.85,
+                        -0.92 +
+                            (math.sin(_ambientController.value * 2 * math.pi) *
+                                0.05),
+                      ),
+                      tint: colors.primary,
+                    ),
+                    _buildBackgroundGlow(
+                      colors,
+                      diameter: 340,
+                      alignment: Alignment(
+                        0.95,
+                        -0.15 +
+                            (math.cos(_ambientController.value * 2 * math.pi) *
+                                0.04),
+                      ),
+                      tint: colors.secondary,
+                    ),
+                    _buildBackgroundGlow(
+                      colors,
+                      diameter: 300,
+                      alignment: Alignment(
+                        -0.3,
+                        1.1 -
+                            (math.sin(_ambientController.value * 2 * math.pi) *
+                                0.03),
+                      ),
+                      tint: colors.primaryDark,
+                    ),
+                    SafeArea(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 24, vertical: 20),
+                        child: Column(
+                          children: [
+                            const Spacer(flex: 3),
+                            FadeTransition(
+                              opacity: _fadeIn,
+                              child: Transform.translate(
+                                offset: Offset(0, _brandLift.value),
+                                child: ScaleTransition(
+                                  scale: _logoScale,
+                                  child: _buildHeroLogo(
+                                    colors,
+                                    isDark: isDark,
+                                  ),
+                                ),
                               ),
                             ),
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        FadeTransition(
-                          opacity: _fadeIn,
-                          child: Transform.translate(
-                            offset: Offset(0, _brandLift.value),
-                            child: Column(
-                              children: [
-                                Text(
-                                  'Levio',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 44,
-                                    fontWeight: FontWeight.w700,
-                                    letterSpacing: -1.3,
-                                    color: colors.textPrimary,
-                                  ),
+                            const SizedBox(height: 24),
+                            FadeTransition(
+                              opacity: _fadeIn,
+                              child: Transform.translate(
+                                offset: Offset(0, _brandLift.value),
+                                child: Column(
+                                  children: [
+                                    Text(
+                                      'Levio',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 44,
+                                        fontWeight: FontWeight.w700,
+                                        letterSpacing: -1.3,
+                                        color: colors.textPrimary,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 10),
+                                    Text(
+                                      'Personalized Parkinson\'s care,\norganized every day.',
+                                      textAlign: TextAlign.center,
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 16,
+                                        height: 1.5,
+                                        fontWeight: FontWeight.w500,
+                                        color: colors.textSecondary,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                const SizedBox(height: 10),
-                                Text(
-                                  'Personalized Parkinson\'s care,\norganized every day.',
-                                  textAlign: TextAlign.center,
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 16,
-                                    height: 1.5,
-                                    fontWeight: FontWeight.w500,
-                                    color: colors.textSecondary,
-                                  ),
-                                ),
-                              ],
+                              ),
                             ),
-                          ),
+                            const Spacer(flex: 4),
+                            FadeTransition(
+                              opacity: _fadeIn,
+                              child: _buildProgressSection(colors),
+                            ),
+                            const SizedBox(height: 6),
+                          ],
                         ),
-                        const Spacer(flex: 4),
-                        FadeTransition(
-                          opacity: _fadeIn,
-                          child: _buildProgressSection(colors),
-                        ),
-                        const SizedBox(height: 6),
-                      ],
+                      ),
                     ),
-                  ),
+                  ],
                 ),
-              ],
-            ),
-          );
-        },
+              );
+            },
+          ),
+        ),
       ),
     );
   }

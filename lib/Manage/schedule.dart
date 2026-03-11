@@ -430,28 +430,39 @@ class _DetailRow extends StatelessWidget {
     this.badgeColor,
   });
 
+  String _compactBadgeText(String text) {
+    final value = text.trim();
+    if (value.isEmpty) return '';
+    if (value.toLowerCase().contains('everyday')) return 'Everyday';
+    if (value.startsWith('Every ')) {
+      final days = value.substring(6).split(',');
+      if (days.length > 1) {
+        return '${days.first.trim()} +${days.length - 1}';
+      }
+    }
+    if (value.length <= 22) return value;
+    return '${value.substring(0, 19)}...';
+  }
+
   @override
   Widget build(BuildContext context) {
+    final displayValue = value.isEmpty ? 'Not specified' : value;
+    final badgeText = _compactBadgeText(displayValue);
+
     return ModernCard(
       margin: EdgeInsets.zero,
       padding: const EdgeInsets.all(12),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label, style: Theme.of(context).textTheme.labelSmall),
-                const SizedBox(height: 4),
-                Text(
-                  value.isEmpty ? 'Not specified' : value,
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-              ],
-            ),
+          Text(label, style: Theme.of(context).textTheme.labelSmall),
+          const SizedBox(height: 4),
+          Text(
+            displayValue,
+            style: Theme.of(context).textTheme.bodyMedium,
           ),
-          if (badgeColor != null)
+          if (badgeColor != null && badgeText.isNotEmpty) ...[
+            const SizedBox(height: 10),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
@@ -459,13 +470,14 @@ class _DetailRow extends StatelessWidget {
                 borderRadius: BorderRadius.circular(999),
               ),
               child: Text(
-                value,
+                badgeText,
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
                       color: badgeColor,
                       fontWeight: FontWeight.w700,
                     ),
               ),
             ),
+          ],
         ],
       ),
     );

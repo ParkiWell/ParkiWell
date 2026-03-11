@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:levio/Community/otherProfile.dart';
 import 'package:levio/navbar.dart';
 import 'package:levio/theme/app_theme.dart';
+import 'package:levio/utils/app_routes.dart';
 
+/// Legacy placeholder -- not actively used in the current navigation flow.
 class TopicScreen extends StatefulWidget {
   const TopicScreen({super.key});
 
@@ -11,197 +12,54 @@ class TopicScreen extends StatefulWidget {
 }
 
 class _TopicScreenState extends State<TopicScreen> {
-  String image = "images/711128.png";
-
-  void _showLegacyNotice() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('This legacy topic view is read-only.'),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     return Scaffold(
+      backgroundColor: colors.background,
+      appBar: AppBar(
         backgroundColor: colors.background,
-        appBar: AppBar(
-          backgroundColor: colors.background,
-          surfaceTintColor: Colors.transparent,
-          elevation: 0,
-          leading: IconButton(
-            icon: Icon(Icons.arrow_back_rounded, color: colors.textPrimary),
-            onPressed: () {
-              Navigator.of(context).pushReplacement(MaterialPageRoute(
-                builder: (context) => const Navbar(),
-              ));
-            },
-          ),
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back_rounded, color: colors.textPrimary),
+          onPressed: () {
+            Navigator.of(context)
+                .pushReplacement(buildSubtleFadeRoute(page: const Navbar()));
+          },
         ),
-        body: Container(
-          color: colors.background,
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: SingleChildScrollView(
-              child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      margin: const EdgeInsets.all(1.0),
-                      padding: const EdgeInsets.all(16.0),
-                      decoration: BoxDecoration(
-                          border: Border.all(color: Colors.black)),
-                      child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: <Widget>[
-                                const Text(
-                                  "Title Text",
-                                  style: TextStyle(
-                                      color: Colors.black,
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.bold),
-                                ),
-                                const SizedBox(width: 5),
-                                IconButton(
-                                    // splashRadius: 1,
-                                    iconSize: 15,
-                                    icon: const Icon(Icons.thumb_up_rounded),
-                                    color: Colors.black,
-                                    onPressed: _showLegacyNotice),
-                              ],
-                            ),
-                            const Text(
-                              "Description",
-                              style: TextStyle(
-                                  color: Colors.black,
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.normal),
-                            ),
-                            const SizedBox(height: 10),
-                            const Row(
-                              mainAxisAlignment: MainAxisAlignment.start,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: <Widget>[
-                                Text(
-                                  "Asked   1 year, 5 months ago",
-                                  style: TextStyle(
-                                      color: Colors.black,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.normal),
-                                ),
-                                SizedBox(width: 10),
-                                Text(
-                                  "Viewed   25 times",
-                                  style: TextStyle(
-                                      color: Colors.black,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.normal),
-                                ),
-                              ],
-                            ),
-                          ]),
+        title: Text(
+          'Topic',
+          style:
+              TextStyle(color: colors.textPrimary, fontWeight: FontWeight.w600),
+        ),
+      ),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(40),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.forum_outlined, size: 64, color: colors.textTertiary),
+              const SizedBox(height: 16),
+              Text(
+                'Topics are coming soon.',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
                     ),
-                    const SizedBox(height: 10),
-                    Container(
-                        margin: const EdgeInsets.all(1.0),
-                        padding: const EdgeInsets.all(16.0),
-                        decoration: BoxDecoration(
-                            border: Border.all(color: Colors.black)),
-                        child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  CircleAvatar(
-                                    backgroundColor: Colors.transparent,
-                                    radius: 15.0,
-                                    child: IconButton(
-                                      onPressed: () {
-                                        Navigator.of(context)
-                                            .push(MaterialPageRoute(
-                                          builder: (context) =>
-                                              const OtherProfileScreen(),
-                                        ));
-                                      },
-                                      icon: Transform.scale(
-                                        scale: 2,
-                                        child: Image.asset(
-                                          image,
-                                          height: 100,
-                                          width: 100,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 5),
-                                  const Text(
-                                    "[Name]",
-                                    style: TextStyle(
-                                        color: Colors.black,
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.bold),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 5),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                crossAxisAlignment: CrossAxisAlignment.center,
-                                children: <Widget>[
-                                  const Flexible(
-                                    child: Text(
-                                      "To treat parkisonsons you should try to stimulate levodopa. Nerve cells use levodopa to make dopamine to replenish the brain's dwindling supply.",
-                                      style: TextStyle(
-                                          color: Colors.black,
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.normal),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Column(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        IconButton(
-                                            iconSize: 20,
-                                            icon: const Icon(Icons.add),
-                                            //When the add icon is pressed, the user can add comments to the original response
-                                            color: Colors.black,
-                                            onPressed: _showLegacyNotice),
-                                        const SizedBox(height: 5),
-                                        IconButton(
-                                            iconSize: 20,
-                                            icon:
-                                                const Icon(Icons.arrow_forward),
-                                            color: Colors.black,
-                                            onPressed: _showLegacyNotice),
-                                      ]),
-                                ],
-                              ),
-                            ])),
-                  ]),
-            ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Community topics and threaded discussions will appear here in a future update.',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: colors.textTertiary,
+                    ),
+              ),
+            ],
           ),
         ),
-        floatingActionButton: Ink(
-            decoration: const ShapeDecoration(
-              color: Colors.lightBlue,
-              shape: CircleBorder(),
-            ),
-            child: IconButton(
-                iconSize: 25,
-                icon: const Icon(Icons.add),
-                color: Colors.white,
-                //When this add button is pressed, the user can add a new response to the topic.
-                onPressed: _showLegacyNotice)));
+      ),
+    );
   }
 }

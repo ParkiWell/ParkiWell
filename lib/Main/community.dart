@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
@@ -92,6 +93,14 @@ class _CommunityScreenState extends State<CommunityScreen>
   String _feedSortMode = 'Newest';
   bool _feedOnlyMine = false;
   bool _isSubmittingPost = false;
+  Timer? _searchDebounce;
+  int _postVersion = 0;
+  int _visibleCachePostVersion = -1;
+  String _visibleCacheSearchQuery = '';
+  String _visibleCacheCategory = '';
+  String _visibleCacheSortMode = '';
+  bool _visibleCacheOnlyMine = false;
+  List<CommunityPost> _visiblePostsCache = <CommunityPost>[];
   final List<SupportGroup> _groups = <SupportGroup>[
     SupportGroup(
       id: 'caregivers',
@@ -168,6 +177,7 @@ class _CommunityScreenState extends State<CommunityScreen>
       if (!mounted) return;
       setState(() {
         _posts = posts;
+        _postVersion++;
         _isLoadingFeed = false;
       });
     } catch (_) {
@@ -325,11 +335,13 @@ class _CommunityScreenState extends State<CommunityScreen>
         ..clear()
         ..addAll(mapped);
       post.commentCount = mapped.length;
+      _postVersion++;
     });
   }
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _feedSearchController.dispose();
     _tabController.dispose();
     super.dispose();
@@ -544,6 +556,14 @@ class _CommunityScreenState extends State<CommunityScreen>
   }
 
   List<CommunityPost> get _visiblePosts {
+    if (_visibleCachePostVersion == _postVersion &&
+        _visibleCacheSearchQuery == _feedSearchQuery &&
+        _visibleCacheCategory == _feedFilterCategory &&
+        _visibleCacheSortMode == _feedSortMode &&
+        _visibleCacheOnlyMine == _feedOnlyMine) {
+      return _visiblePostsCache;
+    }
+
     var results = List<CommunityPost>.from(_posts);
 
     if (_feedOnlyMine) {
@@ -583,6 +603,12 @@ class _CommunityScreenState extends State<CommunityScreen>
         break;
     }
 
+    _visibleCachePostVersion = _postVersion;
+    _visibleCacheSearchQuery = _feedSearchQuery;
+    _visibleCacheCategory = _feedFilterCategory;
+    _visibleCacheSortMode = _feedSortMode;
+    _visibleCacheOnlyMine = _feedOnlyMine;
+    _visiblePostsCache = results;
     return results;
   }
 
@@ -673,6 +699,7 @@ class _CommunityScreenState extends State<CommunityScreen>
                 TextField(
                   controller: textController,
                   maxLines: 4,
+                  maxLength: _maxPostLength,
                   decoration: InputDecoration(
                     hintText: 'Update your post...',
                     hintStyle: TextStyle(color: colors.textTertiary),
@@ -682,6 +709,9 @@ class _CommunityScreenState extends State<CommunityScreen>
                       borderRadius: BorderRadius.circular(8),
                       borderSide: BorderSide.none,
                     ),
+                    counterStyle: Theme.of(ctx).textTheme.labelSmall?.copyWith(
+                          color: colors.textTertiary,
+                        ),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -729,6 +759,7 @@ class _CommunityScreenState extends State<CommunityScreen>
                           setState(() {
                             post.content = updatedContent;
                             post.category = selectedCategory;
+                            _postVersion++;
                           });
 
                           Navigator.pop(ctx);
@@ -800,6 +831,7 @@ class _CommunityScreenState extends State<CommunityScreen>
 
                 setState(() {
                   _posts.removeWhere((p) => p.id == post.id);
+                  _postVersion++;
                 });
                 messenger.showSnackBar(
                   SnackBar(
@@ -1099,7 +1131,11 @@ class _CommunityScreenState extends State<CommunityScreen>
           TextField(
             controller: _feedSearchController,
             onChanged: (value) {
-              setState(() => _feedSearchQuery = value);
+              _searchDebounce?.cancel();
+              _searchDebounce = Timer(const Duration(milliseconds: 160), () {
+                if (!mounted) return;
+                setState(() => _feedSearchQuery = value);
+              });
             },
             style:
                 Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 14),
@@ -1424,6 +1460,7 @@ class _CommunityScreenState extends State<CommunityScreen>
                     setState(() {
                       post.isLiked = true;
                       post.likes += 1;
+                      _postVersion++;
                     });
                   } else {
                     final error = singleton.consumeLastCommunityError() ??

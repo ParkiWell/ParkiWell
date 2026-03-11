@@ -53,30 +53,35 @@ class Singleton extends ChangeNotifier {
   List<List<String>> log = [];
   List<List<String>> schedule = [];
 
-  // Speech therapy exercises for Parkinson's (YouTube video IDs)
-  // Using real LSVT LOUD and Parkinson Voice Project videos
+  // Speech therapy exercises for Parkinson's (official YouTube channels)
   Map<String, List<String>> speeches = {
     "0ndTdBnVwFY": [
       "LSVT LOUD Introduction",
-      "Official LSVT LOUD voice exercise introduction by Dr. Cynthia Fox. Learn the fundamentals of voice therapy for Parkinson's.",
+      "Official LSVT LOUD introduction from LSVT Global focused on safe voice amplitude training for Parkinson's.",
       "9:55",
+      "Source: LSVTGLOBAL (YouTube)"
+    ],
+    "fJXCDDZJLDg": [
+      "Introduction to LSVT LOUD",
+      "Official LSVT LOUD overview session introducing core daily voice exercises and cueing strategies.",
+      "YouTube",
       "Source: LSVTGLOBAL (YouTube)"
     ],
     "dzKy4vKp5_I": [
       "Voice Exercises with Rachel",
-      "Power for Parkinson's voice exercises led by speech therapist Rachel Stern. Daily vocal warm-ups and strengthening.",
+      "Guided vocal warmups and speech-strength practice for Parkinson's led by a clinical voice specialist.",
       "25:00",
       "Source: Power for Parkinsons (YouTube)"
     ],
     "0TKUdR5Nisk": [
       "Beatles Sing Along",
-      "Fun vocal strength class with sing-alongs, warm-ups, and tongue twisters to improve vocal power and range.",
+      "Singing-based speech session to practice loud, clear voice projection with rhythm and articulation drills.",
       "45:00",
       "Source: Power for Parkinsons (YouTube)"
     ],
     "zO5KQb4mUFA": [
       "Speaking with INTENT",
-      "SPEAK OUT! therapy presentation on speaking and swallowing strategies for Parkinson's by certified provider.",
+      "Professional education session covering speaking intent, swallow safety, and communication strategies in Parkinson's care.",
       "53:00",
       "Source: UT Southwestern Medical Center (YouTube)"
     ],
@@ -86,50 +91,122 @@ class Singleton extends ChangeNotifier {
       "15:00",
       "Source: Parkinson's Foundation (YouTube)"
     ],
+    "L8bkqvf6TRs": [
+      "LSVT LOUD Vocal Therapy",
+      "Parkinson's Foundation vocal session focused on loudness, breath support, and speech clarity.",
+      "22:00",
+      "Source: Parkinson's Foundation (YouTube)"
+    ],
+    "kGZYg19rYCU": [
+      "SPEAK OUT! Program Overview",
+      "Official Parkinson Voice Project overview of the SPEAK OUT! method for intentional speech.",
+      "8:00",
+      "Source: Parkinson Voice Project (YouTube)"
+    ],
+    "O0k_3tsrVYA": [
+      "SPEAK OUT! Lesson 4",
+      "Guided Parkinson speech practice session from Parkinson Voice Project's official lesson series.",
+      "30:00",
+      "Source: Parkinson Voice Project (YouTube)"
+    ],
+    "BNZ3XrGc-aw": [
+      "Let's Talk Speech: Part 1",
+      "APDA educational session on common speech changes in Parkinson's and practical communication strategies.",
+      "35:00",
+      "Source: APDA (YouTube)"
+    ],
+    "WjQRwn8SFZk": [
+      "Speech & Swallowing in PD",
+      "APDA expert discussion on speech and swallowing care with concrete therapy guidance.",
+      "58:00",
+      "Source: APDA (YouTube)"
+    ],
   };
 
-  // Physical therapy exercises (verified YouTube video IDs)
-  // Using Davis Phinney Foundation, Power for Parkinson's, and Parkinson's UK videos
+  // Physical therapy exercises from official Parkinson-focused sources
   Map<String, List<String>> exercises = {
     "QbWyxn8XE-I": [
       "Exercise Essentials: Intro",
-      "Davis Phinney Foundation's introduction to exercise for Parkinson's. Learn why exercise is essential.",
+      "Davis Phinney Foundation introduction to why exercise is essential in Parkinson's care.",
       "10:00",
       "Source: Davis Phinney Foundation (YouTube)"
     ],
     "AZV3_NfcpVs": [
       "Sit 'n' Fit Workout",
-      "Parkinson's Association chair-based aerobic exercises. 12-minute seated workout for all fitness levels.",
+      "Chair-based aerobic routine designed for safe daily movement and endurance.",
       "12:00",
       "Source: Parkinson's Foundation (YouTube)"
     ],
     "HHtgtNmBivo": [
       "Chair Workout for Balance",
-      "Power for Parkinson's 35-minute chair workout to improve gait, balance, cognition, and mobility.",
+      "Power for Parkinson's chair workout to improve gait, balance, cognition, and mobility.",
       "35:00",
       "Source: Power for Parkinsons (YouTube)"
     ],
     "4wB43bbSdm8": [
       "Seated Workout",
-      "Ageless Grace method seated workout focusing on brain health and body movement coordination.",
+      "Seated movement routine focused on coordination and brain-body activation.",
       "12:00",
       "Source: Parkinson's Foundation (YouTube)"
     ],
     "No2EIvShhP0": [
       "Reach Your Peak Chair Class",
-      "Parkinson's UK chair workout with both physical and mental exercises to manage symptoms.",
+      "Parkinson's UK chair workout with mobility and coordination drills.",
       "30:00",
       "Source: Parkinson's UK (YouTube)"
     ],
     "RfI_v-HQb5I": [
       "Managing Symptoms Exercises",
-      "Great seated exercises specifically designed for managing Parkinson's symptoms safely at home.",
+      "Seated exercises designed to safely support symptom management at home.",
       "20:00",
       "Source: Power for Parkinsons (YouTube)"
+    ],
+    "G5OvzAORfuc": [
+      "PWR!Moves + Aerobic",
+      "Parkinson's Foundation moderate-to-high intensity class for stamina, gait, and movement amplitude.",
+      "33:00",
+      "Source: Parkinson's Foundation (YouTube)"
+    ],
+    "4qAbME5b7y0": [
+      "PWR!Moves Flow",
+      "Official Parkinson's Foundation flow session emphasizing posture, transitions, and full-body control.",
+      "20:00",
+      "Source: Parkinson's Foundation (YouTube)"
+    ],
+    "jyOk-2DmVnU": [
+      "Move to Improve",
+      "Strength and balance training with seated-to-standing progressions from Parkinson's Foundation.",
+      "37:00",
+      "Source: Parkinson's Foundation (YouTube)"
+    ],
+    "eFhjqxZ5UkY": [
+      "PWR Moves Class",
+      "All-level Parkinson's movement class focused on range of motion, agility, and coordination.",
+      "44:00",
+      "Source: Parkinson's Foundation (YouTube)"
+    ],
+    "AG4prHkdCjY": [
+      "Fitness Friday: PWR! Moves",
+      "Foundation-led home routine for safe daily activity and confidence in movement.",
+      "24:00",
+      "Source: Parkinson's Foundation (YouTube)"
+    ],
+    "zIFtb-R24Ec": [
+      "Strong & Steady",
+      "Official Parkinson's Foundation class centered on stability, controlled movement, and fall-risk reduction.",
+      "20:00",
+      "Source: Parkinson's Foundation (YouTube)"
+    ],
+    "pgtGOgVIhqc": [
+      "LSVT BIG Movements",
+      "Parkinson's Foundation session introducing LSVT BIG movement principles for larger, clearer motions.",
+      "24:00",
+      "Source: Parkinson's Foundation (YouTube)"
     ],
   };
 
   String currentURL = "";
+  static final RegExp _youtubeIdPattern = RegExp(r'^[A-Za-z0-9_-]{11}$');
   String name = "[Name]";
   String email = "[Email]";
   int age = 0;
@@ -537,8 +614,50 @@ class Singleton extends ChangeNotifier {
     await _writeSyncMetadata();
   }
 
+  String? normalizeYouTubeVideoId(String input) {
+    final trimmed = input.trim();
+    if (trimmed.isEmpty) return null;
+
+    // Already a video ID
+    if (_youtubeIdPattern.hasMatch(trimmed)) {
+      return trimmed;
+    }
+
+    final uri = Uri.tryParse(trimmed);
+    if (uri == null) return null;
+
+    final host = uri.host.toLowerCase();
+    String? candidate;
+
+    if (host.contains('youtu.be')) {
+      final path = uri.pathSegments.isNotEmpty ? uri.pathSegments.first : '';
+      candidate = path.trim();
+    } else if (host.contains('youtube.com') ||
+        host.contains('youtube-nocookie.com')) {
+      candidate = uri.queryParameters['v']?.trim();
+      if (candidate == null || candidate.isEmpty) {
+        final segments = uri.pathSegments;
+        if (segments.isNotEmpty) {
+          if (segments.first == 'embed' && segments.length > 1) {
+            candidate = segments[1].trim();
+          } else if (segments.first == 'shorts' && segments.length > 1) {
+            candidate = segments[1].trim();
+          }
+        }
+      }
+    }
+
+    if (candidate == null || !_youtubeIdPattern.hasMatch(candidate)) {
+      return null;
+    }
+    return candidate;
+  }
+
   void setCurrentUrl(url) {
-    currentURL = url;
+    final normalized = normalizeYouTubeVideoId(url?.toString() ?? '');
+    final next = normalized ?? '';
+    if (next == currentURL) return;
+    currentURL = next;
     notifyListenersSafe();
   }
 

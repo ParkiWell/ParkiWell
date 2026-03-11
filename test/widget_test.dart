@@ -68,8 +68,20 @@ void main() {
 
   testWidgets('App starts on onboarding for first-time users', (tester) async {
     await tester.pumpWidget(const MyApp());
-    expect(find.text('Getting ready…'), findsOneWidget);
+    expect(find.text('Step 1 of 3'), findsOneWidget);
+    expect(find.text('Continue'), findsOneWidget);
     await tester.pump(const Duration(milliseconds: 200));
+  });
+
+  test('Recovery catalog keeps valid YouTube IDs', () {
+    final idPattern = RegExp(r'^[A-Za-z0-9_-]{11}$');
+    for (final id in singleton.exercises.keys) {
+      expect(idPattern.hasMatch(id), isTrue,
+          reason: 'Invalid exercise ID: $id');
+    }
+    for (final id in singleton.speeches.keys) {
+      expect(idPattern.hasMatch(id), isTrue, reason: 'Invalid speech ID: $id');
+    }
   });
 
   test('Named routes contain all feature entry points', () {

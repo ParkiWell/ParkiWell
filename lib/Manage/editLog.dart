@@ -2,11 +2,13 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import '../singleton.dart';
+import '../services/tutorial_targets.dart';
 import '../theme/app_theme.dart';
 import '../utils/haptic_utils.dart';
 import '../widgets/modern_button.dart';
 import '../widgets/modern_card.dart';
 import '../widgets/modern_input.dart';
+import '../widgets/tutorial_overlay.dart';
 
 class EditLogScreen extends StatefulWidget {
   const EditLogScreen({super.key});
@@ -373,89 +375,98 @@ class _EditLogScreenState extends State<EditLogScreen>
   Widget build(BuildContext context) {
     final colors = context.colors;
 
-    return Scaffold(
-      backgroundColor: colors.background,
-      appBar: AppBar(
+    return TutorialOverlay(
+      steps: const [],
+      child: Scaffold(
         backgroundColor: colors.background,
-        surfaceTintColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: colors.surfaceVariant,
-              borderRadius: BorderRadius.circular(12),
+        appBar: AppBar(
+          backgroundColor: colors.background,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          leading: IconButton(
+            icon: Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: colors.surfaceVariant,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                Icons.arrow_back_rounded,
+                color: colors.textPrimary,
+                size: 20,
+              ),
             ),
-            child: Icon(
-              Icons.arrow_back_rounded,
-              color: colors.textPrimary,
-              size: 20,
-            ),
+            onPressed: () {
+              HapticUtils.lightImpact();
+              Navigator.popAndPushNamed(context, '/logScreen');
+            },
           ),
-          onPressed: () {
-            HapticUtils.lightImpact();
-            Navigator.popAndPushNamed(context, '/logScreen');
-          },
+          title: Text('Symptom Log',
+              style: TextStyle(
+                  color: colors.textPrimary, fontWeight: FontWeight.w600)),
         ),
-        title: Text('Symptom Log',
-            style: TextStyle(
-                color: colors.textPrimary, fontWeight: FontWeight.w600)),
-      ),
-      body: FadeTransition(
-        opacity: _animation,
-        child: Container(
-          color: colors.background,
-          child: SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildHeader(colors),
-                const SizedBox(height: 16),
-                ModernCard(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'What symptom did you experience?',
-                        style: Theme.of(context).textTheme.titleSmall,
-                      ),
-                      const SizedBox(height: 10),
-                      ModernTextField(
-                        controller: _symptomController,
-                        hint: 'e.g., Tremor in left hand after lunch',
-                        maxLines: 3,
-                      ),
-                      const SizedBox(height: 14),
-                      _buildSeveritySelector(colors),
-                      const SizedBox(height: 14),
-                      _buildDateTimeSection(colors),
-                    ],
+        body: FadeTransition(
+          opacity: _animation,
+          child: Container(
+            color: colors.background,
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildHeader(colors),
+                  const SizedBox(height: 16),
+                  ModernCard(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'What symptom did you experience?',
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
+                        const SizedBox(height: 10),
+                        KeyedSubtree(
+                          key: TutorialTargets.symptomInputKey,
+                          child: ModernTextField(
+                            controller: _symptomController,
+                            hint: 'e.g., Tremor in left hand after lunch',
+                            maxLines: 3,
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        _buildSeveritySelector(colors),
+                        const SizedBox(height: 14),
+                        _buildDateTimeSection(colors),
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  '$_selectedSeverity · ${_formatDisplayDate(_selectedDateTime)} at ${_formatDisplayTime(_selectedDateTime)}',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: colors.textTertiary,
-                        fontWeight: FontWeight.w500,
-                      ),
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: ModernButton(
-                    text: 'Save Symptom',
-                    icon: Icons.check_rounded,
-                    isLoading: _isLoading,
-                    onPressed: _submitLog,
+                  const SizedBox(height: 20),
+                  Text(
+                    '$_selectedSeverity · ${_formatDisplayDate(_selectedDateTime)} at ${_formatDisplayTime(_selectedDateTime)}',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: colors.textTertiary,
+                          fontWeight: FontWeight.w500,
+                        ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: KeyedSubtree(
+                      key: TutorialTargets.saveSymptomButtonKey,
+                      child: ModernButton(
+                        text: 'Save Symptom',
+                        icon: Icons.check_rounded,
+                        isLoading: _isLoading,
+                        onPressed: _submitLog,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

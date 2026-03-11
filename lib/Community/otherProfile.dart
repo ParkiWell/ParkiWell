@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../navbar.dart';
 import '../theme/app_theme.dart';
+import '../utils/app_routes.dart';
 
+/// Legacy placeholder -- not actively used in the current navigation flow.
 class OtherProfileScreen extends StatefulWidget {
   const OtherProfileScreen({super.key});
 
@@ -11,10 +13,6 @@ class OtherProfileScreen extends StatefulWidget {
 }
 
 class _OtherProfileScreenState extends State<OtherProfileScreen> {
-  String name = "[Name]";
-  String email = "[Email]";
-  String image = "images/711128.png";
-
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
@@ -27,71 +25,37 @@ class _OtherProfileScreenState extends State<OtherProfileScreen> {
         leading: IconButton(
           icon: Icon(Icons.arrow_back_rounded, color: colors.textPrimary),
           onPressed: () {
-            Navigator.of(context).pushReplacement(MaterialPageRoute(
-              builder: (context) => const Navbar(),
-            ));
+            Navigator.of(context)
+                .pushReplacement(buildSubtleFadeRoute(page: const Navbar()));
           },
         ),
       ),
-      body: Container(
-        color: colors.background,
+      body: Center(
         child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-                mainAxisAlignment: MainAxisAlignment.start,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  CircleAvatar(
-                    backgroundColor: Colors.transparent,
-                    radius: 50.0,
-                    child: Image.asset(
-                      image,
-                      height: 100,
-                      width: 100,
+          padding: const EdgeInsets.all(40),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.person_outline_rounded,
+                  size: 64, color: colors.textTertiary),
+              const SizedBox(height: 16),
+              Text(
+                'User profiles are coming soon.',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
                     ),
-                  ),
-                  Text(
-                    name,
-                    style: const TextStyle(
-                        color: Colors.black,
-                        fontSize: 40.0,
-                        fontWeight: FontWeight.bold),
-                  ),
-                  Text(
-                    email,
-                    style: const TextStyle(
-                        color: Colors.black,
-                        fontSize: 20.0,
-                        fontWeight: FontWeight.normal),
-                  ),
-                  const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.messenger_rounded,
-                        size: 35.0,
-                        color: Colors.black,
-                      ),
-                      SizedBox(width: 20),
-                      Text(
-                        "[Posts]",
-                        style: TextStyle(
-                            color: Colors.black,
-                            fontSize: 30.0,
-                            fontWeight: FontWeight.normal),
-                      ),
-                      SizedBox(width: 20),
-                      Text(
-                        "#",
-                        style: TextStyle(
-                            color: Colors.black,
-                            fontSize: 30.0,
-                            fontWeight: FontWeight.bold),
-                      ),
-                    ],
-                  ),
-                ])),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Tap other members in the community feed to see their profile once this feature is available.',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: colors.textTertiary,
+                    ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

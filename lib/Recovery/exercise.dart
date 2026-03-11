@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:levio/singleton.dart';
+import '../services/tutorial_targets.dart';
 import '../theme/app_theme.dart';
 import '../utils/haptic_utils.dart';
+import '../widgets/tutorial_overlay.dart';
 
 class ExerciseScreen extends StatefulWidget {
   const ExerciseScreen({super.key});
@@ -26,7 +28,7 @@ class _ExerciseScreenState extends State<ExerciseScreen>
     urls = singleton.exercises.keys.toList();
 
     _animationController = AnimationController(
-      duration: const Duration(milliseconds: 600),
+      duration: const Duration(milliseconds: 380),
       vsync: this,
     );
     _animation = CurvedAnimation(
@@ -94,133 +96,141 @@ class _ExerciseScreenState extends State<ExerciseScreen>
   Widget build(BuildContext context) {
     final colors = context.colors;
 
-    return Scaffold(
-      backgroundColor: colors.background,
-      appBar: AppBar(
+    return TutorialOverlay(
+      steps: const [],
+      child: Scaffold(
         backgroundColor: colors.background,
-        surfaceTintColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: colors.surfaceVariant,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(
-              Icons.arrow_back_rounded,
-              color: colors.textPrimary,
-              size: 20,
-            ),
-          ),
-          onPressed: () {
-            HapticUtils.lightImpact();
-            if (Navigator.of(context).canPop()) {
-              Navigator.of(context).pop();
-            }
-          },
-        ),
-        title: Text('Exercises',
-            style: TextStyle(
-                color: colors.textPrimary, fontWeight: FontWeight.w600)),
-        actions: [
-          TextButton.icon(
-            onPressed: () {
-              HapticUtils.lightImpact();
-              _showExerciseTextGuide();
-            },
-            icon: Icon(Icons.notes_rounded, color: colors.primary, size: 18),
-            label: Text(
-              'Text',
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: colors.primary,
-                    fontWeight: FontWeight.w700,
-                  ),
-            ),
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
-      body: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            FadeTransition(
-              opacity: _animation,
-              child: SlideTransition(
-                position: Tween<Offset>(
-                  begin: const Offset(0, 0.1),
-                  end: Offset.zero,
-                ).animate(_animation),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Physical Exercises',
-                      style:
-                          Theme.of(context).textTheme.headlineSmall?.copyWith(
-                                fontWeight: FontWeight.bold,
-                              ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Video-guided exercises to help with mobility and strength',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: colors.textSecondary,
-                          ),
-                    ),
-                  ],
-                ),
+        appBar: AppBar(
+          backgroundColor: colors.background,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          leading: IconButton(
+            icon: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: colors.surfaceVariant,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                Icons.arrow_back_rounded,
+                color: colors.textPrimary,
+                size: 20,
               ),
             ),
-            const SizedBox(height: 24),
-
-            // Exercise list
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: exercises.length,
-              itemBuilder: (BuildContext context, int index) {
-                return FadeTransition(
-                  opacity: _animation,
-                  child: SlideTransition(
-                    position: Tween<Offset>(
-                      begin: const Offset(0, 0.2),
-                      end: Offset.zero,
-                    ).animate(CurvedAnimation(
-                      parent: _animationController,
-                      curve: Interval(
-                        0.1 + (index / exercises.length) * 0.4,
-                        1.0,
-                        curve: Curves.easeOutCubic,
-                      ),
-                    )),
-                    child: _ExerciseCard(
-                      title: singleton.exercises[urls[index]]![0],
-                      description: singleton.exercises[urls[index]]![1],
-                      duration: singleton.exercises[urls[index]]!.length > 2
-                          ? singleton.exercises[urls[index]]![2]
-                          : '',
-                      source: singleton.exercises[urls[index]]!.length > 3
-                          ? singleton.exercises[urls[index]]![3]
-                          : '',
-                      thumbnailUrl:
-                          'https://img.youtube.com/vi/${urls[index]}/hqdefault.jpg',
-                      onTap: () {
-                        HapticUtils.cardTap();
-                        singleton.setCurrentUrl(urls[index]);
-                        Navigator.popAndPushNamed(
-                            context, '/exerciseVideoScreen');
-                      },
-                    ),
-                  ),
-                );
+            onPressed: () {
+              HapticUtils.lightImpact();
+              if (Navigator.of(context).canPop()) {
+                Navigator.of(context).pop();
+              }
+            },
+          ),
+          title: Text('Exercises',
+              style: TextStyle(
+                  color: colors.textPrimary, fontWeight: FontWeight.w600)),
+          actions: [
+            TextButton.icon(
+              onPressed: () {
+                HapticUtils.lightImpact();
+                _showExerciseTextGuide();
               },
+              icon: Icon(Icons.notes_rounded, color: colors.primary, size: 18),
+              label: Text(
+                'Text',
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: colors.primary,
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
             ),
+            const SizedBox(width: 8),
           ],
+        ),
+        body: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              FadeTransition(
+                opacity: _animation,
+                child: SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(0, 0.05),
+                    end: Offset.zero,
+                  ).animate(_animation),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Physical Exercises',
+                        style:
+                            Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Video-guided exercises to help with mobility and strength',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: colors.textSecondary,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // Exercise list
+              ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: exercises.length,
+                itemBuilder: (BuildContext context, int index) {
+                  return FadeTransition(
+                    opacity: _animation,
+                    child: SlideTransition(
+                      position: Tween<Offset>(
+                        begin: const Offset(0, 0.08),
+                        end: Offset.zero,
+                      ).animate(CurvedAnimation(
+                        parent: _animationController,
+                        curve: Interval(
+                          0.1 + (index / exercises.length) * 0.4,
+                          1.0,
+                          curve: Curves.easeOutCubic,
+                        ),
+                      )),
+                      child: KeyedSubtree(
+                        key: index == 0
+                            ? TutorialTargets.firstExerciseCardKey
+                            : null,
+                        child: _ExerciseCard(
+                          title: singleton.exercises[urls[index]]![0],
+                          description: singleton.exercises[urls[index]]![1],
+                          duration: singleton.exercises[urls[index]]!.length > 2
+                              ? singleton.exercises[urls[index]]![2]
+                              : '',
+                          source: singleton.exercises[urls[index]]!.length > 3
+                              ? singleton.exercises[urls[index]]![3]
+                              : '',
+                          thumbnailUrl:
+                              'https://img.youtube.com/vi/${urls[index]}/hqdefault.jpg',
+                          onTap: () {
+                            HapticUtils.cardTap();
+                            singleton.setCurrentUrl(urls[index]);
+                            Navigator.popAndPushNamed(
+                                context, '/exerciseVideoScreen');
+                          },
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -250,6 +260,7 @@ class _ExerciseCard extends StatefulWidget {
 
 class _ExerciseCardState extends State<_ExerciseCard> {
   bool _isPressed = false;
+  bool _useFallbackThumbnail = false;
 
   @override
   Widget build(BuildContext context) {
@@ -289,9 +300,21 @@ class _ExerciseCardState extends State<_ExerciseCard> {
                   AspectRatio(
                     aspectRatio: 16 / 9,
                     child: Image.network(
-                      widget.thumbnailUrl,
+                      _useFallbackThumbnail
+                          ? widget.thumbnailUrl.replaceFirst(
+                              '/hqdefault.jpg',
+                              '/mqdefault.jpg',
+                            )
+                          : widget.thumbnailUrl,
                       fit: BoxFit.cover,
                       errorBuilder: (context, error, stackTrace) {
+                        if (!_useFallbackThumbnail) {
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (mounted) {
+                              setState(() => _useFallbackThumbnail = true);
+                            }
+                          });
+                        }
                         return Container(
                           color: colors.surfaceVariant,
                           child: Center(

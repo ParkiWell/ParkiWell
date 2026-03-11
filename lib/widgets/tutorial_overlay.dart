@@ -23,6 +23,7 @@ class TutorialOverlay extends StatefulWidget {
 class _TutorialOverlayState extends State<TutorialOverlay> {
   final TutorialService _service = TutorialService();
   Rect? _targetRect;
+  int _lastStepIndex = -1;
 
   @override
   void initState() {
@@ -63,6 +64,10 @@ class _TutorialOverlayState extends State<TutorialOverlay> {
 
   void _onTutorialChanged() {
     if (!mounted) return;
+    if (_service.currentStepIndex != _lastStepIndex) {
+      _lastStepIndex = _service.currentStepIndex;
+      setState(() => _targetRect = null);
+    }
     _refreshTargetRect();
   }
 

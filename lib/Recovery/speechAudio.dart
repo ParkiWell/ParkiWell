@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:levio/singleton.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 import '../theme/app_theme.dart';
 import '../utils/haptic_utils.dart';
 
@@ -13,12 +14,61 @@ class SpeechAudio extends StatefulWidget {
 
 class _SpeechAudioState extends State<SpeechAudio> {
   final singleton = Singleton();
+  WebViewController? _webViewController;
+  String? _videoId;
+  bool _isVideoLoading = true;
+
   String get _youtubeUrl =>
-      'https://www.youtube.com/watch?v=${singleton.currentURL}';
-  String get _thumbnailUrl =>
-      'https://img.youtube.com/vi/${singleton.currentURL}/hqdefault.jpg';
+      'https://www.youtube.com/watch?v=${_videoId ?? singleton.currentURL}';
+
+  @override
+  void initState() {
+    super.initState();
+    _videoId = singleton.normalizeYouTubeVideoId(singleton.currentURL);
+    if (_videoId != null) {
+      _webViewController = WebViewController()
+        ..setJavaScriptMode(JavaScriptMode.unrestricted)
+        ..setNavigationDelegate(
+          NavigationDelegate(
+            onPageStarted: (_) {
+              if (!mounted) return;
+              setState(() => _isVideoLoading = true);
+            },
+            onPageFinished: (_) {
+              if (!mounted) return;
+              setState(() => _isVideoLoading = false);
+            },
+            onWebResourceError: (_) {
+              if (!mounted) return;
+              setState(() => _webViewController = null);
+            },
+          ),
+        )
+        ..loadRequest(Uri.parse('https://m.youtube.com/watch?v=$_videoId'));
+    }
+  }
+
+  @override
+  void dispose() => super.dispose();
+
+  Future<void> _openInAppBrowser() async {
+    if (_videoId == null) return;
+    final uri = Uri.parse(_youtubeUrl);
+    await launchUrl(uri, mode: LaunchMode.inAppBrowserView);
+  }
 
   Future<void> _openInYouTube() async {
+    if (_videoId == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('This video link appears invalid.'),
+          backgroundColor: context.colors.error,
+        ),
+      );
+      return;
+    }
+
     final uri = Uri.parse(_youtubeUrl);
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -136,94 +186,129 @@ class _SpeechAudioState extends State<SpeechAudio> {
                 ),
               ],
               const SizedBox(height: 16),
-
-              // Video thumbnail — tap to open in YouTube
-              GestureDetector(
-                onTap: () {
-                  HapticUtils.lightImpact();
-                  _openInYouTube();
-                },
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: AspectRatio(
-                    aspectRatio: 16 / 9,
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        Image.network(
-                          _thumbnailUrl,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Container(
-                            color: colors.surfaceVariant,
-                            child: Icon(Icons.videocam_off_rounded,
-                                size: 48, color: colors.textTertiary),
-                          ),
-                        ),
-                        Container(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                Colors.black.withValues(alpha: 0.0),
-                                Colors.black.withValues(alpha: 0.5),
-                              ],
-                            ),
-                          ),
-                        ),
-                        Center(
-                          child: Container(
-                            padding: const EdgeInsets.all(14),
-                            decoration: BoxDecoration(
-                              color: Colors.red.shade600,
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.3),
-                                  blurRadius: 12,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
-                            ),
-                            child: const Icon(
-                              Icons.play_arrow_rounded,
-                              color: Colors.white,
-                              size: 36,
-                            ),
-                          ),
-                        ),
-                        Positioned(
-                          bottom: 12,
-                          left: 12,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 5),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha: 0.6),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.play_circle_outline_rounded,
-                                    color: Colors.white, size: 14),
-                                SizedBox(width: 5),
-                                Text(
-                                  'Watch on YouTube',
-                                  style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: colors.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.verified_rounded,
+                      size: 14,
+                      color: colors.primary,
                     ),
-                  ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Official Speech Session',
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                            color: colors.primary,
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                  ],
                 ),
               ),
+              const SizedBox(height: 10),
+              (_webViewController != null)
+                  ? ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: Stack(
+                        children: [
+                          AspectRatio(
+                            aspectRatio: 16 / 9,
+                            child:
+                                WebViewWidget(controller: _webViewController!),
+                          ),
+                          if (_isVideoLoading)
+                            Positioned.fill(
+                              child: ColoredBox(
+                                color: colors.surface.withValues(alpha: 0.92),
+                                child: Center(
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      SizedBox(
+                                        width: 22,
+                                        height: 22,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2.2,
+                                          color: colors.primary,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 10),
+                                      Text(
+                                        'Loading video...',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.copyWith(
+                                              color: colors.textSecondary,
+                                            ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    )
+                  : Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: colors.surface,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: colors.border),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Unable to load video in-app',
+                            style: Theme.of(
+                              context,
+                            ).textTheme.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Open this speech session directly in YouTube.',
+                            style: Theme.of(
+                              context,
+                            ).textTheme.bodySmall?.copyWith(
+                                  color: colors.textSecondary,
+                                ),
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: FilledButton.icon(
+                                  onPressed: _openInAppBrowser,
+                                  icon:
+                                      const Icon(Icons.ondemand_video_rounded),
+                                  label: const Text('Play in App'),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: _openInYouTube,
+                                  icon: const Icon(Icons.open_in_new_rounded),
+                                  label: const Text('Open YouTube'),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
             ],
           ),
         ),

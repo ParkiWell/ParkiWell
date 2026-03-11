@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../navbar.dart';
 import '../singleton.dart';
+import '../utils/app_routes.dart';
 import '../theme/app_theme.dart';
 import '../utils/haptic_utils.dart';
 import '../widgets/modern_button.dart';
@@ -26,7 +27,6 @@ class _EditProfileScreenState extends State<EditProfileScreen>
   late final Animation<double> _fade;
 
   String image = 'images/711128.png';
-  bool _isLoading = false;
   bool _isGoogleLoading = false;
   int _step = 0;
 
@@ -42,11 +42,6 @@ class _EditProfileScreenState extends State<EditProfileScreen>
       parent: _fadeController,
       curve: Curves.easeOut,
     );
-
-    // From onboarding: go straight to sign-in (Google only).
-    if (widget.onComplete != null) {
-      _step = 1;
-    }
   }
 
   @override
@@ -58,7 +53,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
   }
 
   Future<void> _signInWithGoogle() async {
-    if (_isGoogleLoading || _isLoading) return;
+    if (_isGoogleLoading) return;
 
     if (!singleton.isCloudConfigured) {
       HapticUtils.error();
@@ -117,15 +112,16 @@ class _EditProfileScreenState extends State<EditProfileScreen>
       HapticUtils.success();
 
       await Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const Navbar()),
+        buildSubtleFadeRoute(page: const Navbar()),
         (route) => false,
       );
     } catch (e) {
       HapticUtils.error();
       if (!mounted) return;
+      final message = _friendlySignInMessage(e);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Google sign in failed: $e'),
+          content: Text(message),
           behavior: SnackBarBehavior.floating,
           backgroundColor: context.colors.error,
           shape:
@@ -137,6 +133,22 @@ class _EditProfileScreenState extends State<EditProfileScreen>
         setState(() => _isGoogleLoading = false);
       }
     }
+  }
+
+  String _friendlySignInMessage(Object error) {
+    final text = error.toString().toLowerCase();
+    if (text.contains('cancelled') || text.contains('canceled')) {
+      return 'Sign in was cancelled.';
+    }
+    if (text.contains('network') ||
+        text.contains('socket') ||
+        text.contains('connection')) {
+      return 'No internet connection. Please try again.';
+    }
+    if (text.contains('cloud') && text.contains('config')) {
+      return 'Cloud sign-in is not configured yet.';
+    }
+    return 'Google sign in failed. Please try again.';
   }
 
   void _goToForm() {
@@ -226,12 +238,20 @@ class _EditProfileScreenState extends State<EditProfileScreen>
           child: Column(
             children: [
               Text(
-                _step == 0 ? 'Welcome' : 'Sign In',
+                _step == 0 ? 'Info' : 'Sign In',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w700,
                     ),
               ),
               const SizedBox(height: 4),
+              Text(
+                _step == 0 ? 'Step 2 of 3' : 'Step 3 of 3',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: colors.textTertiary,
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
+              const SizedBox(height: 6),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: List.generate(2, (index) {
@@ -427,9 +447,8 @@ class _EditProfileScreenState extends State<EditProfileScreen>
             width: double.infinity,
             height: 52,
             child: FilledButton.icon(
-              onPressed: (cloudReady && !_isGoogleLoading && !_isLoading)
-                  ? _signInWithGoogle
-                  : null,
+              onPressed:
+                  (cloudReady && !_isGoogleLoading) ? _signInWithGoogle : null,
               icon: _isGoogleLoading
                   ? SizedBox(
                       width: 20,
@@ -494,7 +513,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
       return SizedBox(
         width: double.infinity,
         child: ModernButton(
-          text: 'Continue',
+          text: 'Continue to Sign In',
           icon: Icons.arrow_forward_rounded,
           onPressed: _goToForm,
         ),

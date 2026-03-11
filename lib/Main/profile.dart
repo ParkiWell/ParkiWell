@@ -26,25 +26,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> updateImage() async {
     HapticUtils.lightImpact();
     final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+    if (!mounted) return;
 
     if (pickedFile != null) {
       final previousImage = singleton.image;
       singleton.setImage(pickedFile.path);
 
       final updated = await singleton.updateUser(profileImage: pickedFile.path);
+      if (!mounted) return;
       if (!updated) {
         singleton.setImage(previousImage);
-        if (mounted) {
-          HapticUtils.error();
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Could not save profile image'),
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-            ),
-          );
-        }
+        HapticUtils.error();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Could not save profile image'),
+            behavior: SnackBarBehavior.floating,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
         return;
       }
 
@@ -86,19 +86,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
         },
       );
     } else {
-      final file = File(singleton.image);
-      if (file.existsSync()) {
-        return Image.file(
-          file,
-          fit: BoxFit.cover,
-          width: 86,
-          height: 86,
-          errorBuilder: (context, error, stackTrace) {
-            return _buildInitialsAvatar(colors);
-          },
-        );
-      }
-      return _buildInitialsAvatar(colors);
+      return Image.file(
+        File(singleton.image),
+        fit: BoxFit.cover,
+        width: 86,
+        height: 86,
+        errorBuilder: (context, error, stackTrace) {
+          return _buildInitialsAvatar(colors);
+        },
+      );
     }
   }
 
