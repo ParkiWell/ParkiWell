@@ -43,7 +43,9 @@ class _RecoveryScreenState extends State<RecoveryScreen> {
 
               // Progress stats
               _ProgressCard(
-                exercises: singleton.exerNum,
+                completed: singleton.completedRecoveryVideos,
+                total: singleton.totalRecoveryVideos,
+                progress: singleton.recoveryProgress,
                 colors: colors,
               ),
               const SizedBox(height: 24),
@@ -78,7 +80,7 @@ class _RecoveryScreenState extends State<RecoveryScreen> {
 
               // Exercise Card
               _RecoveryFeatureCard(
-                key: widget.exerciseCardKey,
+                cardKey: widget.exerciseCardKey,
                 icon: Icons.fitness_center_outlined,
                 title: 'Physical Exercises',
                 subtitle: 'Video-guided exercises for mobility and strength',
@@ -99,54 +101,101 @@ class _RecoveryScreenState extends State<RecoveryScreen> {
 }
 
 class _ProgressCard extends StatelessWidget {
-  final int exercises;
+  final int completed;
+  final int total;
+  final double progress;
   final AppColors colors;
 
   const _ProgressCard({
-    required this.exercises,
+    required this.completed,
+    required this.total,
+    required this.progress,
     required this.colors,
   });
 
   @override
   Widget build(BuildContext context) {
+    final safeTotal = total < 0 ? 0 : total;
+    final safeCompleted =
+        safeTotal == 0 ? 0 : completed.clamp(0, safeTotal).toInt();
+    final safeProgress = safeTotal == 0 ? 0.0 : progress.clamp(0.0, 1.0);
+    final progressPercent = (safeProgress * 100).round();
+    final remainingSessions = safeTotal - safeCompleted;
+
     return ModernCard(
-      padding: const EdgeInsets.all(16),
-      child: Row(
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Progress',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w500,
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Progress',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '$safeCompleted of $safeTotal sessions completed',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: colors.textSecondary,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: colors.surfaceVariant,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: colors.border),
+                ),
+                child: Text(
+                  '$progressPercent%',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: colors.textPrimary,
                       ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  '$exercises exercises completed',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: colors.textTertiary,
-                      ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
+          const SizedBox(height: 16),
           Container(
-            width: 48,
-            height: 48,
-            alignment: Alignment.center,
+            height: 10,
             decoration: BoxDecoration(
               color: colors.surfaceVariant,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(999),
             ),
-            child: Text(
-              '$exercises',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: FractionallySizedBox(
+                widthFactor: safeProgress,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: colors.primary,
+                    borderRadius: BorderRadius.circular(999),
                   ),
+                ),
+              ),
             ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            remainingSessions > 0
+                ? '$remainingSessions session${remainingSessions == 1 ? '' : 's'} left in this set.'
+                : 'All sessions completed. Keep your routine going.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: colors.textTertiary,
+                  fontWeight: FontWeight.w600,
+                ),
           ),
         ],
       ),
@@ -159,13 +208,14 @@ class _RecoveryFeatureCard extends StatelessWidget {
   final String title;
   final String subtitle;
   final VoidCallback onTap;
+  final GlobalKey? cardKey;
 
   const _RecoveryFeatureCard({
-    super.key,
     required this.icon,
     required this.title,
     required this.subtitle,
     required this.onTap,
+    this.cardKey,
   });
 
   @override
@@ -173,6 +223,7 @@ class _RecoveryFeatureCard extends StatelessWidget {
     final colors = context.colors;
 
     return ModernCard(
+      key: cardKey,
       onTap: onTap,
       padding: const EdgeInsets.all(16),
       child: Row(

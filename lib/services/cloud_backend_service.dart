@@ -295,6 +295,101 @@ class CloudBackendService {
     }
   }
 
+  Future<CloudAuthProfile?> signUpWithEmailPassword({
+    required String email,
+    required String password,
+  }) async {
+    if (!isConfigured) {
+      _lastInitializationError =
+          'Cloud backend is not configured for email sign-up.';
+      return null;
+    }
+    if (_client == null) {
+      await initialize();
+    }
+    if (_client == null) return null;
+
+    try {
+      final response = await _client!.auth.signUp(
+        email: email.trim(),
+        password: password,
+      );
+      final user = response.user ?? _client!.auth.currentUser;
+      if (user == null) return null;
+      final profile = _profileFromUser(user);
+      _cloudUserId = profile.userId;
+      _enabled = true;
+      _lastInitializationError = null;
+      return profile;
+    } catch (e, stackTrace) {
+      _lastInitializationError = e.toString();
+      _logger.error('Email sign-up failed', e, stackTrace);
+      return null;
+    }
+  }
+
+  Future<CloudAuthProfile?> signInWithEmailPassword({
+    required String email,
+    required String password,
+  }) async {
+    if (!isConfigured) {
+      _lastInitializationError =
+          'Cloud backend is not configured for email sign-in.';
+      return null;
+    }
+    if (_client == null) {
+      await initialize();
+    }
+    if (_client == null) return null;
+
+    try {
+      final response = await _client!.auth.signInWithPassword(
+        email: email.trim(),
+        password: password,
+      );
+      final user = response.user ?? _client!.auth.currentUser;
+      if (user == null) return null;
+      final profile = _profileFromUser(user);
+      _cloudUserId = profile.userId;
+      _enabled = true;
+      _lastInitializationError = null;
+      return profile;
+    } catch (e, stackTrace) {
+      _lastInitializationError = e.toString();
+      _logger.error('Email sign-in failed', e, stackTrace);
+      return null;
+    }
+  }
+
+  Future<bool?> isCurrentUserEmailVerified() async {
+    if (!isConfigured) return null;
+    if (_client == null) {
+      await initialize();
+    }
+    final user = _client?.auth.currentUser;
+    if (user == null) return null;
+    return user.emailConfirmedAt != null;
+  }
+
+  Future<bool> resendEmailVerification(String email) async {
+    if (!isConfigured) return false;
+    if (_client == null) {
+      await initialize();
+    }
+    if (_client == null) return false;
+
+    try {
+      await _client!.auth.resend(
+        type: OtpType.signup,
+        email: email.trim(),
+      );
+      return true;
+    } catch (e, stackTrace) {
+      _logger.error('Resend verification failed', e, stackTrace);
+      return false;
+    }
+  }
+
   Future<bool> signOut() async {
     if (_client == null) return false;
 

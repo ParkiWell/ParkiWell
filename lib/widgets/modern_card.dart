@@ -82,13 +82,13 @@ class _ModernCardState extends State<ModernCard> {
               (widget.showBorder
                   ? Border.all(
                       color: _isPressed
-                          ? colors.primary.withValues(alpha: 0.28)
-                          : colors.border.withValues(alpha: 0.9),
+                          ? colors.border.blend(colors.primary, 0.38)
+                          : colors.border,
                     )
                   : null),
           boxShadow: [
             BoxShadow(
-              color: colors.shadow.withValues(alpha: _isPressed ? 0.06 : 0.08),
+              color: colors.shadow,
               blurRadius: _isPressed ? 6 : 14,
               spreadRadius: 0,
               offset: Offset(0, _isPressed ? 2 : 4),
@@ -138,7 +138,7 @@ class FeatureCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: (iconColor ?? colors.primary).withValues(alpha: 0.12),
+              color: colors.surface.blend(iconColor ?? colors.primary, 0.14),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(

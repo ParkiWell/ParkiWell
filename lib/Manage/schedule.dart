@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../singleton.dart';
+import '../services/tutorial_targets.dart';
 import '../theme/app_theme.dart';
 import '../utils/haptic_utils.dart';
 import '../widgets/modern_button.dart';
@@ -117,6 +118,15 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                     ),
                     const SizedBox(width: 10),
                     ModernIconButton(
+                      icon: Icons.edit_outlined,
+                      backgroundColor: colors.secondary,
+                      onPressed: () async {
+                        Navigator.pop(c);
+                        await _showEditMedicationDialog(index);
+                      },
+                    ),
+                    const SizedBox(width: 10),
+                    ModernIconButton(
                       icon: Icons.delete_outline_rounded,
                       backgroundColor: colors.error,
                       onPressed: () async {
@@ -136,6 +146,98 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
         );
       },
     );
+  }
+
+  Future<void> _showEditMedicationDialog(int index) async {
+    if (index < 0 || index >= singleton.schedule.length) return;
+    final colors = context.colors;
+    final nameController = TextEditingController(text: name(index));
+    final detailsController = TextEditingController(text: detail(index));
+    final daysController = TextEditingController(text: schedule(index));
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext c) {
+        return Container(
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+          ),
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              20,
+              18,
+              20,
+              MediaQuery.of(context).viewInsets.bottom + 18,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Edit Medication',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: nameController,
+                  decoration:
+                      const InputDecoration(labelText: 'Medication Name'),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: detailsController,
+                  decoration: const InputDecoration(labelText: 'Details'),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: daysController,
+                  decoration: const InputDecoration(labelText: 'Schedule'),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ModernButton(
+                        text: 'Cancel',
+                        isOutlined: true,
+                        onPressed: () => Navigator.pop(c),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: ModernButton(
+                        text: 'Save',
+                        onPressed: () async {
+                          if (nameController.text.trim().isEmpty) return;
+                          await singleton.updateScheduleEntry(
+                            index,
+                            nameController.text.trim(),
+                            detailsController.text.trim(),
+                            daysController.text.trim(),
+                          );
+                          if (!mounted || !c.mounted) return;
+                          Navigator.pop(c);
+                          setState(() {});
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    nameController.dispose();
+    detailsController.dispose();
+    daysController.dispose();
   }
 
   Widget _buildSummary(AppColors colors) {
@@ -220,13 +322,16 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
             ? _buildEmptyState(colors)
             : _buildScheduleList(colors),
       ),
-      floatingActionButton: ModernFAB(
-        icon: Icons.add,
-        backgroundColor: colors.primaryDark,
-        onPressed: () =>
-            Navigator.popAndPushNamed(context, '/editScheduleScreen'),
-        extended: true,
-        label: 'Add Medication',
+      floatingActionButton: Container(
+        key: TutorialTargets.scheduleAddMedicationKey,
+        child: ModernFAB(
+          icon: Icons.add,
+          backgroundColor: colors.primaryDark,
+          onPressed: () =>
+              Navigator.popAndPushNamed(context, '/editScheduleScreen'),
+          extended: true,
+          label: 'Add Medication',
+        ),
       ),
     );
   }

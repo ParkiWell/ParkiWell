@@ -16,6 +16,7 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   final singleton = Singleton();
   final picker = ImagePicker();
+  bool? _emailVerified;
 
   void _onSingletonUpdate() {
     if (mounted) {
@@ -56,6 +57,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void initState() {
     super.initState();
     singleton.addListener(_onSingletonUpdate);
+    _refreshEmailVerificationStatus();
   }
 
   @override
@@ -68,6 +70,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return singleton.image.isNotEmpty &&
         singleton.image != 'images/711128.png' &&
         !singleton.image.contains('711128');
+  }
+
+  Future<void> _refreshEmailVerificationStatus() async {
+    final verified = await singleton.isCurrentUserEmailVerified();
+    if (!mounted) return;
+    setState(() => _emailVerified = verified);
+  }
+
+  Future<void> _resendVerificationEmail() async {
+    final currentEmail = singleton.email.trim();
+    if (currentEmail.isEmpty || !currentEmail.contains('@')) return;
+    final sent = await singleton.resendEmailVerification(currentEmail);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          sent
+              ? 'Verification email sent. Please check your inbox.'
+              : 'Could not send verification email right now.',
+        ),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   Widget _buildProfileImage(AppColors colors) {
@@ -135,6 +160,50 @@ class _ProfileScreenState extends State<ProfileScreen> {
       padding: const EdgeInsets.all(20),
       child: Column(
         children: [
+          if (_emailVerified == false) ...[
+            ModernCard(
+              padding: const EdgeInsets.all(14),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.warning_amber_rounded,
+                    color: colors.warning,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Email not verified',
+                          style:
+                              Theme.of(context).textTheme.titleSmall?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Please verify your email before posting in community features.',
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: colors.textSecondary,
+                                  ),
+                        ),
+                        const SizedBox(height: 6),
+                        TextButton(
+                          onPressed: _resendVerificationEmail,
+                          child: const Text('Resend verification email'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
           // Profile header
           _buildProfileHeader(colors),
           const SizedBox(height: 24),

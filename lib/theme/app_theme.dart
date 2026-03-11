@@ -105,12 +105,12 @@ class AppTheme {
       ),
       scaffoldBackgroundColor: lightColors.background,
       appBarTheme: AppBarTheme(
-        backgroundColor: Colors.transparent,
+        backgroundColor: lightColors.background,
         foregroundColor: lightColors.textPrimary,
         elevation: 0,
         scrolledUnderElevation: 0,
-        shadowColor: Colors.transparent,
-        surfaceTintColor: Colors.transparent,
+        shadowColor: lightColors.shadow,
+        surfaceTintColor: lightColors.background,
         centerTitle: false,
         systemOverlayStyle: SystemUiOverlayStyle.dark,
         titleTextStyle: GoogleFonts.plusJakartaSans(
@@ -231,11 +231,16 @@ class AppTheme {
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
         backgroundColor: lightColors.surface,
+        elevation: 0,
+        insetPadding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
         contentTextStyle: GoogleFonts.plusJakartaSans(
           color: lightColors.textPrimary,
           fontWeight: FontWeight.w600,
         ),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: BorderSide(color: lightColors.border),
+        ),
       ),
       textTheme: _buildTextTheme(lightColors),
     );
@@ -257,12 +262,12 @@ class AppTheme {
       ),
       scaffoldBackgroundColor: darkColors.background,
       appBarTheme: AppBarTheme(
-        backgroundColor: Colors.transparent,
+        backgroundColor: darkColors.background,
         foregroundColor: darkColors.textPrimary,
         elevation: 0,
         scrolledUnderElevation: 0,
-        shadowColor: Colors.transparent,
-        surfaceTintColor: Colors.transparent,
+        shadowColor: darkColors.shadow,
+        surfaceTintColor: darkColors.background,
         centerTitle: false,
         systemOverlayStyle: SystemUiOverlayStyle.light,
         titleTextStyle: GoogleFonts.plusJakartaSans(
@@ -383,11 +388,16 @@ class AppTheme {
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
         backgroundColor: darkColors.surface,
+        elevation: 0,
+        insetPadding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
         contentTextStyle: GoogleFonts.plusJakartaSans(
           color: darkColors.textPrimary,
           fontWeight: FontWeight.w600,
         ),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: BorderSide(color: darkColors.border),
+        ),
       ),
       textTheme: _buildTextTheme(darkColors),
     );
@@ -527,6 +537,12 @@ extension AppColorsExtension on BuildContext {
   }
 
   bool get isDarkMode => Theme.of(this).brightness == Brightness.dark;
+}
+
+extension SolidColorBlend on Color {
+  Color blend(Color other, [double amount = 0.5]) {
+    return Color.lerp(this, other, amount.clamp(0.0, 1.0))!;
+  }
 }
 
 // Compatibility for Flutter SDKs that do not expose Color.withValues.

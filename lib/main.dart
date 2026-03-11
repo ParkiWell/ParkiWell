@@ -140,11 +140,11 @@ class _MyAppState extends State<MyApp> {
     SystemChrome.setSystemUIOverlayStyle(
       singleton.colorMode == 0
           ? SystemUiOverlayStyle.dark.copyWith(
-              statusBarColor: Colors.transparent,
+              statusBarColor: AppTheme.lightColors.background,
               systemNavigationBarColor: AppTheme.lightColors.navBackground,
             )
           : SystemUiOverlayStyle.light.copyWith(
-              statusBarColor: Colors.transparent,
+              statusBarColor: AppTheme.darkColors.background,
               systemNavigationBarColor: AppTheme.darkColors.navBackground,
             ),
     );

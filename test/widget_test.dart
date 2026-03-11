@@ -68,8 +68,8 @@ void main() {
 
   testWidgets('App starts on onboarding for first-time users', (tester) async {
     await tester.pumpWidget(const MyApp());
-    expect(find.text('Step 1 of 3'), findsOneWidget);
-    expect(find.text('Continue'), findsOneWidget);
+    expect(find.text('Start Strong with Levio'), findsOneWidget);
+    expect(find.text('I already have an account'), findsOneWidget);
     await tester.pump(const Duration(milliseconds: 200));
   });
 

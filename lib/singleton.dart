@@ -213,6 +213,8 @@ class Singleton extends ChangeNotifier {
   String image = "images/711128.png";
   int postNum = 0;
   int exerNum = 0;
+  final Set<String> completedExerciseVideoIds = <String>{};
+  final Set<String> completedSpeechVideoIds = <String>{};
 
   // ID tracking
   List<String> logIDs = [];
@@ -312,6 +314,33 @@ class Singleton extends ChangeNotifier {
 
   void setExerNum(int e) {
     exerNum = e;
+    _persistLocalCache();
+    notifyListenersSafe();
+  }
+
+  int get totalRecoveryVideos => exercises.length + speeches.length;
+  int get completedRecoveryVideos =>
+      completedExerciseVideoIds.length + completedSpeechVideoIds.length;
+  double get recoveryProgress {
+    final total = totalRecoveryVideos;
+    if (total == 0) return 0;
+    return (completedRecoveryVideos / total).clamp(0, 1);
+  }
+
+  void markExerciseVideoCompleted(String videoId) {
+    final normalized = normalizeYouTubeVideoId(videoId);
+    if (normalized == null) return;
+    if (!completedExerciseVideoIds.add(normalized)) return;
+    exerNum = completedRecoveryVideos;
+    _persistLocalCache();
+    notifyListenersSafe();
+  }
+
+  void markSpeechVideoCompleted(String videoId) {
+    final normalized = normalizeYouTubeVideoId(videoId);
+    if (normalized == null) return;
+    if (!completedSpeechVideoIds.add(normalized)) return;
+    exerNum = completedRecoveryVideos;
     _persistLocalCache();
     notifyListenersSafe();
   }
@@ -508,6 +537,7 @@ class Singleton extends ChangeNotifier {
 
   bool get isCloudConnected => _cloud.isEnabled;
   bool get isCloudConfigured => _cloud.isConfigured;
+  String? get lastCloudError => _cloud.lastInitializationError;
   String get backendStatusDescription => _cloud.statusDescription;
   String? get cloudSessionUserId => _cloud.cloudUserId;
   bool get isOnline => _isOnline;
@@ -704,6 +734,10 @@ class Singleton extends ChangeNotifier {
         'first_time': firstTime,
         'page': page,
       },
+      'recovery_progress': <String, dynamic>{
+        'completed_exercise_video_ids': completedExerciseVideoIds.toList(),
+        'completed_speech_video_ids': completedSpeechVideoIds.toList(),
+      },
       'logs': List<Map<String, dynamic>>.generate(
         log.length,
         (index) => <String, dynamic>{
@@ -749,6 +783,28 @@ class Singleton extends ChangeNotifier {
       exerNum = (profileMap['exer_num'] as num?)?.toInt() ?? exerNum;
       firstTime = profileMap['first_time'] as bool? ?? firstTime;
       page = (profileMap['page'] as num?)?.toInt() ?? page;
+    }
+
+    final recoveryProgress = snapshot['recovery_progress'];
+    if (recoveryProgress is Map) {
+      final progressMap = Map<String, dynamic>.from(recoveryProgress);
+      completedExerciseVideoIds
+        ..clear()
+        ..addAll(
+          (progressMap['completed_exercise_video_ids'] as List<dynamic>? ??
+                  const <dynamic>[])
+              .map((id) => normalizeYouTubeVideoId(id.toString()) ?? '')
+              .where((id) => id.isNotEmpty),
+        );
+      completedSpeechVideoIds
+        ..clear()
+        ..addAll(
+          (progressMap['completed_speech_video_ids'] as List<dynamic>? ??
+                  const <dynamic>[])
+              .map((id) => normalizeYouTubeVideoId(id.toString()) ?? '')
+              .where((id) => id.isNotEmpty),
+        );
+      exerNum = completedRecoveryVideos;
     }
 
     log
@@ -958,6 +1014,28 @@ class Singleton extends ChangeNotifier {
     return _cloud.signInWithGoogle();
   }
 
+  Future<CloudAuthProfile?> signUpWithEmailPassword({
+    required String email,
+    required String password,
+  }) async {
+    return _cloud.signUpWithEmailPassword(email: email, password: password);
+  }
+
+  Future<CloudAuthProfile?> signInWithEmailPassword({
+    required String email,
+    required String password,
+  }) async {
+    return _cloud.signInWithEmailPassword(email: email, password: password);
+  }
+
+  Future<bool?> isCurrentUserEmailVerified() async {
+    return _cloud.isCurrentUserEmailVerified();
+  }
+
+  Future<bool> resendEmailVerification(String email) async {
+    return _cloud.resendEmailVerification(email);
+  }
+
   Future<bool> syncNow({bool includeCommunity = true}) async {
     if (_isSyncInProgress) return false;
 
@@ -1065,6 +1143,31 @@ class Singleton extends ChangeNotifier {
       return true;
     } catch (e, stackTrace) {
       _logger.error('Error syncing authenticated user', e, stackTrace);
+      return false;
+    }
+  }
+
+  /// Create a local-only profile when cloud is not configured (e.g. email signup without backend).
+  Future<bool> createLocalOnlyUser({
+    required String displayName,
+    String? userEmail,
+    String? profileImage,
+  }) async {
+    try {
+      final uid = _uuid.v4();
+      await setUID(uid);
+      name = _normalizedDisplayName(displayName);
+      email = (userEmail != null && userEmail.trim().isNotEmpty)
+          ? userEmail.trim()
+          : '[Email]';
+      image = _effectiveProfileImage(profileImage ?? image);
+      firstTime = false;
+      await _persistLocalCache();
+      notifyListenersSafe();
+      _logger.info('Local-only user created');
+      return true;
+    } catch (e, stackTrace) {
+      _logger.error('Error creating local user', e, stackTrace);
       return false;
     }
   }

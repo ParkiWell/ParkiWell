@@ -152,7 +152,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          synced ? 'Sync complete' : 'Sync unavailable, using local cache',
+          synced ? 'Sync complete' : 'Unable to sync right now.',
         ),
       ),
     );

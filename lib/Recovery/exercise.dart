@@ -202,7 +202,7 @@ class _ExerciseScreenState extends State<ExerciseScreen>
                           curve: Curves.easeOutCubic,
                         ),
                       )),
-                      child: KeyedSubtree(
+                      child: Container(
                         key: index == 0
                             ? TutorialTargets.firstExerciseCardKey
                             : null,
@@ -219,7 +219,9 @@ class _ExerciseScreenState extends State<ExerciseScreen>
                               'https://img.youtube.com/vi/${urls[index]}/hqdefault.jpg',
                           onTap: () {
                             HapticUtils.cardTap();
-                            singleton.setCurrentUrl(urls[index]);
+                            final videoId = urls[index];
+                            singleton.markExerciseVideoCompleted(videoId);
+                            singleton.setCurrentUrl(videoId);
                             Navigator.popAndPushNamed(
                                 context, '/exerciseVideoScreen');
                           },
@@ -261,6 +263,7 @@ class _ExerciseCard extends StatefulWidget {
 class _ExerciseCardState extends State<_ExerciseCard> {
   bool _isPressed = false;
   bool _useFallbackThumbnail = false;
+  static final RegExp _durationPattern = RegExp(r'^(\d{1,2}:)?\d{1,2}:\d{2}$');
 
   @override
   Widget build(BuildContext context) {
@@ -359,7 +362,8 @@ class _ExerciseCardState extends State<_ExerciseCard> {
                     ),
                   ),
                   // Duration badge
-                  if (widget.duration.isNotEmpty)
+                  if (widget.duration.isNotEmpty &&
+                      _durationPattern.hasMatch(widget.duration))
                     Positioned(
                       bottom: 12,
                       left: 12,
@@ -425,7 +429,7 @@ class _ExerciseCardState extends State<_ExerciseCard> {
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: colors.textSecondary,
                         ),
-                    maxLines: 2,
+                    maxLines: 3,
                     overflow: TextOverflow.ellipsis,
                   ),
                   if (widget.source.isNotEmpty) ...[

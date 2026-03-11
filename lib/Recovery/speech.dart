@@ -209,6 +209,7 @@ class _SpeechScreenState extends State<SpeechScreen>
                           'https://img.youtube.com/vi/$videoId/hqdefault.jpg',
                       onTap: () {
                         HapticUtils.cardTap();
+                        singleton.markSpeechVideoCompleted(videoId);
                         singleton.setCurrentUrl(videoId);
                         Navigator.popAndPushNamed(context, '/speechAudio');
                       },
@@ -248,6 +249,7 @@ class _SpeechVideoCard extends StatefulWidget {
 class _SpeechVideoCardState extends State<_SpeechVideoCard> {
   bool _isPressed = false;
   bool _useFallbackThumbnail = false;
+  static final RegExp _durationPattern = RegExp(r'^(\d{1,2}:)?\d{1,2}:\d{2}$');
 
   @override
   Widget build(BuildContext context) {
@@ -349,7 +351,8 @@ class _SpeechVideoCardState extends State<_SpeechVideoCard> {
                     ),
                   ),
                   // Duration badge
-                  if (widget.duration.isNotEmpty)
+                  if (widget.duration.isNotEmpty &&
+                      _durationPattern.hasMatch(widget.duration))
                     Positioned(
                       bottom: 12,
                       left: 12,
@@ -433,7 +436,7 @@ class _SpeechVideoCardState extends State<_SpeechVideoCard> {
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: colors.textSecondary,
                         ),
-                    maxLines: 2,
+                    maxLines: 3,
                     overflow: TextOverflow.ellipsis,
                   ),
                   if (widget.source.isNotEmpty) ...[

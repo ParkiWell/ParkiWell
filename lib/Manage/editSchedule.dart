@@ -326,7 +326,7 @@ class _EditScheduleScreenState extends State<EditScheduleScreen>
                                   ),
                         ),
                         const SizedBox(height: 8),
-                        KeyedSubtree(
+                        Container(
                           key: TutorialTargets.medicationNameInputKey,
                           child: ModernTextField(
                             controller: _nameController,
@@ -408,7 +408,7 @@ class _EditScheduleScreenState extends State<EditScheduleScreen>
                   const SizedBox(height: 14),
                   SizedBox(
                     width: double.infinity,
-                    child: KeyedSubtree(
+                    child: Container(
                       key: TutorialTargets.saveMedicationButtonKey,
                       child: ElevatedButton.icon(
                         onPressed: _isLoading ? null : _submitSchedule,
@@ -457,46 +457,34 @@ class _SelectionChip extends StatefulWidget {
 }
 
 class _SelectionChipState extends State<_SelectionChip> {
-  bool _pressed = false;
-
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     final selected = widget.selected;
 
     return GestureDetector(
-      onTapDown: (_) => setState(() => _pressed = true),
-      onTapUp: (_) => setState(() => _pressed = false),
-      onTapCancel: () => setState(() => _pressed = false),
       onTap: widget.onTap,
-      child: AnimatedScale(
-        scale: _pressed ? 0.96 : 1.0,
-        duration: const Duration(milliseconds: 100),
-        curve: Curves.easeOut,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeOutCubic,
-          padding: EdgeInsets.symmetric(
-            horizontal: widget.compact ? 12 : 14,
-            vertical: widget.compact ? 8 : 9,
+      child: Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: widget.compact ? 12 : 14,
+          vertical: widget.compact ? 8 : 9,
+        ),
+        decoration: BoxDecoration(
+          color: selected
+              ? colors.primary.withValues(alpha: 0.12)
+              : colors.surfaceVariant,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: selected ? colors.primary : colors.border,
+            width: selected ? 1.5 : 1,
           ),
-          decoration: BoxDecoration(
-            color: selected
-                ? colors.primary.withValues(alpha: 0.12)
-                : colors.surfaceVariant,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: selected ? colors.primary : colors.border,
-              width: selected ? 1.5 : 1,
-            ),
-          ),
-          child: Text(
-            widget.label,
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: selected ? colors.primary : colors.textSecondary,
-                  fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
-                ),
-          ),
+        ),
+        child: Text(
+          widget.label,
+          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                color: selected ? colors.primary : colors.textSecondary,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+              ),
         ),
       ),
     );

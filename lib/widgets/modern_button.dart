@@ -53,6 +53,7 @@ class _ModernButtonState extends State<ModernButton> {
     final colors = context.colors;
     final backgroundColor = widget.backgroundColor ?? colors.primary;
     final textColor = widget.textColor ?? colors.textOnPrimary;
+    final pressedBackground = backgroundColor.blend(colors.primaryDark, 0.08);
 
     final gradient = widget.isOutlined
         ? null
@@ -61,7 +62,7 @@ class _ModernButtonState extends State<ModernButton> {
             end: Alignment.bottomRight,
             colors: [
               backgroundColor,
-              Color.lerp(backgroundColor, colors.primaryLight, 0.35)!,
+              backgroundColor.blend(colors.primaryLight, 0.35),
             ],
           );
 
@@ -90,8 +91,8 @@ class _ModernButtonState extends State<ModernButton> {
         decoration: BoxDecoration(
           color: widget.isOutlined
               ? (_isPressed
-                  ? colors.surfaceVariant.withValues(alpha: 0.7)
-                  : Colors.transparent)
+                  ? colors.surface.blend(colors.primary, 0.08)
+                  : colors.surfaceVariant)
               : null,
           gradient: widget.isOutlined
               ? null
@@ -100,23 +101,23 @@ class _ModernButtonState extends State<ModernButton> {
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [
-                        backgroundColor.withValues(alpha: 0.94),
-                        Color.lerp(backgroundColor, colors.primaryLight, 0.35)!
-                            .withValues(alpha: 0.94),
+                        pressedBackground,
+                        pressedBackground.blend(colors.primaryLight, 0.18),
                       ],
                     )
                   : gradient),
           borderRadius: BorderRadius.circular(14),
           border: widget.isOutlined
               ? Border.all(
-                  color: colors.border.withValues(alpha: 0.9), width: 1)
+                  color: colors.border.blend(colors.primary, 0.12),
+                  width: 1,
+                )
               : null,
           boxShadow: widget.isOutlined
               ? null
               : [
                   BoxShadow(
-                    color: backgroundColor.withValues(
-                        alpha: _isPressed ? 0.22 : 0.3),
+                    color: colors.shadow.blend(backgroundColor, 0.18),
                     blurRadius: _isPressed ? 8 : 16,
                     offset: Offset(0, _isPressed ? 4 : 8),
                   ),
@@ -213,14 +214,16 @@ class _ModernIconButtonState extends State<ModernIconButton> {
         decoration: BoxDecoration(
           color: _isPressed
               ? (widget.backgroundColor ?? colors.primary)
-                  .withValues(alpha: 0.9)
+                  .blend(colors.primaryDark, 0.08)
               : widget.backgroundColor ?? colors.primary,
           shape: widget.isCircle ? BoxShape.circle : BoxShape.rectangle,
           borderRadius: widget.isCircle ? null : BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: (widget.backgroundColor ?? colors.primary)
-                  .withValues(alpha: 0.3),
+              color: colors.shadow.blend(
+                widget.backgroundColor ?? colors.primary,
+                0.18,
+              ),
               blurRadius: 12,
               offset: const Offset(0, 6),
             ),
@@ -291,21 +294,21 @@ class _ModernFABState extends State<ModernFAB> {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              (_isPressed
-                      ? (widget.backgroundColor ?? colors.primary)
-                          .withValues(alpha: 0.9)
-                      : widget.backgroundColor ?? colors.primary)
-                  .withValues(alpha: 0.98),
-              Color.lerp(widget.backgroundColor ?? colors.primary,
-                      colors.primaryLight, 0.35)!
-                  .withValues(alpha: 0.98),
+              _isPressed
+                  ? (widget.backgroundColor ?? colors.primary)
+                      .blend(colors.primaryDark, 0.08)
+                  : widget.backgroundColor ?? colors.primary,
+              (widget.backgroundColor ?? colors.primary)
+                  .blend(colors.primaryLight, 0.35),
             ],
           ),
           borderRadius: BorderRadius.circular(14),
           boxShadow: [
             BoxShadow(
-              color: (widget.backgroundColor ?? colors.primary)
-                  .withValues(alpha: 0.3),
+              color: colors.shadow.blend(
+                widget.backgroundColor ?? colors.primary,
+                0.2,
+              ),
               blurRadius: 16,
               offset: const Offset(0, 8),
             ),

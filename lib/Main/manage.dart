@@ -1,15 +1,13 @@
 import 'package:flutter/material.dart';
 
+import '../services/tutorial_targets.dart';
 import '../singleton.dart';
 import '../theme/app_theme.dart';
 import '../utils/haptic_utils.dart';
 import '../widgets/modern_card.dart';
 
 class ManageScreen extends StatefulWidget {
-  final GlobalKey? addMedicationKey;
-  final GlobalKey? logSymptomKey;
-
-  const ManageScreen({super.key, this.addMedicationKey, this.logSymptomKey});
+  const ManageScreen({super.key});
 
   @override
   State<ManageScreen> createState() => _ManageScreenState();
@@ -193,32 +191,28 @@ class _ManageScreenState extends State<ManageScreen> {
             Row(
               children: [
                 Expanded(
-                  child: KeyedSubtree(
-                    key: widget.logSymptomKey,
-                    child: _QuickAction(
-                      icon: Icons.add_chart_rounded,
-                      label: 'Log Symptom',
-                      accentColor: colors.primary,
-                      onTap: () {
-                        HapticUtils.lightImpact();
-                        Navigator.pushNamed(context, '/editLogScreen');
-                      },
-                    ),
+                  child: _QuickAction(
+                    cardKey: TutorialTargets.logSymptomQuickActionKey,
+                    icon: Icons.add_chart_rounded,
+                    label: 'Log Symptom',
+                    accentColor: colors.primary,
+                    onTap: () {
+                      HapticUtils.lightImpact();
+                      Navigator.pushNamed(context, '/editLogScreen');
+                    },
                   ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: KeyedSubtree(
-                    key: widget.addMedicationKey,
-                    child: _QuickAction(
-                      icon: Icons.add_alarm_rounded,
-                      label: 'Add Medication',
-                      accentColor: colors.secondary,
-                      onTap: () {
-                        HapticUtils.lightImpact();
-                        Navigator.pushNamed(context, '/editScheduleScreen');
-                      },
-                    ),
+                  child: _QuickAction(
+                    cardKey: TutorialTargets.addMedicationQuickActionKey,
+                    icon: Icons.add_alarm_rounded,
+                    label: 'Add Medication',
+                    accentColor: colors.secondary,
+                    onTap: () {
+                      HapticUtils.lightImpact();
+                      Navigator.pushNamed(context, '/editScheduleScreen');
+                    },
                   ),
                 ),
               ],
@@ -249,6 +243,7 @@ class _ManageScreenState extends State<ManageScreen> {
               subtitle: 'Set reminders and track your medications',
               statValue: '$totalMeds',
               statLabel: 'scheduled',
+              cardKey: TutorialTargets.medicationsToolCardKey,
               onTap: () {
                 HapticUtils.lightImpact();
                 Navigator.pushNamed(context, '/scheduleScreen');
@@ -267,12 +262,14 @@ class _QuickAction extends StatelessWidget {
   final String label;
   final Color accentColor;
   final VoidCallback onTap;
+  final GlobalKey? cardKey;
 
   const _QuickAction({
     required this.icon,
     required this.label,
     required this.accentColor,
     required this.onTap,
+    this.cardKey,
   });
 
   @override
@@ -280,6 +277,7 @@ class _QuickAction extends StatelessWidget {
     final colors = context.colors;
 
     return ModernCard(
+      key: cardKey,
       onTap: onTap,
       backgroundColor: colors.cardBackground,
       border: Border.all(color: colors.border),
@@ -377,6 +375,7 @@ class _ManageFeatureCard extends StatelessWidget {
   final String statValue;
   final String statLabel;
   final VoidCallback onTap;
+  final GlobalKey? cardKey;
 
   const _ManageFeatureCard({
     required this.icon,
@@ -385,6 +384,7 @@ class _ManageFeatureCard extends StatelessWidget {
     required this.statValue,
     required this.statLabel,
     required this.onTap,
+    this.cardKey,
   });
 
   @override
@@ -392,6 +392,7 @@ class _ManageFeatureCard extends StatelessWidget {
     final colors = context.colors;
 
     return ModernCard(
+      key: cardKey,
       onTap: onTap,
       padding: const EdgeInsets.all(16),
       child: Row(

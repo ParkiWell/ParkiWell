@@ -48,24 +48,19 @@ class TutorialTooltip extends StatelessWidget {
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                SizedBox(
-                  width: 140,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(999),
-                    child: LinearProgressIndicator(
-                      minHeight: 4,
-                      value: safeStep / safeTotal,
-                      backgroundColor: colors.surfaceVariant,
-                      valueColor: AlwaysStoppedAnimation<Color>(colors.primary),
-                    ),
-                  ),
+            SizedBox(
+              width: 170,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(999),
+                child: LinearProgressIndicator(
+                  minHeight: 4,
+                  value: safeStep / safeTotal,
+                  backgroundColor: colors.surfaceVariant,
+                  valueColor: AlwaysStoppedAnimation<Color>(colors.primary),
                 ),
-              ],
+              ),
             ),
             const SizedBox(height: 14),
             Text(

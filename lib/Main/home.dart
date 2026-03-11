@@ -32,7 +32,7 @@ class _HomeScreenState extends State<HomeScreen> {
         content: Text(
           synced
               ? 'Data synced successfully'
-              : 'Sync unavailable. Your local data is still available.',
+              : 'Unable to sync right now. Please try again later.',
         ),
         behavior: SnackBarBehavior.floating,
       ),
@@ -122,88 +122,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
         if (showSyncCard) const SizedBox(height: 12),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
-          child: Row(
-            children: [
-              Expanded(
-                child: ModernCard(
-                  margin: EdgeInsets.zero,
-                  onTap: () => Navigator.pushNamed(context, '/editLogScreen'),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                  borderRadius: 14,
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: colors.primary.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Icon(
-                          Icons.add_chart_rounded,
-                          color: colors.primary,
-                          size: 20,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          'Log symptom',
-                          style:
-                              Theme.of(context).textTheme.titleSmall?.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                    color: colors.textPrimary,
-                                  ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ModernCard(
-                  margin: EdgeInsets.zero,
-                  onTap: () =>
-                      Navigator.pushNamed(context, '/editScheduleScreen'),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                  borderRadius: 14,
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: colors.secondary.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Icon(
-                          Icons.add_alarm_rounded,
-                          color: colors.secondary,
-                          size: 20,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          'Add medication',
-                          style:
-                              Theme.of(context).textTheme.titleSmall?.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                    color: colors.textPrimary,
-                                  ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 6),
         const Expanded(
           child: LineChartSample1(),
         ),

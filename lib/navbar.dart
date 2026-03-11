@@ -7,6 +7,7 @@ import 'Main/manage.dart';
 import 'Main/recovery.dart';
 import 'Main/community.dart';
 import 'Main/profile.dart';
+import 'Manage/schedule.dart';
 import 'services/tutorial_targets.dart';
 import 'services/tutorial_service.dart';
 import 'singleton.dart';
@@ -27,6 +28,8 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
   final singleton = Singleton();
   final tutorialService = TutorialService();
   int currentIndex = 0;
+  int _previousIndex = 0;
+  bool _tabTransitionMovesForward = true;
   bool button = false;
   bool addPost = false;
   bool editProfile = false;
@@ -41,17 +44,12 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
   final GlobalKey _settingsKey = GlobalKey();
   final GlobalKey _fabKey = GlobalKey();
   final GlobalKey _exerciseCardKey = GlobalKey();
-  final GlobalKey _addMedicationKey = GlobalKey();
-  final GlobalKey _logSymptomKey = GlobalKey();
   final List<GlobalKey> _navItemKeys =
       List<GlobalKey>.generate(5, (_) => GlobalKey());
 
   late final List<Widget> _tabs = [
     const HomeScreen(),
-    ManageScreen(
-      addMedicationKey: _addMedicationKey,
-      logSymptomKey: _logSymptomKey,
-    ),
+    const ManageScreen(),
     RecoveryScreen(exerciseCardKey: _exerciseCardKey),
     const CommunityScreen(),
     const ProfileScreen(),
@@ -92,6 +90,7 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
   void initState() {
     super.initState();
     currentIndex = singleton.page;
+    _previousIndex = currentIndex;
     singleton.addListener(_onSingletonPageChange);
     if (currentIndex == 3 || currentIndex == 4) checkTab();
 
@@ -149,49 +148,36 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
 
   void _onTabTapped(int index) {
     HapticUtils.selectionClick();
-    setState(() {
-      currentIndex = index;
-      singleton.setPage(index);
-      button = false;
-      if (currentIndex == 3 || currentIndex == 4) {
-        checkTab();
-        _fabAnimationController.forward(from: 0);
-      } else {
-        _fabAnimationController.reverse();
-      }
-    });
+    _setCurrentIndex(index, syncSingleton: true);
   }
 
   void _switchTabForTutorial(int index) {
     if (!mounted) return;
-    if (currentIndex == index) return;
-
-    setState(() {
-      currentIndex = index;
-      singleton.setPage(index);
-      button = false;
-      if (currentIndex == 3 || currentIndex == 4) {
-        checkTab();
-        _fabAnimationController.forward(from: 0);
-      } else {
-        _fabAnimationController.reverse();
-      }
-    });
+    _setCurrentIndex(index, syncSingleton: true);
   }
 
   void _onSingletonPageChange() {
     if (!mounted) return;
     final targetIndex = singleton.page;
+    _setCurrentIndex(targetIndex, syncSingleton: false);
+  }
+
+  void _setCurrentIndex(int index, {required bool syncSingleton}) {
+    if (index == currentIndex) return;
+
     setState(() {
-      if (targetIndex != currentIndex) {
-        currentIndex = targetIndex;
-        button = false;
-        if (currentIndex == 3 || currentIndex == 4) {
-          checkTab();
-          _fabAnimationController.forward(from: 0);
-        } else {
-          _fabAnimationController.reverse();
-        }
+      _previousIndex = currentIndex;
+      _tabTransitionMovesForward = index > currentIndex;
+      currentIndex = index;
+      if (syncSingleton) {
+        singleton.setPage(index);
+      }
+      button = false;
+      if (currentIndex == 3 || currentIndex == 4) {
+        checkTab();
+        _fabAnimationController.forward(from: 0);
+      } else {
+        _fabAnimationController.reverse();
       }
     });
   }
@@ -207,7 +193,7 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
         targetKey: _navItemKeys[0],
         title: 'Home Dashboard',
         description:
-            'Your home for symptom and medication trends and daily overview cards.',
+            'Home shows your symptom and medication trend graphs at a glance.',
         onStepStarted: () {
           _popToNavbarRoot();
           _switchTabForTutorial(0);
@@ -224,7 +210,7 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
         },
       ),
       TutorialStep(
-        targetKey: _logSymptomKey,
+        targetKey: TutorialTargets.logSymptomQuickActionKey,
         title: 'Start Symptom Entry',
         description:
             'Tap Log Symptom to open the symptom form and capture what you felt.',
@@ -239,8 +225,12 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
         description:
             'Enter the symptom details here, then choose severity and time.',
         onStepStarted: () {
+          _popToNavbarRoot();
           _switchTabForTutorial(1);
-          Navigator.of(context).pushNamed('/editLogScreen');
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            Navigator.of(context).pushNamed('/editLogScreen');
+          });
         },
       ),
       TutorialStep(
@@ -250,7 +240,7 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
             'When details are ready, save the entry to track symptom trends.',
       ),
       TutorialStep(
-        targetKey: _addMedicationKey,
+        targetKey: TutorialTargets.addMedicationQuickActionKey,
         title: 'Start Medication Entry',
         description:
             'Next, open Add Medication to create a medication schedule.',
@@ -265,8 +255,12 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
         description:
             'Enter medication name, then choose templates or select specific days.',
         onStepStarted: () {
+          _popToNavbarRoot();
           _switchTabForTutorial(1);
-          Navigator.of(context).pushNamed('/editScheduleScreen');
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            Navigator.of(context).pushNamed('/editScheduleScreen');
+          });
         },
       ),
       TutorialStep(
@@ -274,6 +268,32 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
         title: 'Save Medication',
         description:
             'Save to add this medication schedule to your weekly plan.',
+      ),
+      TutorialStep(
+        targetKey: TutorialTargets.medicationsToolCardKey,
+        title: 'Open Medication List',
+        description:
+            'Open Medications to review saved schedules and details in one place.',
+        onStepStarted: () {
+          _popToNavbarRoot();
+          _switchTabForTutorial(1);
+        },
+      ),
+      TutorialStep(
+        targetKey: TutorialTargets.scheduleAddMedicationKey,
+        title: 'Add from Medication View',
+        description:
+            'Use this button in Medications to quickly add another schedule.',
+        onStepStarted: () {
+          _popToNavbarRoot();
+          _switchTabForTutorial(1);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            Navigator.of(context).push(
+              buildSubtleFadeRoute(page: const ScheduleScreen()),
+            );
+          });
+        },
       ),
       TutorialStep(
         targetKey: _navItemKeys[2],
@@ -301,10 +321,14 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
         description:
             'Pick a lesson card to open its guided exercise video player.',
         onStepStarted: () {
+          _popToNavbarRoot();
           _switchTabForTutorial(2);
-          Navigator.of(context).push(
-            buildSubtleFadeRoute(page: const ExerciseScreen()),
-          );
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            Navigator.of(context).push(
+              buildSubtleFadeRoute(page: const ExerciseScreen()),
+            );
+          });
         },
       ),
       TutorialStep(
@@ -313,12 +337,17 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
         description:
             'Use this player to follow the movement routine step by step.',
         onStepStarted: () {
+          _popToNavbarRoot();
           final firstExerciseId = singleton.exercises.keys.isNotEmpty
               ? singleton.exercises.keys.first
               : '';
           if (firstExerciseId.isEmpty) return;
           singleton.setCurrentUrl(firstExerciseId);
-          Navigator.of(context).pushNamed('/exerciseVideoScreen');
+          _switchTabForTutorial(2);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            Navigator.of(context).pushNamed('/exerciseVideoScreen');
+          });
         },
       ),
       TutorialStep(
@@ -402,7 +431,7 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
     return Container(
       width: 36,
       height: 36,
-      color: colors.primary.withValues(alpha: 0.15),
+      color: colors.surface.blend(colors.primary, 0.14),
       child: Center(
         child: Text(
           initial,
@@ -428,7 +457,10 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+      backgroundColor: colors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+      ),
       builder: (BuildContext c) {
         return Container(
           padding: EdgeInsets.only(
@@ -548,50 +580,13 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
         appBar: _buildAppBar(colors),
         body: Column(
           children: [
-            if (singleton.isCloudConfigured && !singleton.isOnline)
-              _buildConnectionBanner(colors),
             Expanded(
-              child: IndexedStack(
-                index: currentIndex,
-                children: _tabs,
-              ),
+              child: _buildAnimatedTabBody(),
             ),
           ],
         ),
         bottomNavigationBar: _buildBottomNavBar(colors),
         floatingActionButton: _buildFAB(colors),
-      ),
-    );
-  }
-
-  Widget _buildConnectionBanner(AppColors colors) {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: colors.warning.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: colors.warning.withValues(alpha: 0.45)),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            Icons.wifi_off_rounded,
-            size: 16,
-            color: colors.warning,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              'Offline mode: showing local data',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: colors.warning,
-                    fontWeight: FontWeight.w700,
-                  ),
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -607,13 +602,34 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
         padding: const EdgeInsets.only(left: 14),
         child: Row(
           children: [
-            Container(
-              key: _titleKey,
-              child: Text(
-                navItems[currentIndex].label,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
+            ClipRect(
+              child: Container(
+                key: _titleKey,
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 180),
+                  switchInCurve: Curves.easeOutCubic,
+                  switchOutCurve: Curves.easeOutCubic,
+                  layoutBuilder: (currentChild, _) {
+                    return currentChild ?? const SizedBox.shrink();
+                  },
+                  transitionBuilder: (child, animation) => FadeTransition(
+                    opacity: animation,
+                    child: SlideTransition(
+                      position: Tween<Offset>(
+                        begin: const Offset(0.06, 0),
+                        end: Offset.zero,
+                      ).animate(animation),
+                      child: child,
                     ),
+                  ),
+                  child: Text(
+                    navItems[currentIndex].label,
+                    key: ValueKey<int>(currentIndex),
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                ),
               ),
             ),
           ],
@@ -662,8 +678,7 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
       decoration: BoxDecoration(
         color: colors.background,
         border: Border(
-          top:
-              BorderSide(color: colors.border.withValues(alpha: 0.8), width: 1),
+          top: BorderSide(color: colors.border, width: 1),
         ),
       ),
       child: SafeArea(
@@ -689,6 +704,51 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
     );
   }
 
+  Widget _buildAnimatedTabBody() {
+    final colors = context.colors;
+    final visibleIndices = <int>[
+      if (_previousIndex != currentIndex) _previousIndex,
+      currentIndex,
+    ];
+
+    return ClipRect(
+      child: Stack(
+        fit: StackFit.expand,
+        children: visibleIndices.map((index) {
+          final isCurrent = index == currentIndex;
+
+          Offset targetOffset;
+          if (isCurrent) {
+            targetOffset = Offset.zero;
+          } else {
+            targetOffset = _tabTransitionMovesForward
+                ? const Offset(-0.025, 0)
+                : const Offset(0.025, 0);
+          }
+
+          return TickerMode(
+            key: ValueKey<int>(index),
+            enabled: true,
+            child: IgnorePointer(
+              ignoring: !isCurrent,
+              child: AnimatedSlide(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutCubic,
+                offset: targetOffset,
+                child: RepaintBoundary(
+                  child: ColoredBox(
+                    color: colors.background,
+                    child: _tabs[index],
+                  ),
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
   Widget _buildNavItem(
     _NavItem item,
     bool isSelected,
@@ -696,55 +756,42 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
     GlobalKey itemKey,
     VoidCallback onTap,
   ) {
-    return KeyedSubtree(
-      key: itemKey,
-      child: GestureDetector(
-        onTap: onTap,
-        behavior: HitTestBehavior.opaque,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              AnimatedScale(
-                scale: isSelected ? 1.06 : 1.0,
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        key: itemKey,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AnimatedScale(
+              scale: isSelected ? 1.06 : 1.0,
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOutCubic,
+              child: AnimatedSwitcher(
                 duration: const Duration(milliseconds: 180),
-                curve: Curves.easeOutCubic,
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 180),
-                  child: Icon(
-                    isSelected ? item.activeIcon : item.icon,
-                    key: ValueKey(isSelected),
-                    color: isSelected ? colors.primary : colors.navUnselected,
-                    size: 20,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 3),
-              AnimatedDefaultTextStyle(
-                duration: const Duration(milliseconds: 200),
-                style: (Theme.of(context).textTheme.labelSmall ??
-                        const TextStyle())
-                    .copyWith(
+                child: Icon(
+                  isSelected ? item.activeIcon : item.icon,
+                  key: ValueKey(isSelected),
                   color: isSelected ? colors.primary : colors.navUnselected,
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                  fontSize: 9,
-                ),
-                child: Text(item.label),
-              ),
-              const SizedBox(height: 2),
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 250),
-                curve: Curves.easeOutCubic,
-                width: isSelected ? 16 : 0,
-                height: 2.5,
-                decoration: BoxDecoration(
-                  color: isSelected ? colors.primary : Colors.transparent,
-                  borderRadius: BorderRadius.circular(2),
+                  size: 20,
                 ),
               ),
-            ],
-          ),
+            ),
+            const SizedBox(height: 3),
+            AnimatedDefaultTextStyle(
+              duration: const Duration(milliseconds: 200),
+              style:
+                  (Theme.of(context).textTheme.labelSmall ?? const TextStyle())
+                      .copyWith(
+                color: isSelected ? colors.primary : colors.navUnselected,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                fontSize: 9,
+              ),
+              child: Text(item.label),
+            ),
+          ],
         ),
       ),
     );

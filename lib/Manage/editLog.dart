@@ -429,7 +429,7 @@ class _EditLogScreenState extends State<EditLogScreen>
                           style: Theme.of(context).textTheme.titleSmall,
                         ),
                         const SizedBox(height: 10),
-                        KeyedSubtree(
+                        Container(
                           key: TutorialTargets.symptomInputKey,
                           child: ModernTextField(
                             controller: _symptomController,
@@ -455,7 +455,7 @@ class _EditLogScreenState extends State<EditLogScreen>
                   const SizedBox(height: 12),
                   SizedBox(
                     width: double.infinity,
-                    child: KeyedSubtree(
+                    child: Container(
                       key: TutorialTargets.saveSymptomButtonKey,
                       child: ModernButton(
                         text: 'Save Symptom',
@@ -492,6 +492,21 @@ class _DateTimePickerSheet extends StatefulWidget {
 }
 
 class _DateTimePickerSheetState extends State<_DateTimePickerSheet> {
+  static const List<int> _minuteOptions = <int>[
+    0,
+    5,
+    10,
+    15,
+    20,
+    25,
+    30,
+    35,
+    40,
+    45,
+    50,
+    55,
+  ];
+
   late DateTime _date;
   late int _hour12;
   late int _minute;
@@ -508,12 +523,23 @@ class _DateTimePickerSheetState extends State<_DateTimePickerSheet> {
   @override
   void initState() {
     super.initState();
-    _date =
-        DateTime(widget.initial.year, widget.initial.month, widget.initial.day);
-    final h = widget.initial.hour;
+    final initialMinute = widget.initial.minute - (widget.initial.minute % 5);
+    final normalizedInitial = DateTime(
+      widget.initial.year,
+      widget.initial.month,
+      widget.initial.day,
+      widget.initial.hour,
+      initialMinute,
+    );
+    _date = DateTime(
+      normalizedInitial.year,
+      normalizedInitial.month,
+      normalizedInitial.day,
+    );
+    final h = normalizedInitial.hour;
     _hour12 = h == 0 ? 12 : (h > 12 ? h - 12 : h);
-    _minute = widget.initial.minute;
-    _isPm = widget.initial.hour >= 12;
+    _minute = normalizedInitial.minute;
+    _isPm = normalizedInitial.hour >= 12;
 
     // Generate dates from 30 days ago to today
     final now = DateTime.now();
@@ -524,7 +550,9 @@ class _DateTimePickerSheetState extends State<_DateTimePickerSheet> {
 
     // Initialize scroll controllers at the correct positions
     _hourController = FixedExtentScrollController(initialItem: _hour12 - 1);
-    _minuteController = FixedExtentScrollController(initialItem: _minute);
+    _minuteController = FixedExtentScrollController(
+      initialItem: _minuteOptions.indexOf(_minute),
+    );
     _amPmController = FixedExtentScrollController(initialItem: _isPm ? 1 : 0);
     _dateScrollController = ScrollController();
 
@@ -838,13 +866,14 @@ class _DateTimePickerSheetState extends State<_DateTimePickerSheet> {
                             selectionOverlay: const SizedBox.shrink(),
                             onSelectedItemChanged: (index) {
                               HapticUtils.selectionClick();
-                              setState(() => _minute = index);
+                              setState(() => _minute = _minuteOptions[index]);
                             },
-                            children: List.generate(60, (i) {
-                              final isSelected = i == _minute;
+                            children: List.generate(_minuteOptions.length, (i) {
+                              final minute = _minuteOptions[i];
+                              final isSelected = minute == _minute;
                               return Center(
                                 child: Text(
-                                  i.toString().padLeft(2, '0'),
+                                  minute.toString().padLeft(2, '0'),
                                   style: textTheme.headlineSmall?.copyWith(
                                     fontWeight: isSelected
                                         ? FontWeight.w700
@@ -944,43 +973,31 @@ class _SeverityChip extends StatefulWidget {
 }
 
 class _SeverityChipState extends State<_SeverityChip> {
-  bool _pressed = false;
-
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     final selected = widget.selected;
 
     return GestureDetector(
-      onTapDown: (_) => setState(() => _pressed = true),
-      onTapUp: (_) => setState(() => _pressed = false),
-      onTapCancel: () => setState(() => _pressed = false),
       onTap: widget.onTap,
-      child: AnimatedScale(
-        scale: _pressed ? 0.96 : 1.0,
-        duration: const Duration(milliseconds: 100),
-        curve: Curves.easeOut,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeOutCubic,
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-          decoration: BoxDecoration(
-            color: selected
-                ? widget.chipColor.withValues(alpha: 0.12)
-                : colors.surfaceVariant,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: selected ? widget.chipColor : colors.border,
-              width: selected ? 1.5 : 1,
-            ),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+        decoration: BoxDecoration(
+          color: selected
+              ? widget.chipColor.withValues(alpha: 0.12)
+              : colors.surfaceVariant,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: selected ? widget.chipColor : colors.border,
+            width: selected ? 1.5 : 1,
           ),
-          child: Text(
-            widget.label,
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: selected ? widget.chipColor : colors.textSecondary,
-                  fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
-                ),
-          ),
+        ),
+        child: Text(
+          widget.label,
+          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                color: selected ? widget.chipColor : colors.textSecondary,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+              ),
         ),
       ),
     );

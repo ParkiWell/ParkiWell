@@ -22,8 +22,10 @@ class TutorialOverlay extends StatefulWidget {
 
 class _TutorialOverlayState extends State<TutorialOverlay> {
   final TutorialService _service = TutorialService();
+  final GlobalKey _overlayStackKey = GlobalKey();
   Rect? _targetRect;
   int _lastStepIndex = -1;
+  int _lastEnsuredVisibleStepIndex = -1;
 
   @override
   void initState() {
@@ -66,6 +68,7 @@ class _TutorialOverlayState extends State<TutorialOverlay> {
     if (!mounted) return;
     if (_service.currentStepIndex != _lastStepIndex) {
       _lastStepIndex = _service.currentStepIndex;
+      _lastEnsuredVisibleStepIndex = -1;
       setState(() => _targetRect = null);
     }
     _refreshTargetRect();
@@ -74,51 +77,107 @@ class _TutorialOverlayState extends State<TutorialOverlay> {
   void _refreshTargetRect() {
     final step = _service.currentStep;
     if (step == null) {
+      _lastEnsuredVisibleStepIndex = -1;
       setState(() => _targetRect = null);
       return;
     }
 
-    void tryFindRect({int attempt = 0}) {
+    Future<void> tryFindRect({int attempt = 0}) async {
       if (!mounted) return;
       final current = _service.currentStep;
       if (current == null) return;
+      final targetContext = current.targetKey.currentContext;
+      if (targetContext == null) {
+        _scheduleRetry(attempt, tryFindRect);
+        return;
+      }
+      if (_lastEnsuredVisibleStepIndex != _service.currentStepIndex) {
+        _lastEnsuredVisibleStepIndex = _service.currentStepIndex;
+        try {
+          await Scrollable.ensureVisible(
+            targetContext,
+            duration: const Duration(milliseconds: 260),
+            curve: Curves.easeOutCubic,
+            alignment: 0.32,
+          );
+          await Future<void>.delayed(const Duration(milliseconds: 70));
+        } catch (_) {
+          // Some targets are not inside a scrollable; ignore and continue.
+        }
+      }
       final rect = _findTargetRect(current);
       if (rect != null) {
         setState(() => _targetRect = rect);
         return;
       }
-      // Retry after layout (e.g. after tab switch); multiple delays for slow builds
-      const delays = [100, 300, 550];
-      if (attempt < delays.length) {
-        Future.delayed(Duration(milliseconds: delays[attempt]), () {
-          if (!mounted) return;
-          tryFindRect(attempt: attempt + 1);
-        });
-      } else {
-        setState(() => _targetRect = null);
-      }
+      _scheduleRetry(attempt, tryFindRect);
     }
 
     WidgetsBinding.instance.addPostFrameCallback((_) => tryFindRect());
   }
 
+  void _scheduleRetry(
+    int attempt,
+    Future<void> Function({int attempt}) tryFindRect,
+  ) {
+    const delays = [120, 260, 420, 650, 950];
+    if (attempt < delays.length) {
+      Future.delayed(Duration(milliseconds: delays[attempt]), () {
+        if (!mounted) return;
+        tryFindRect(attempt: attempt + 1);
+      });
+      return;
+    }
+    setState(() => _targetRect = null);
+  }
+
   Rect? _findTargetRect(TutorialStep step) {
-    final context = step.targetKey.currentContext;
-    if (context == null) return null;
+    final targetContext = step.targetKey.currentContext;
+    final overlayContext = _overlayStackKey.currentContext;
+    if (targetContext == null || overlayContext == null) return null;
+    if (!_isTargetInOverlaySubtree(targetContext, overlayContext)) {
+      return null;
+    }
 
-    final renderBox = context.findRenderObject() as RenderBox?;
-    if (renderBox == null || !renderBox.hasSize) return null;
+    final renderBox = targetContext.findRenderObject() as RenderBox?;
+    final overlayBox = overlayContext.findRenderObject() as RenderBox?;
+    if (renderBox == null ||
+        overlayBox == null ||
+        !renderBox.hasSize ||
+        !overlayBox.hasSize ||
+        !renderBox.attached ||
+        !overlayBox.attached) {
+      return null;
+    }
 
-    final position = renderBox.localToGlobal(Offset.zero);
-    final size = renderBox.size;
+    final rectInOverlay = MatrixUtils.transformRect(
+      renderBox.getTransformTo(overlayBox),
+      renderBox.paintBounds,
+    );
     final padding = step.spotlightPadding;
 
     return Rect.fromLTWH(
-      position.dx - padding.left,
-      position.dy - padding.top,
-      size.width + padding.horizontal,
-      size.height + padding.vertical,
+      rectInOverlay.left - padding.left,
+      rectInOverlay.top - padding.top,
+      rectInOverlay.width + padding.horizontal,
+      rectInOverlay.height + padding.vertical,
     );
+  }
+
+  bool _isTargetInOverlaySubtree(
+    BuildContext targetContext,
+    BuildContext overlayContext,
+  ) {
+    final overlayElement = overlayContext as Element;
+    var isDescendant = false;
+    (targetContext as Element).visitAncestorElements((ancestor) {
+      if (identical(ancestor, overlayElement)) {
+        isDescendant = true;
+        return false;
+      }
+      return true;
+    });
+    return isDescendant || identical(targetContext, overlayContext);
   }
 
   @override
@@ -131,6 +190,7 @@ class _TutorialOverlayState extends State<TutorialOverlay> {
       });
     }
     return Stack(
+      key: _overlayStackKey,
       children: [
         widget.child,
         if (_service.isActive && step != null)

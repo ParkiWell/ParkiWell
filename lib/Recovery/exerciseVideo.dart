@@ -372,7 +372,7 @@ class _ExerciseVideoState extends State<ExerciseVideo> {
                 ),
                 const SizedBox(height: 10),
                 (_webViewController != null)
-                    ? KeyedSubtree(
+                    ? Container(
                         key: TutorialTargets.exerciseVideoPlayerKey,
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(16),

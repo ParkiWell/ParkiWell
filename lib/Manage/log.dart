@@ -15,10 +15,83 @@ class LogScreen extends StatefulWidget {
 
 class _LogScreenState extends State<LogScreen> {
   final singleton = Singleton();
+  static const List<String> _severityOptions = <String>[
+    'Very Mild',
+    'Mild',
+    'Moderate',
+    'Severe',
+    'Very Severe',
+  ];
 
   String time(int index) => singleton.log[index][0];
   String symptom(int index) => singleton.log[index][1];
   String severity(int index) => singleton.log[index][2];
+  DateTime? _parseStorageTime(String value) {
+    final parts = value.split(',');
+    if (parts.length != 2) return null;
+    final timePart = parts.first.trim().split(':');
+    final datePart = parts.last.trim().split(' ');
+    if (timePart.length != 2 || datePart.length != 3) return null;
+
+    final hour = int.tryParse(timePart[0]);
+    final minute = int.tryParse(timePart[1]);
+    final day = int.tryParse(datePart[0]);
+    final month = singleton.monthMap[datePart[1]];
+    final year = int.tryParse(datePart[2]);
+    if (hour == null ||
+        minute == null ||
+        day == null ||
+        month == null ||
+        year == null) {
+      return null;
+    }
+    return DateTime(year, int.parse(month), day, hour, minute);
+  }
+
+  String _formatStorageTime(DateTime value) {
+    const monthNames = <String>[
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+    final hour = value.hour.toString().padLeft(2, '0');
+    final minute = value.minute.toString().padLeft(2, '0');
+    final day = value.day.toString().padLeft(2, '0');
+    final month = monthNames[value.month - 1];
+    return '$hour:$minute, $day $month ${value.year}';
+  }
+
+  String _formatDisplayTime(String value) {
+    final parsed = _parseStorageTime(value);
+    if (parsed == null) return value;
+    final hour12 = parsed.hour % 12 == 0 ? 12 : parsed.hour % 12;
+    final minute = parsed.minute.toString().padLeft(2, '0');
+    final suffix = parsed.hour >= 12 ? 'PM' : 'AM';
+    const monthNames = <String>[
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+    return '$hour12:$minute $suffix, ${parsed.day} ${monthNames[parsed.month - 1]} ${parsed.year}';
+  }
 
   Color _severityColor(String value, AppColors colors) {
     final text = value.toLowerCase();
@@ -72,7 +145,7 @@ class _LogScreenState extends State<LogScreen> {
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
-                          'Logged at ${time(index)}',
+                          'Logged at ${_formatDisplayTime(time(index))}',
                           style:
                               Theme.of(context).textTheme.bodySmall?.copyWith(
                                     color: colors.textPrimary,
@@ -105,6 +178,15 @@ class _LogScreenState extends State<LogScreen> {
                     ),
                     const SizedBox(width: 10),
                     ModernIconButton(
+                      icon: Icons.edit_outlined,
+                      backgroundColor: colors.secondary,
+                      onPressed: () async {
+                        Navigator.pop(c);
+                        await _showEditLogDialog(index);
+                      },
+                    ),
+                    const SizedBox(width: 10),
+                    ModernIconButton(
                       icon: Icons.delete_outline_rounded,
                       backgroundColor: colors.error,
                       onPressed: () async {
@@ -126,9 +208,155 @@ class _LogScreenState extends State<LogScreen> {
     );
   }
 
+  Future<void> _showEditLogDialog(int index) async {
+    if (index < 0 || index >= singleton.log.length) return;
+    final colors = context.colors;
+    final symptomController = TextEditingController(text: symptom(index));
+    var selectedSeverity = severity(index);
+    var selectedDateTime = _parseStorageTime(time(index)) ?? DateTime.now();
+
+    Future<void> pickDateTime(StateSetter setModalState) async {
+      final pickedDate = await showDatePicker(
+        context: context,
+        initialDate: selectedDateTime,
+        firstDate: DateTime(2020),
+        lastDate: DateTime(2100),
+      );
+      if (pickedDate == null) return;
+      if (!mounted) return;
+      final pickedTime = await showTimePicker(
+        context: context,
+        initialTime: TimeOfDay.fromDateTime(selectedDateTime),
+      );
+      if (pickedTime == null) return;
+      setModalState(() {
+        selectedDateTime = DateTime(
+          pickedDate.year,
+          pickedDate.month,
+          pickedDate.day,
+          pickedTime.hour,
+          pickedTime.minute,
+        );
+      });
+    }
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext c) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Container(
+              decoration: BoxDecoration(
+                color: colors.surface,
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(22)),
+              ),
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  20,
+                  18,
+                  20,
+                  MediaQuery.of(context).viewInsets.bottom + 18,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Edit Symptom Log',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: symptomController,
+                      decoration: const InputDecoration(labelText: 'Symptom'),
+                    ),
+                    const SizedBox(height: 10),
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedSeverity,
+                      decoration: const InputDecoration(labelText: 'Severity'),
+                      items: _severityOptions
+                          .map(
+                            (s) => DropdownMenuItem<String>(
+                              value: s,
+                              child: Text(s),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (value) {
+                        if (value == null) return;
+                        setModalState(() => selectedSeverity = value);
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    InkWell(
+                      onTap: () => pickDateTime(setModalState),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: colors.surfaceVariant,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: colors.border),
+                        ),
+                        child: Text(
+                          _formatDisplayTime(
+                              _formatStorageTime(selectedDateTime)),
+                          style:
+                              Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ModernButton(
+                            text: 'Cancel',
+                            isOutlined: true,
+                            onPressed: () => Navigator.pop(c),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: ModernButton(
+                            text: 'Save',
+                            onPressed: () async {
+                              if (symptomController.text.trim().isEmpty) return;
+                              await singleton.updateLogEntry(
+                                index,
+                                _formatStorageTime(selectedDateTime),
+                                symptomController.text.trim(),
+                                selectedSeverity,
+                              );
+                              if (!mounted || !c.mounted) return;
+                              Navigator.pop(c);
+                              setState(() {});
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+    symptomController.dispose();
+  }
+
   Widget _buildSummary(AppColors colors) {
     final total = singleton.log.length;
-    final latest = total > 0 ? time(0) : 'No entries yet';
+    final latest = total > 0 ? _formatDisplayTime(time(0)) : 'No entries yet';
 
     return ModernCard(
       backgroundColor: colors.cardBackground,
@@ -281,7 +509,7 @@ class _LogScreenState extends State<LogScreen> {
         return Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: _LogCard(
-            time: time(row),
+            time: _formatDisplayTime(time(row)),
             symptom: symptom(row),
             severity: severity(row),
             onTap: () => _showLogDetails(row),

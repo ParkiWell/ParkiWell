@@ -9,6 +9,8 @@ class TutorialTargets {
   static final GlobalKey saveSymptomButtonKey = GlobalKey();
   static final GlobalKey medicationNameInputKey = GlobalKey();
   static final GlobalKey saveMedicationButtonKey = GlobalKey();
+  static final GlobalKey medicationsToolCardKey = GlobalKey();
+  static final GlobalKey scheduleAddMedicationKey = GlobalKey();
   static final GlobalKey firstExerciseCardKey = GlobalKey();
   static final GlobalKey exerciseVideoPlayerKey = GlobalKey();
 }

@@ -134,7 +134,7 @@ class ModernDropdown<T> extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 14),
           decoration: BoxDecoration(
             color: colors.inputBackground,
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(14),
             border: Border.all(color: colors.inputBorder),
           ),
           child: Row(
@@ -158,7 +158,7 @@ class ModernDropdown<T> extends StatelessWidget {
                       size: 20,
                     ),
                     dropdownColor: colors.surface,
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: BorderRadius.circular(14),
                     style: Theme.of(context).textTheme.bodyMedium,
                     onChanged: onChanged,
                     items: items.map((item) {
@@ -211,17 +211,20 @@ class ModernChipSelector extends StatelessWidget {
             duration: const Duration(milliseconds: 100),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: isSelected ? colors.primary : Colors.transparent,
-              borderRadius: BorderRadius.circular(4),
+              color: isSelected
+                  ? colors.surface.blend(colors.primary, 0.18)
+                  : colors.surface,
+              borderRadius: BorderRadius.circular(10),
               border: Border.all(
-                color: isSelected ? colors.primary : colors.border,
+                color: isSelected
+                    ? colors.border.blend(colors.primary, 0.55)
+                    : colors.border,
               ),
             ),
             child: Text(
               option,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color:
-                        isSelected ? colors.textOnPrimary : colors.textPrimary,
+                    color: isSelected ? colors.primary : colors.textPrimary,
                     fontWeight: FontWeight.w500,
                   ),
             ),
