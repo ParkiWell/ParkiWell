@@ -6,6 +6,7 @@ import 'package:levio/routes.dart';
 import 'package:levio/singleton.dart';
 import 'package:levio/theme/app_theme.dart';
 import 'package:levio/screens/onboarding_flow.dart';
+import 'package:levio/screens/splash_screen.dart';
 import 'package:levio/services/app_logger.dart';
 import 'package:levio/config/environment.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -101,12 +102,11 @@ class MyApp extends StatefulWidget {
   State<MyApp> createState() => _MyAppState();
 }
 
-enum AppScreen { onboarding, home }
+enum AppScreen { splash, onboarding, home }
 
 class _MyAppState extends State<MyApp> {
   final singleton = Singleton();
-  AppScreen _currentScreen =
-      Singleton().firstTime ? AppScreen.onboarding : AppScreen.home;
+  AppScreen _currentScreen = AppScreen.splash;
 
   @override
   void initState() {
@@ -123,6 +123,15 @@ class _MyAppState extends State<MyApp> {
   void _onThemeChange() {
     if (mounted) {
       setState(() {});
+    }
+  }
+
+  void _onSplashComplete() {
+    if (mounted) {
+      setState(() {
+        _currentScreen =
+            singleton.firstTime ? AppScreen.onboarding : AppScreen.home;
+      });
     }
   }
 
@@ -149,15 +158,26 @@ class _MyAppState extends State<MyApp> {
             ),
     );
 
-    final Widget home = _currentScreen == AppScreen.onboarding
-        ? OnboardingFlowScreen(onComplete: _onOnboardingComplete)
-        : const Navbar();
+    final Widget home = switch (_currentScreen) {
+      AppScreen.splash => SplashScreen(onComplete: _onSplashComplete),
+      AppScreen.onboarding =>
+        OnboardingFlowScreen(onComplete: _onOnboardingComplete),
+      AppScreen.home => const Navbar(),
+    };
 
     return MaterialApp(
       title: 'Levio',
       routes: namedRoutes,
       onGenerateRoute: onGenerateAppRoute,
-      home: home,
+      home: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 500),
+        switchInCurve: Curves.easeOutCubic,
+        switchOutCurve: Curves.easeInCubic,
+        child: KeyedSubtree(
+          key: ValueKey<AppScreen>(_currentScreen),
+          child: home,
+        ),
+      ),
       theme: AppTheme.lightTheme(),
       darkTheme: AppTheme.darkTheme(),
       themeMode: singleton.colorMode == 0 ? ThemeMode.light : ThemeMode.dark,

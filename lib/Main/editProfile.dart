@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'dart:async';
 import 'dart:io';
 
 import '../navbar.dart';
@@ -45,17 +46,62 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   int _modeTransitionDirection = 1;
   bool _isLoading = false;
   bool _replayTutorialAfterEntry = false;
+  bool _awaitingEmailVerification = false;
   String _imagePath = 'images/711128.png';
   CloudAuthProfile? _pendingAuthProfile;
+  StreamSubscription<CloudAuthProfile>? _verifiedSignInSubscription;
 
   @override
   void initState() {
     super.initState();
     _mode = widget.startInSignIn ? _AuthMode.signIn : _AuthMode.signUp;
+    if (singleton.isCloudConfigured) {
+      _verifiedSignInSubscription =
+          singleton.cloudVerifiedSignIns.listen(_onVerifiedSignIn);
+    }
+  }
+
+  void _onVerifiedSignIn(CloudAuthProfile profile) {
+    if (!mounted || !_awaitingEmailVerification) return;
+    _awaitingEmailVerification = false;
+    HapticUtils.success();
+    final email = profile.email?.trim();
+    if (email != null && email.isNotEmpty) {
+      _emailController.text = email;
+    }
+    setState(() {
+      _pendingAuthProfile = profile;
+      _replayTutorialAfterEntry = true;
+      _stage = _EntryStage.profileSetup;
+    });
+    final colors = context.colors;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          margin: const EdgeInsets.fromLTRB(18, 0, 18, 22),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+          content: Text(
+            'Email verified! Finish setting up your profile.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: colors.textPrimary,
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+          behavior: SnackBarBehavior.floating,
+          elevation: 0,
+          backgroundColor: colors.surface.blend(colors.success, 0.18),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(color: colors.border.blend(colors.success, 0.58)),
+          ),
+        ),
+      );
   }
 
   @override
   void dispose() {
+    _verifiedSignInSubscription?.cancel();
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
@@ -92,6 +138,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     if (text.contains('already registered') ||
         text.contains('already exists')) {
       return 'This email is already registered. Try signing in.';
+    }
+    if (text.contains('verification link') ||
+        text.contains('check your email') ||
+        text.contains('email confirmation')) {
+      return 'Check your email for a verification link, then sign in.';
     }
     if (text.contains('network') || text.contains('connection')) {
       return 'No internet connection. Please try again.';
@@ -168,6 +219,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         return;
       }
 
+      if (!mounted) return;
       _replayTutorialAfterEntry = true;
       _pendingAuthProfile = profile;
       _emailController.text = resolvedEmail ?? _emailController.text;
@@ -176,9 +228,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       if (parts.length > 1) {
         _lastNameController.text = parts.sublist(1).join(' ');
       }
-      if (mounted) {
-        setState(() => _stage = _EntryStage.profileSetup);
-      }
+      setState(() => _stage = _EntryStage.profileSetup);
     } catch (e) {
       _showError(_friendlyAuthMessage(e));
     } finally {
@@ -252,11 +302,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           password: password,
         );
         if (profile == null) {
-          _showError(
-            _friendlyAuthMessage(
-              singleton.lastCloudError ?? 'Sign up failed.',
-            ),
-          );
+          final error = singleton.lastCloudError ?? 'Sign up failed.';
+          _awaitingEmailVerification =
+              error.toLowerCase().contains('verification link');
+          _showError(_friendlyAuthMessage(error));
           return;
         }
         _pendingAuthProfile = profile;

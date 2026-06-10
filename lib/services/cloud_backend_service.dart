@@ -34,9 +34,34 @@ class CloudBackendService {
   String? _cloudUserId;
   String? _lastInitializationError;
 
+  final StreamController<CloudAuthProfile> _verifiedSignIns =
+      StreamController<CloudAuthProfile>.broadcast();
+  // Lives for the whole app session alongside this singleton.
+  // ignore: cancel_subscriptions
+  StreamSubscription<AuthState>? _authStateSubscription;
+
+  /// Emits whenever a non-anonymous session is established outside an
+  /// explicit sign-in call (e.g. the email verification deep link).
+  Stream<CloudAuthProfile> get verifiedSignIns => _verifiedSignIns.stream;
+
+  void _ensureAuthStateListener() {
+    if (_authStateSubscription != null || _client == null) return;
+    _authStateSubscription = _client!.auth.onAuthStateChange.listen((event) {
+      if (event.event != AuthChangeEvent.signedIn) return;
+      final user = event.session?.user;
+      if (user == null || user.isAnonymous) return;
+      final profile = _profileFromUser(user);
+      _cloudUserId = profile.userId;
+      _enabled = true;
+      _lastInitializationError = null;
+      _verifiedSignIns.add(profile);
+    });
+  }
+
   bool get isConfigured => BackendConfig.isCloudBackendEnabled;
-  bool get isEnabled => _enabled && _client != null && _cloudUserId != null;
-  bool get hasActiveSession => _cloudUserId != null;
+  bool get hasActiveSession => _client?.auth.currentSession != null;
+  bool get isEnabled =>
+      _enabled && _client != null && _cloudUserId != null && hasActiveSession;
   String? get cloudUserId => _cloudUserId;
   String? get lastInitializationError => _lastInitializationError;
 
@@ -125,6 +150,7 @@ class CloudBackendService {
     try {
       // If already initialized by another part of the app, reuse the client.
       _client = Supabase.instance.client;
+      _ensureAuthStateListener();
       await _establishAuthenticatedSession();
       _enabled = _cloudUserId != null;
       _logger.info(
@@ -145,6 +171,7 @@ class CloudBackendService {
       );
 
       _client = Supabase.instance.client;
+      _ensureAuthStateListener();
       await _establishAuthenticatedSession();
       _enabled = _cloudUserId != null;
 
@@ -258,28 +285,28 @@ class CloudBackendService {
         }
       });
 
-      final launched = await _client!.auth.signInWithOAuth(
-        OAuthProvider.google,
-        redirectTo: BackendConfig.supabaseAuthRedirectUrl,
-      );
+      final CloudAuthProfile? profile;
+      try {
+        final launched = await _client!.auth.signInWithOAuth(
+          OAuthProvider.google,
+          redirectTo: BackendConfig.supabaseAuthRedirectUrl,
+        );
 
-      if (!launched) {
+        if (!launched) return null;
+
+        profile = await completer.future.timeout(
+          const Duration(seconds: 25),
+          onTimeout: () {
+            final user = _client!.auth.currentUser;
+            if (user != null && _isGoogleUser(user)) {
+              return _profileFromUser(user);
+            }
+            return null;
+          },
+        );
+      } finally {
         await subscription.cancel();
-        return null;
       }
-
-      final profile = await completer.future.timeout(
-        const Duration(seconds: 25),
-        onTimeout: () {
-          final user = _client!.auth.currentUser;
-          if (user != null && _isGoogleUser(user)) {
-            return _profileFromUser(user);
-          }
-          return null;
-        },
-      );
-
-      await subscription.cancel();
 
       if (profile != null) {
         _cloudUserId = profile.userId;
@@ -313,9 +340,21 @@ class CloudBackendService {
       final response = await _client!.auth.signUp(
         email: email.trim(),
         password: password,
+        emailRedirectTo: BackendConfig.supabaseAuthRedirectUrl,
       );
-      final user = response.user ?? _client!.auth.currentUser;
-      if (user == null) return null;
+      // Only trust the session returned by the sign-up itself. Falling back
+      // to currentSession can pick up the anonymous bootstrap session, which
+      // then fails RLS when writing rows for the new account.
+      final session = response.session;
+      if (session == null) {
+        _cloudUserId = null;
+        _enabled = false;
+        _lastInitializationError =
+            'Check your email for a verification link, then sign in to finish setting up your account.';
+        return null;
+      }
+
+      final user = response.user ?? session.user;
       final profile = _profileFromUser(user);
       _cloudUserId = profile.userId;
       _enabled = true;
@@ -347,8 +386,15 @@ class CloudBackendService {
         email: email.trim(),
         password: password,
       );
-      final user = response.user ?? _client!.auth.currentUser;
-      if (user == null) return null;
+      final session = response.session;
+      final user = response.user ?? session?.user;
+      if (session == null || user == null) {
+        _cloudUserId = null;
+        _enabled = false;
+        _lastInitializationError =
+            'Sign in completed, but no authenticated session was available.';
+        return null;
+      }
       final profile = _profileFromUser(user);
       _cloudUserId = profile.userId;
       _enabled = true;
@@ -382,6 +428,7 @@ class CloudBackendService {
       await _client!.auth.resend(
         type: OtpType.signup,
         email: email.trim(),
+        emailRedirectTo: BackendConfig.supabaseAuthRedirectUrl,
       );
       return true;
     } catch (e, stackTrace) {
@@ -832,19 +879,25 @@ class CloudBackendService {
               .maybeSingle();
         },
       );
-      final currentLikes = (record?['likes'] as num?)?.toInt() ?? 0;
-      await _withRetry<void>(
+      if (record == null) return false;
+      final currentLikes = (record['likes'] as num?)?.toInt() ?? 0;
+      final updated = await _withRetry<Map<String, dynamic>?>(
         'increment post like fallback',
         () async {
-          await _client!.from('community_posts').update(
-            <String, dynamic>{
-              'likes': currentLikes + 1,
-              'updated_at': DateTime.now().toIso8601String(),
-            },
-          ).eq('id', postId);
+          return _client!
+              .from('community_posts')
+              .update(
+                <String, dynamic>{
+                  'likes': currentLikes + 1,
+                  'updated_at': DateTime.now().toIso8601String(),
+                },
+              )
+              .eq('id', postId)
+              .select('id')
+              .maybeSingle();
         },
       );
-      return true;
+      return updated != null;
     } catch (e, stackTrace) {
       _logger.error('Cloud like post failed', e, stackTrace);
       return false;

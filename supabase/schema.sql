@@ -156,8 +156,24 @@ security definer
 set search_path = public
 as $$
 begin
+  -- Only callers who actually liked the post may refresh its counter,
+  -- and the counter is derived from like rows so repeated calls cannot
+  -- inflate it.
+  if not exists (
+    select 1
+    from public.community_post_likes l
+    where l.post_id = p_post_id
+      and l.user_id = auth.uid()::text
+  ) then
+    return;
+  end if;
+
   update public.community_posts
-    set likes = likes + 1,
+    set likes = (
+          select count(*)
+          from public.community_post_likes l
+          where l.post_id = p_post_id
+        ),
         updated_at = timezone('utc', now())
   where id = p_post_id
     and is_hidden = false;

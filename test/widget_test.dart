@@ -66,11 +66,45 @@ void main() {
     await tester.pump(const Duration(milliseconds: 200));
   });
 
-  testWidgets('App starts on onboarding for first-time users', (tester) async {
+  testWidgets('App boots through splash into landing for first-time users',
+      (tester) async {
     await tester.pumpWidget(const MyApp());
+
+    // Splash is shown first.
+    expect(find.text('Preparing your care workspace'), findsOneWidget);
+    expect(find.text('Start Strong with Levio'), findsNothing);
+
+    // Advance through splash entry, exit, and the fade into the landing.
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.pump(const Duration(milliseconds: 1800));
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pump(const Duration(milliseconds: 450));
+    await tester.pump(const Duration(milliseconds: 600));
+
     expect(find.text('Start Strong with Levio'), findsOneWidget);
     expect(find.text('Sign In'), findsOneWidget);
+  });
+
+  testWidgets('Landing buttons lead directly to the auth screen',
+      (tester) async {
+    await tester.pumpWidget(const MyApp());
+
+    // Through splash.
     await tester.pump(const Duration(milliseconds: 200));
+    await tester.pump(const Duration(milliseconds: 1800));
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pump(const Duration(milliseconds: 450));
+    await tester.pump(const Duration(milliseconds: 600));
+
+    // Finish landing entrance, then tap Sign In.
+    await tester.pump(const Duration(milliseconds: 2000));
+    await tester.tap(find.text('Sign In'));
+
+    // Landing exit fade + animated hand-off into the auth stage.
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(find.text('Welcome back'), findsOneWidget);
   });
 
   test('Recovery catalog keeps valid YouTube IDs', () {

@@ -262,7 +262,7 @@ class Singleton extends ChangeNotifier {
     return prefs.getString('userID');
   }
 
-  void setTheme(bool t) async {
+  Future<void> setTheme(bool t) async {
     final SharedPreferences prefs = await _prefs;
     await prefs.setBool('theme', t);
   }
@@ -272,7 +272,7 @@ class Singleton extends ChangeNotifier {
     return prefs.getBool('theme') ?? false;
   }
 
-  void setSound(double s) async {
+  Future<void> setSound(double s) async {
     final SharedPreferences prefs = await _prefs;
     await prefs.setDouble('sound', s);
   }
@@ -1031,6 +1031,8 @@ class Singleton extends ChangeNotifier {
   Future<bool?> isCurrentUserEmailVerified() async {
     return _cloud.isCurrentUserEmailVerified();
   }
+
+  Stream<CloudAuthProfile> get cloudVerifiedSignIns => _cloud.verifiedSignIns;
 
   Future<bool> resendEmailVerification(String email) async {
     return _cloud.resendEmailVerification(email);

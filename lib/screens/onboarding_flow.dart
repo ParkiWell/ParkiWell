@@ -246,19 +246,44 @@ class _OnboardingFlowScreenState extends State<OnboardingFlowScreen>
 
   @override
   Widget build(BuildContext context) {
-    if (_showSignIn) {
-      return EditProfileScreen(
-        onComplete: widget.onComplete,
-        startInSignIn: _launchSignInMode,
-        onBack: () {
-          setState(() {
-            _showSignIn = false;
-            _exitController.value = 0;
-          });
-        },
-      );
-    }
+    final Widget stage = _showSignIn
+        ? EditProfileScreen(
+            key: const ValueKey<String>('auth-stage'),
+            onComplete: widget.onComplete,
+            startInSignIn: _launchSignInMode,
+            onBack: () {
+              setState(() {
+                _showSignIn = false;
+                _exitController.value = 0;
+              });
+            },
+          )
+        : KeyedSubtree(
+            key: const ValueKey<String>('landing-stage'),
+            child: _buildLanding(context),
+          );
 
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 450),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      transitionBuilder: (child, animation) {
+        return FadeTransition(
+          opacity: animation,
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0, 0.02),
+              end: Offset.zero,
+            ).animate(animation),
+            child: child,
+          ),
+        );
+      },
+      child: stage,
+    );
+  }
+
+  Widget _buildLanding(BuildContext context) {
     final colors = context.colors;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 

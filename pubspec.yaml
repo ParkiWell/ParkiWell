@@ -86,19 +86,19 @@ flutter_launcher_icons:
   android: "ic_launcher"
   ios: true
   remove_alpha_ios: true
-  image_path: "images/logo.png"
+  image_path: "images/app_icon_full.png"
   min_sdk_android: 21
   adaptive_icon_background: "#F3F7FF"
   adaptive_icon_foreground: "images/logo.png"
   web:
     generate: true
-    image_path: "images/logo.png"
+    image_path: "images/app_icon_full.png"
   windows:
     generate: true
-    image_path: "images/logo.png"
+    image_path: "images/app_icon_full.png"
   macos:
     generate: true
-    image_path: "images/logo.png"
+    image_path: "images/app_icon_full.png"
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
