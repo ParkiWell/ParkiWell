@@ -120,8 +120,11 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
-          else
+          elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          else
+            pubspec_version=$(awk '/^version:/{print $2; exit}' pubspec.yaml)
+            echo "version=${pubspec_version%%+*}" >> $GITHUB_OUTPUT
           fi
 
       - name: Build App Bundle (Production)
@@ -189,8 +192,11 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
-          else
+          elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          else
+            pubspec_version=$(awk '/^version:/{print $2; exit}' pubspec.yaml)
+            echo "version=${pubspec_version%%+*}" >> $GITHUB_OUTPUT
           fi
 
       - name: Install Apple certificate and provisioning profile
