@@ -111,19 +111,24 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
-    singleton.addListener(_onThemeChange);
+    singleton.addListener(_onSingletonChange);
   }
 
   @override
   void dispose() {
-    singleton.removeListener(_onThemeChange);
+    singleton.removeListener(_onSingletonChange);
     super.dispose();
   }
 
-  void _onThemeChange() {
-    if (mounted) {
-      setState(() {});
-    }
+  void _onSingletonChange() {
+    if (!mounted) return;
+    setState(() {
+      // Sign-out clears the session and flips firstTime back on; return the
+      // user to the onboarding entry instead of leaving a stale Navbar.
+      if (singleton.firstTime && _currentScreen == AppScreen.home) {
+        _currentScreen = AppScreen.onboarding;
+      }
+    });
   }
 
   void _onSplashComplete() {

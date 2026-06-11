@@ -3,12 +3,10 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:async';
 import 'dart:io';
 
-import '../navbar.dart';
 import '../services/cloud_backend_service.dart';
 import '../services/tutorial_service.dart';
 import '../singleton.dart';
 import '../theme/app_theme.dart';
-import '../utils/app_routes.dart';
 import '../utils/haptic_utils.dart';
 import '../widgets/modern_button.dart';
 
@@ -30,7 +28,7 @@ class EditProfileScreen extends StatefulWidget {
 
 enum _AuthMode { signUp, signIn }
 
-enum _EntryStage { auth, profileSetup }
+enum _EntryStage { auth, profileSetup, goals }
 
 class _EditProfileScreenState extends State<EditProfileScreen> {
   final singleton = Singleton();
@@ -43,10 +41,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   _AuthMode _mode = _AuthMode.signUp;
   _EntryStage _stage = _EntryStage.auth;
-  int _modeTransitionDirection = 1;
+  final int _modeTransitionDirection = 1;
   bool _isLoading = false;
   bool _replayTutorialAfterEntry = false;
   bool _awaitingEmailVerification = false;
+  int _speechGoal = 4;
+  int _physicalGoal = 4;
   String _imagePath = 'images/711128.png';
   CloudAuthProfile? _pendingAuthProfile;
   StreamSubscription<CloudAuthProfile>? _verifiedSignInSubscription;
@@ -55,6 +55,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   void initState() {
     super.initState();
     _mode = widget.startInSignIn ? _AuthMode.signIn : _AuthMode.signUp;
+    _stage = widget.startInSignIn ? _EntryStage.auth : _EntryStage.profileSetup;
+    _speechGoal = singleton.weeklySpeechExerciseGoal;
+    _physicalGoal = singleton.weeklyPhysicalExerciseGoal;
     if (singleton.isCloudConfigured) {
       _verifiedSignInSubscription =
           singleton.cloudVerifiedSignIns.listen(_onVerifiedSignIn);
@@ -72,7 +75,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     setState(() {
       _pendingAuthProfile = profile;
       _replayTutorialAfterEntry = true;
-      _stage = _EntryStage.profileSetup;
+      _isLoading = true;
     });
     final colors = context.colors;
     ScaffoldMessenger.of(context)
@@ -82,7 +85,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           margin: const EdgeInsets.fromLTRB(18, 0, 18, 22),
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
           content: Text(
-            'Email verified! Finish setting up your profile.',
+            'Email verified! Finishing setup.',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: colors.textPrimary,
                   fontWeight: FontWeight.w700,
@@ -97,6 +100,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           ),
         ),
       );
+    _finishVerifiedEmailSetup();
   }
 
   @override
@@ -119,10 +123,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     HapticUtils.success();
     widget.onComplete?.call();
     if (!mounted || widget.onComplete != null) return;
-    await Navigator.of(context).pushAndRemoveUntil(
-      buildSubtleFadeRoute(page: const Navbar()),
-      (route) => false,
-    );
+    // Never push a second Navbar over the app root; the root already hosts
+    // it and duplicate trees collide on GlobalKeys.
+    Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
   String _friendlyAuthMessage(Object error) {
@@ -223,12 +226,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       _replayTutorialAfterEntry = true;
       _pendingAuthProfile = profile;
       _emailController.text = resolvedEmail ?? _emailController.text;
-      final parts = resolvedName.split(' ').where((s) => s.isNotEmpty).toList();
-      if (parts.isNotEmpty) _firstNameController.text = parts.first;
-      if (parts.length > 1) {
-        _lastNameController.text = parts.sublist(1).join(' ');
-      }
-      setState(() => _stage = _EntryStage.profileSetup);
+      await _saveProfileAndFinish();
     } catch (e) {
       _showError(_friendlyAuthMessage(e));
     } finally {
@@ -319,9 +317,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         );
       }
       _replayTutorialAfterEntry = true;
-      if (mounted) {
-        setState(() => _stage = _EntryStage.profileSetup);
-      }
+      await _saveProfileAndFinish();
     } catch (e) {
       _showError(_friendlyAuthMessage(e));
     } finally {
@@ -338,8 +334,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     setState(() => _imagePath = picked.path);
   }
 
-  Future<void> _completeProfileSetup() async {
-    if (_isLoading) return;
+  void _continueFromProfileSetup() {
     final first = _firstNameController.text.trim();
     final last = _lastNameController.text.trim();
     if (first.isEmpty || last.isEmpty) {
@@ -347,28 +342,55 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       return;
     }
 
+    HapticUtils.selectionClick();
+    setState(() => _stage = _EntryStage.goals);
+  }
+
+  void _continueFromGoals() {
+    singleton.setTherapyGoals(
+      weeklySpeech: _speechGoal,
+      weeklyPhysical: _physicalGoal,
+    );
+    HapticUtils.selectionClick();
+    setState(() => _stage = _EntryStage.auth);
+  }
+
+  Future<void> _saveProfileAndFinish() async {
+    final first = _firstNameController.text.trim();
+    final last = _lastNameController.text.trim();
+    if (first.isEmpty || last.isEmpty) {
+      throw Exception('Enter both first and last name.');
+    }
+
     final email = _pendingAuthProfile?.email?.trim().isNotEmpty == true
         ? _pendingAuthProfile!.email!.trim()
         : _emailController.text.trim();
 
-    setState(() => _isLoading = true);
-    HapticUtils.mediumImpact();
+    singleton.setTherapyGoals(
+      weeklySpeech: _speechGoal,
+      weeklyPhysical: _physicalGoal,
+    );
+
+    final synced = singleton.isCloudConfigured
+        ? await singleton.createOrSyncAuthenticatedUser(
+            displayName: '$first $last',
+            userEmail: email,
+            profileImage: _imagePath,
+          )
+        : await singleton.createLocalOnlyUser(
+            displayName: '$first $last',
+            userEmail: email,
+            profileImage: _imagePath,
+          );
+    if (!synced) {
+      throw Exception('Unable to save your profile.');
+    }
+    await _finishEntry();
+  }
+
+  Future<void> _finishVerifiedEmailSetup() async {
     try {
-      final synced = singleton.isCloudConfigured
-          ? await singleton.createOrSyncAuthenticatedUser(
-              displayName: '$first $last',
-              userEmail: email,
-              profileImage: _imagePath,
-            )
-          : await singleton.createLocalOnlyUser(
-              displayName: '$first $last',
-              userEmail: email,
-              profileImage: _imagePath,
-            );
-      if (!synced) {
-        throw Exception('Unable to save your profile.');
-      }
-      await _finishEntry();
+      await _saveProfileAndFinish();
     } catch (e) {
       _showError(_friendlyAuthMessage(e));
     } finally {
@@ -386,19 +408,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         first.isNotEmpty ? first[0] : (fallback.isNotEmpty ? fallback[0] : 'U');
     final b = last.isNotEmpty ? last[0] : '';
     return '${a.toUpperCase()}${b.toUpperCase()}';
-  }
-
-  void _changeMode(_AuthMode nextMode) {
-    if (_isLoading || _mode == nextMode) return;
-    FocusScope.of(context).unfocus();
-    HapticUtils.selectionClick();
-    _modeTransitionDirection = nextMode.index > _mode.index ? 1 : -1;
-    setState(() {
-      _mode = nextMode;
-      if (nextMode == _AuthMode.signIn) {
-        _replayTutorialAfterEntry = false;
-      }
-    });
   }
 
   @override
@@ -422,9 +431,35 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         child: SafeArea(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-            child: _stage == _EntryStage.auth
-                ? _buildAuthStage(colors)
-                : _buildProfileSetupStage(colors),
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 280),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeInCubic,
+              transitionBuilder: (child, animation) => FadeTransition(
+                opacity: animation,
+                child: SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(0, 0.02),
+                    end: Offset.zero,
+                  ).animate(animation),
+                  child: child,
+                ),
+              ),
+              child: switch (_stage) {
+                _EntryStage.auth => KeyedSubtree(
+                    key: const ValueKey<String>('stage-auth'),
+                    child: _buildAuthStage(colors),
+                  ),
+                _EntryStage.profileSetup => KeyedSubtree(
+                    key: const ValueKey<String>('stage-profile'),
+                    child: _buildProfileSetupStage(colors),
+                  ),
+                _EntryStage.goals => KeyedSubtree(
+                    key: const ValueKey<String>('stage-goals'),
+                    child: _buildGoalsStage(colors),
+                  ),
+              },
+            ),
           ),
         ),
       ),
@@ -448,7 +483,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     _buildTopActionButton(
                       colors: colors,
                       icon: Icons.arrow_back_rounded,
-                      onTap: widget.onBack!,
+                      onTap: () {
+                        if (_mode == _AuthMode.signUp) {
+                          setState(() => _stage = _EntryStage.goals);
+                        } else {
+                          widget.onBack!();
+                        }
+                      },
                     )
                   else
                     const SizedBox(width: 44, height: 44),
@@ -473,7 +514,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     const SizedBox(height: 8),
                     Text(
                       _mode == _AuthMode.signUp
-                          ? 'Sign up with email to get started.'
+                          ? 'Add an email and password to save your profile and therapy goals.'
                           : 'Sign in to continue where you left off.',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                             color: colors.textSecondary,
@@ -506,8 +547,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        _buildModeSelector(colors),
-                        const SizedBox(height: 20),
                         _buildFieldLabel('Email'),
                         _buildInputField(
                           controller: _emailController,
@@ -599,7 +638,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                 _isLoading
                                     ? 'Please wait...'
                                     : _mode == _AuthMode.signUp
-                                        ? 'Continue with Email'
+                                        ? 'Create Account'
                                         : 'Sign In with Email',
                                 key: ValueKey<String>(
                                   'email-cta-${_mode.name}-$_isLoading',
@@ -703,101 +742,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
-  Widget _buildModeSelector(AppColors colors) {
-    return Container(
-      padding: const EdgeInsets.all(6),
-      decoration: BoxDecoration(
-        color: colors.surfaceVariant,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: colors.border),
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          const gap = 8.0;
-          final segmentWidth = (constraints.maxWidth - gap) / 2;
-
-          return SizedBox(
-            height: 52,
-            child: Stack(
-              children: [
-                AnimatedPositioned(
-                  duration: const Duration(milliseconds: 220),
-                  curve: Curves.easeOutCubic,
-                  left: _mode == _AuthMode.signUp ? 0 : segmentWidth + gap,
-                  top: 0,
-                  bottom: 0,
-                  width: segmentWidth,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: colors.surface,
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(
-                        color: colors.border.blend(colors.primary, 0.52),
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: colors.shadow,
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildModeTab(
-                        colors: colors,
-                        label: 'Sign Up',
-                        selected: _mode == _AuthMode.signUp,
-                        onTap: () => _changeMode(_AuthMode.signUp),
-                      ),
-                    ),
-                    const SizedBox(width: gap),
-                    Expanded(
-                      child: _buildModeTab(
-                        colors: colors,
-                        label: 'Sign In',
-                        selected: _mode == _AuthMode.signIn,
-                        onTap: () => _changeMode(_AuthMode.signIn),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildModeTab({
-    required AppColors colors,
-    required String label,
-    required bool selected,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: SizedBox.expand(
-        child: Center(
-          child: AnimatedDefaultTextStyle(
-            duration: const Duration(milliseconds: 180),
-            curve: Curves.easeOutCubic,
-            style: Theme.of(context).textTheme.titleSmall!.copyWith(
-                  fontWeight: FontWeight.w800,
-                  color: selected ? colors.primary : colors.textSecondary,
-                ),
-            child: Text(label),
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildFieldLabel(String label) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -878,7 +822,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             const SizedBox(width: 12),
             Text(
               _mode == _AuthMode.signUp
-                  ? 'Continue with Google'
+                  ? 'Create with Google'
                   : 'Sign In with Google',
               style: Theme.of(context).textTheme.titleSmall?.copyWith(
                     color: colors.textPrimary,
@@ -912,7 +856,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   _buildTopActionButton(
                     colors: colors,
                     icon: Icons.arrow_back_rounded,
-                    onTap: () => setState(() => _stage = _EntryStage.auth),
+                    onTap: () {
+                      if (widget.onBack != null) {
+                        widget.onBack!();
+                      } else {
+                        setState(() => _stage = _EntryStage.auth);
+                      }
+                    },
                   ),
                 ],
               ),
@@ -952,7 +902,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                               ),
                               const SizedBox(height: 6),
                               Text(
-                                'Add your name and a photo so your care space feels like yours.',
+                                'Add your name and a photo before choosing your therapy goals.',
                                 style: Theme.of(context)
                                     .textTheme
                                     .bodyMedium
@@ -1020,12 +970,118 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     SizedBox(
                       width: double.infinity,
                       child: ModernButton(
-                        text: _isLoading ? 'Saving...' : 'Finish Setup',
+                        text: 'Continue to Goals',
                         icon: Icons.arrow_forward_rounded,
-                        isLoading: _isLoading,
                         backgroundColor:
                             colors.primaryDark.blend(colors.primary, 0.22),
-                        onPressed: _completeProfileSetup,
+                        onPressed: _continueFromProfileSetup,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGoalsStage(AppColors colors) {
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  _buildTopActionButton(
+                    colors: colors,
+                    icon: Icons.arrow_back_rounded,
+                    onTap: () =>
+                        setState(() => _stage = _EntryStage.profileSetup),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(22),
+                decoration: BoxDecoration(
+                  color: colors.surface,
+                  borderRadius: BorderRadius.circular(30),
+                  border: Border.all(color: colors.border),
+                  boxShadow: [
+                    BoxShadow(
+                      color: colors.shadow,
+                      blurRadius: 18,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Set therapy goals',
+                      style:
+                          Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                fontWeight: FontWeight.w800,
+                                height: 1.15,
+                              ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Choose how many speech and physical exercises you want to do each week. You can change this later in Recovery.',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: colors.textSecondary,
+                            height: 1.4,
+                          ),
+                    ),
+                    const SizedBox(height: 22),
+                    _GoalSetupRow(
+                      colors: colors,
+                      icon: Icons.record_voice_over_rounded,
+                      title: 'Speech exercises',
+                      subtitle: 'Voice, clarity, and breath practice',
+                      accent: colors.primary,
+                      value: _speechGoal,
+                      onDecrease: () => setState(
+                        () => _speechGoal =
+                            (_speechGoal - 1).clamp(0, 99).toInt(),
+                      ),
+                      onIncrease: () => setState(
+                        () => _speechGoal =
+                            (_speechGoal + 1).clamp(0, 99).toInt(),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    _GoalSetupRow(
+                      colors: colors,
+                      icon: Icons.fitness_center_rounded,
+                      title: 'Physical exercises',
+                      subtitle: 'Mobility, balance, and strength sessions',
+                      accent: colors.secondary,
+                      value: _physicalGoal,
+                      onDecrease: () => setState(
+                        () => _physicalGoal =
+                            (_physicalGoal - 1).clamp(0, 99).toInt(),
+                      ),
+                      onIncrease: () => setState(
+                        () => _physicalGoal =
+                            (_physicalGoal + 1).clamp(0, 99).toInt(),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ModernButton(
+                        text: 'Continue to Account',
+                        icon: Icons.arrow_forward_rounded,
+                        backgroundColor:
+                            colors.primaryDark.blend(colors.primary, 0.22),
+                        onPressed: _continueFromGoals,
                       ),
                     ),
                   ],
@@ -1070,6 +1126,127 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               fontWeight: FontWeight.w800,
               color: colors.primary,
             ),
+      ),
+    );
+  }
+}
+
+class _GoalSetupRow extends StatelessWidget {
+  final AppColors colors;
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Color accent;
+  final int value;
+  final VoidCallback onDecrease;
+  final VoidCallback onIncrease;
+
+  const _GoalSetupRow({
+    required this.colors,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.accent,
+    required this.value,
+    required this.onDecrease,
+    required this.onIncrease,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: colors.surfaceVariant.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: colors.border.withValues(alpha: 0.72)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(icon, color: accent, size: 21),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  subtitle,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: colors.textSecondary,
+                      ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          _GoalSetupButton(
+            colors: colors,
+            icon: Icons.remove_rounded,
+            onTap: onDecrease,
+          ),
+          SizedBox(
+            width: 42,
+            child: Text(
+              '$value',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+            ),
+          ),
+          _GoalSetupButton(
+            colors: colors,
+            icon: Icons.add_rounded,
+            onTap: onIncrease,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GoalSetupButton extends StatelessWidget {
+  final AppColors colors;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _GoalSetupButton({
+    required this.colors,
+    required this.icon,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        HapticUtils.selectionClick();
+        onTap();
+      },
+      child: Container(
+        width: 34,
+        height: 34,
+        decoration: BoxDecoration(
+          color: colors.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: colors.border),
+        ),
+        child: Icon(icon, size: 18, color: colors.textPrimary),
       ),
     );
   }

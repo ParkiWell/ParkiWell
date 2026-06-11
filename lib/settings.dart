@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:levio/main.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:terminate_restart/terminate_restart.dart';
@@ -126,10 +125,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     HapticUtils.lightImpact();
     await singleton.signOut();
     if (!mounted) return;
-    await Navigator.of(context).pushAndRemoveUntil(
-      buildSubtleFadeRoute(page: const MyApp()),
-      (route) => false,
-    );
+    // Pop back to the root; MyApp reacts to the cleared session and swaps
+    // the Navbar for the onboarding flow. Pushing a nested MyApp here used
+    // to mount duplicate widget trees (and duplicate GlobalKeys).
+    Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
   Future<void> _restartTutorial() async {
@@ -137,10 +136,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await tutorialService.resetTutorial();
     singleton.setPage(0);
     if (!mounted) return;
-    await Navigator.of(context).pushAndRemoveUntil(
-      buildSubtleFadeRoute(page: const MyApp()),
-      (route) => false,
-    );
+    // Return to the existing Navbar instead of pushing a nested app copy;
+    // the Navbar's TutorialOverlay restarts in place.
+    Navigator.of(context).popUntil((route) => route.isFirst);
+    tutorialService.requestRestart();
   }
 
   Future<void> _syncNow() async {
@@ -312,10 +311,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             HapticUtils.lightImpact();
             if (Navigator.of(context).canPop()) {
               Navigator.of(context).pop();
-            } else {
-              Navigator.of(context).pushReplacement(
-                buildSubtleFadeRoute(page: const MyApp()),
-              );
             }
           },
         ),

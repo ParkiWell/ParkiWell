@@ -241,7 +241,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
           _ActivityItem(
             icon: Icons.fitness_center_outlined,
-            title: 'Exercises Completed',
+            title: 'Therapy Sessions',
             value: '${singleton.exerNum}',
           ),
           const SizedBox(height: 24),
@@ -339,7 +339,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           _StatItem(
             value: '${singleton.exerNum}',
-            label: 'Exercises',
+            label: 'Sessions',
           ),
           Container(
             width: 1,

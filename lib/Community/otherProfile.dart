@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../navbar.dart';
 import '../theme/app_theme.dart';
-import '../utils/app_routes.dart';
 
 /// Legacy placeholder -- not actively used in the current navigation flow.
 class OtherProfileScreen extends StatefulWidget {
@@ -25,8 +23,9 @@ class _OtherProfileScreenState extends State<OtherProfileScreen> {
         leading: IconButton(
           icon: Icon(Icons.arrow_back_rounded, color: colors.textPrimary),
           onPressed: () {
-            Navigator.of(context)
-                .pushReplacement(buildSubtleFadeRoute(page: const Navbar()));
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            }
           },
         ),
       ),

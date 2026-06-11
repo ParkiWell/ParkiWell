@@ -213,8 +213,9 @@ class Singleton extends ChangeNotifier {
   String image = "images/711128.png";
   int postNum = 0;
   int exerNum = 0;
-  final Set<String> completedExerciseVideoIds = <String>{};
-  final Set<String> completedSpeechVideoIds = <String>{};
+  int weeklySpeechExerciseGoal = 4;
+  int weeklyPhysicalExerciseGoal = 4;
+  final List<Map<String, dynamic>> recoverySessions = <Map<String, dynamic>>[];
 
   // ID tracking
   List<String> logIDs = [];
@@ -318,31 +319,199 @@ class Singleton extends ChangeNotifier {
     notifyListenersSafe();
   }
 
-  int get totalRecoveryVideos => exercises.length + speeches.length;
-  int get completedRecoveryVideos =>
-      completedExerciseVideoIds.length + completedSpeechVideoIds.length;
+  static const String recoveryTypePhysical = 'physical';
+  static const String recoveryTypeSpeech = 'speech';
+
+  int get totalRecoverySessions => recoverySessions.length;
+  int get totalPhysicalExerciseSessions =>
+      recoverySessionsForType(recoveryTypePhysical);
+  int get totalSpeechExerciseSessions =>
+      recoverySessionsForType(recoveryTypeSpeech);
+  int get weeklyPhysicalExerciseSessions => recoverySessionsForType(
+        recoveryTypePhysical,
+        from: _startOfWeek(DateTime.now()),
+      );
+  int get weeklySpeechExerciseSessions => recoverySessionsForType(
+        recoveryTypeSpeech,
+        from: _startOfWeek(DateTime.now()),
+      );
+
   double get recoveryProgress {
-    final total = totalRecoveryVideos;
-    if (total == 0) return 0;
-    return (completedRecoveryVideos / total).clamp(0, 1);
+    final totalGoal = weeklyPhysicalExerciseGoal + weeklySpeechExerciseGoal;
+    if (totalGoal == 0) return 0;
+    final completed =
+        weeklyPhysicalExerciseSessions + weeklySpeechExerciseSessions;
+    return (completed / totalGoal).clamp(0, 1).toDouble();
   }
 
-  void markExerciseVideoCompleted(String videoId) {
+  double get weeklyPhysicalGoalProgress {
+    if (weeklyPhysicalExerciseGoal == 0) return 0;
+    return (weeklyPhysicalExerciseSessions / weeklyPhysicalExerciseGoal)
+        .clamp(0, 1)
+        .toDouble();
+  }
+
+  double get weeklySpeechGoalProgress {
+    if (weeklySpeechExerciseGoal == 0) return 0;
+    return (weeklySpeechExerciseSessions / weeklySpeechExerciseGoal)
+        .clamp(0, 1)
+        .toDouble();
+  }
+
+  DateTime _startOfWeek(DateTime date) {
+    final local = DateTime(date.year, date.month, date.day);
+    return local.subtract(Duration(days: local.weekday - DateTime.monday));
+  }
+
+  DateTime? _parseRecoverySessionDate(dynamic value) {
+    if (value == null) return null;
+    return DateTime.tryParse(value.toString())?.toLocal();
+  }
+
+  String? _normalizeRecoveryType(String? type) {
+    final normalized = type?.trim().toLowerCase();
+    if (normalized == recoveryTypeSpeech) return recoveryTypeSpeech;
+    if (normalized == recoveryTypePhysical ||
+        normalized == 'exercise' ||
+        normalized == 'physical_exercise') {
+      return recoveryTypePhysical;
+    }
+    return null;
+  }
+
+  Map<String, dynamic>? _normalizedRecoverySession(Map entry) {
+    final type = _normalizeRecoveryType(entry['type']?.toString());
+    final videoId = normalizeYouTubeVideoId(
+      (entry['video_id'] ?? entry['videoId'] ?? '').toString(),
+    );
+    final completedAt =
+        _parseRecoverySessionDate(entry['completed_at']) ?? DateTime.now();
+
+    if (type == null || videoId == null) return null;
+
+    return <String, dynamic>{
+      'id': (entry['id']?.toString().trim().isNotEmpty == true)
+          ? entry['id'].toString()
+          : _uuid.v4(),
+      'type': type,
+      'video_id': videoId,
+      'title': entry['title']?.toString() ??
+          (type == recoveryTypeSpeech
+              ? speeches[videoId]?.first
+              : exercises[videoId]?.first) ??
+          '',
+      'completed_at': completedAt.toIso8601String(),
+    };
+  }
+
+  void _addLegacyRecoverySession(String type, String videoId) {
     final normalized = normalizeYouTubeVideoId(videoId);
     if (normalized == null) return;
-    if (!completedExerciseVideoIds.add(normalized)) return;
-    exerNum = completedRecoveryVideos;
+    final title = type == recoveryTypeSpeech
+        ? speeches[normalized]?.first ?? 'Speech exercise'
+        : exercises[normalized]?.first ?? 'Physical exercise';
+    recoverySessions.add(<String, dynamic>{
+      'id': _uuid.v4(),
+      'type': type,
+      'video_id': normalized,
+      'title': title,
+      'completed_at': DateTime.now().toIso8601String(),
+    });
+  }
+
+  void setTherapyGoals({
+    required int weeklySpeech,
+    required int weeklyPhysical,
+  }) {
+    weeklySpeechExerciseGoal = weeklySpeech.clamp(0, 99).toInt();
+    weeklyPhysicalExerciseGoal = weeklyPhysical.clamp(0, 99).toInt();
     _persistLocalCache();
     notifyListenersSafe();
   }
 
-  void markSpeechVideoCompleted(String videoId) {
+  int recordPhysicalExerciseSession(String videoId) {
+    return _recordRecoverySession(recoveryTypePhysical, videoId);
+  }
+
+  int recordSpeechExerciseSession(String videoId) {
+    return _recordRecoverySession(recoveryTypeSpeech, videoId);
+  }
+
+  int _recordRecoverySession(String type, String videoId) {
     final normalized = normalizeYouTubeVideoId(videoId);
-    if (normalized == null) return;
-    if (!completedSpeechVideoIds.add(normalized)) return;
-    exerNum = completedRecoveryVideos;
+    if (normalized == null) return 0;
+
+    final title = type == recoveryTypeSpeech
+        ? speeches[normalized]?.first ?? 'Speech exercise'
+        : exercises[normalized]?.first ?? 'Physical exercise';
+    recoverySessions.add(<String, dynamic>{
+      'id': _uuid.v4(),
+      'type': type,
+      'video_id': normalized,
+      'title': title,
+      'completed_at': DateTime.now().toIso8601String(),
+    });
+    exerNum = totalRecoverySessions;
     _persistLocalCache();
     notifyListenersSafe();
+    return recoverySessionCountForVideo(type, normalized);
+  }
+
+  int recoverySessionsForType(
+    String type, {
+    DateTime? from,
+    DateTime? to,
+  }) {
+    final normalizedType = _normalizeRecoveryType(type);
+    if (normalizedType == null) return 0;
+    return recoverySessions.where((session) {
+      if (session['type'] != normalizedType) return false;
+      final completedAt = _parseRecoverySessionDate(session['completed_at']);
+      if (completedAt == null) return false;
+      if (from != null && completedAt.isBefore(from)) return false;
+      if (to != null && !completedAt.isBefore(to)) return false;
+      return true;
+    }).length;
+  }
+
+  int recoverySessionCountForVideo(String type, String videoId) {
+    final normalizedType = _normalizeRecoveryType(type);
+    final normalizedVideoId = normalizeYouTubeVideoId(videoId);
+    if (normalizedType == null || normalizedVideoId == null) return 0;
+    return recoverySessions.where((session) {
+      return session['type'] == normalizedType &&
+          session['video_id'] == normalizedVideoId;
+    }).length;
+  }
+
+  int exerciseSessionCountForVideo(String videoId) {
+    return recoverySessionCountForVideo(recoveryTypePhysical, videoId);
+  }
+
+  int speechSessionCountForVideo(String videoId) {
+    return recoverySessionCountForVideo(recoveryTypeSpeech, videoId);
+  }
+
+  List<String> recommendedPhysicalExerciseIds({int limit = 2}) {
+    final ids = exercises.keys.toList();
+    ids.sort((a, b) {
+      final countCompare = exerciseSessionCountForVideo(a)
+          .compareTo(exerciseSessionCountForVideo(b));
+      if (countCompare != 0) return countCompare;
+      return exercises[a]!.first.compareTo(exercises[b]!.first);
+    });
+    return ids.take(limit).toList();
+  }
+
+  List<String> recommendedSpeechExerciseIds({int limit = 1}) {
+    final ids = speeches.keys.toList();
+    ids.sort((a, b) {
+      final countCompare = speechSessionCountForVideo(a)
+          .compareTo(speechSessionCountForVideo(b));
+      if (countCompare != 0) return countCompare;
+      return speeches[a]!.first.compareTo(speeches[b]!.first);
+    });
+    return ids.take(limit).toList();
   }
 
   Map<String, String> monthMap = {
@@ -735,8 +904,11 @@ class Singleton extends ChangeNotifier {
         'page': page,
       },
       'recovery_progress': <String, dynamic>{
-        'completed_exercise_video_ids': completedExerciseVideoIds.toList(),
-        'completed_speech_video_ids': completedSpeechVideoIds.toList(),
+        'weekly_speech_goal': weeklySpeechExerciseGoal,
+        'weekly_physical_goal': weeklyPhysicalExerciseGoal,
+        'sessions': recoverySessions
+            .map((session) => Map<String, dynamic>.from(session))
+            .toList(),
       },
       'logs': List<Map<String, dynamic>>.generate(
         log.length,
@@ -788,23 +960,35 @@ class Singleton extends ChangeNotifier {
     final recoveryProgress = snapshot['recovery_progress'];
     if (recoveryProgress is Map) {
       final progressMap = Map<String, dynamic>.from(recoveryProgress);
-      completedExerciseVideoIds
-        ..clear()
-        ..addAll(
-          (progressMap['completed_exercise_video_ids'] as List<dynamic>? ??
-                  const <dynamic>[])
-              .map((id) => normalizeYouTubeVideoId(id.toString()) ?? '')
-              .where((id) => id.isNotEmpty),
+      weeklySpeechExerciseGoal =
+          (progressMap['weekly_speech_goal'] as num?)?.toInt() ??
+              weeklySpeechExerciseGoal;
+      weeklyPhysicalExerciseGoal =
+          (progressMap['weekly_physical_goal'] as num?)?.toInt() ??
+              weeklyPhysicalExerciseGoal;
+
+      recoverySessions.clear();
+      final sessions = progressMap['sessions'];
+      if (sessions is List) {
+        recoverySessions.addAll(
+          sessions
+              .whereType<Map>()
+              .map(_normalizedRecoverySession)
+              .whereType<Map<String, dynamic>>(),
         );
-      completedSpeechVideoIds
-        ..clear()
-        ..addAll(
-          (progressMap['completed_speech_video_ids'] as List<dynamic>? ??
-                  const <dynamic>[])
-              .map((id) => normalizeYouTubeVideoId(id.toString()) ?? '')
-              .where((id) => id.isNotEmpty),
-        );
-      exerNum = completedRecoveryVideos;
+      } else {
+        for (final id
+            in progressMap['completed_exercise_video_ids'] as List<dynamic>? ??
+                const <dynamic>[]) {
+          _addLegacyRecoverySession(recoveryTypePhysical, id.toString());
+        }
+        for (final id
+            in progressMap['completed_speech_video_ids'] as List<dynamic>? ??
+                const <dynamic>[]) {
+          _addLegacyRecoverySession(recoveryTypeSpeech, id.toString());
+        }
+      }
+      exerNum = totalRecoverySessions;
     }
 
     log
@@ -1508,11 +1692,14 @@ class Singleton extends ChangeNotifier {
       communityPosts.clear();
       communityComments.clear();
       joinedCommunityGroups.clear();
+      recoverySessions.clear();
       name = '[Name]';
       email = '[Email]';
       image = 'images/711128.png';
       postNum = 0;
       exerNum = 0;
+      weeklySpeechExerciseGoal = 4;
+      weeklyPhysicalExerciseGoal = 4;
       firstTime = true;
       age = 0;
 
@@ -1543,11 +1730,14 @@ class Singleton extends ChangeNotifier {
       communityPosts.clear();
       communityComments.clear();
       joinedCommunityGroups.clear();
+      recoverySessions.clear();
       name = '[Name]';
       email = '[Email]';
       image = 'images/711128.png';
       postNum = 0;
       exerNum = 0;
+      weeklySpeechExerciseGoal = 4;
+      weeklyPhysicalExerciseGoal = 4;
       firstTime = true;
       age = 0;
       page = 0;

@@ -92,7 +92,6 @@ class _CommunityScreenState extends State<CommunityScreen>
   String _feedFilterCategory = 'All';
   String _feedSortMode = 'Newest';
   bool _feedOnlyMine = false;
-  bool _isSubmittingPost = false;
   Timer? _searchDebounce;
   int _postVersion = 0;
   int _visibleCachePostVersion = -1;
@@ -129,7 +128,7 @@ class _CommunityScreenState extends State<CommunityScreen>
   ];
   bool _isLoadingFeed = true;
   bool _isLoadingGroups = true;
-  final List<String> _postCategories = const <String>[
+  static const List<String> _postCategories = <String>[
     'General',
     'Exercise Tips',
     'Speech Therapy',
@@ -353,200 +352,27 @@ class _CommunityScreenState extends State<CommunityScreen>
     _showCommentsSheet(post);
   }
 
-  void _showCreatePostSheet() {
-    final colors = context.colors;
-    final textController = TextEditingController();
-    String? selectedCategory;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setModalState) => Container(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(ctx).viewInsets.bottom,
-          ),
-          decoration: BoxDecoration(
-            color: colors.surface,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 32,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: colors.border,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  'Create Post',
-                  style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                ),
-                const SizedBox(height: 16),
-                // Category selector
-                SizedBox(
-                  height: 32,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: _postCategories.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 6),
-                    itemBuilder: (context, index) {
-                      final cat = _postCategories[index];
-                      final isSelected = selectedCategory == cat;
-                      return GestureDetector(
-                        onTap: () =>
-                            setModalState(() => selectedCategory = cat),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          decoration: BoxDecoration(
-                            color: isSelected
-                                ? colors.primary
-                                : Colors.transparent,
-                            borderRadius: BorderRadius.circular(4),
-                            border: Border.all(
-                              color:
-                                  isSelected ? colors.primary : colors.border,
-                            ),
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            cat,
-                            style: TextStyle(
-                              color: isSelected
-                                  ? Colors.white
-                                  : colors.textSecondary,
-                              fontWeight: FontWeight.w500,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: textController,
-                  maxLines: 4,
-                  maxLength: _maxPostLength,
-                  onChanged: (_) => setModalState(() {}),
-                  decoration: InputDecoration(
-                    hintText:
-                        'Share your thoughts, experience, or questions...',
-                    hintStyle: TextStyle(color: colors.textTertiary),
-                    filled: true,
-                    fillColor: colors.surfaceVariant,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide.none,
-                    ),
-                    counterStyle: Theme.of(ctx).textTheme.labelSmall?.copyWith(
-                          color: colors.textTertiary,
-                        ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextButton(
-                        onPressed:
-                            _isSubmittingPost ? null : () => Navigator.pop(ctx),
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
-                        child: Text('Cancel',
-                            style: TextStyle(color: colors.textSecondary)),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: () async {
-                          final content = textController.text.trim();
-                          if (content.isEmpty ||
-                              _isSubmittingPost ||
-                              content.length > _maxPostLength) {
-                            return;
-                          }
-
-                          final messenger = ScaffoldMessenger.of(context);
-                          setState(() => _isSubmittingPost = true);
-                          setModalState(() {});
-                          HapticUtils.lightImpact();
-                          final success = await singleton.createCommunityPost(
-                            content: content,
-                            category: selectedCategory ?? 'General',
-                          );
-                          if (!mounted || !ctx.mounted) {
-                            setState(() => _isSubmittingPost = false);
-                            return;
-                          }
-                          if (success) {
-                            setState(() => _isSubmittingPost = false);
-                            Navigator.pop(ctx);
-                            await _loadFeedData();
-                            if (!mounted) return;
-                            messenger.showSnackBar(
-                              SnackBar(
-                                content: const Text('Post shared'),
-                                behavior: SnackBarBehavior.floating,
-                                shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(6)),
-                              ),
-                            );
-                          } else {
-                            setState(() => _isSubmittingPost = false);
-                            setModalState(() {});
-                            final errorMessage =
-                                singleton.consumeLastCommunityError() ??
-                                    'Unable to share post.';
-                            messenger.showSnackBar(
-                              SnackBar(
-                                content: Text(errorMessage),
-                                behavior: SnackBarBehavior.floating,
-                                shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(6)),
-                              ),
-                            );
-                          }
-                        },
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
-                        child: _isSubmittingPost
-                            ? SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: colors.textOnPrimary,
-                                ),
-                              )
-                            : const Text('Post'),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-              ],
-            ),
-          ),
-        ),
+  Future<void> _openCreatePostPage() async {
+    HapticUtils.lightImpact();
+    final created = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        fullscreenDialog: true,
+        builder: (_) => const _CreatePostScreen(),
       ),
     );
+    if (created == true && mounted) {
+      await _loadFeedData();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Post shared'),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(6),
+          ),
+        ),
+      );
+    }
   }
 
   bool _isOwnPost(CommunityPost post) {
@@ -979,117 +805,45 @@ class _CommunityScreenState extends State<CommunityScreen>
   Widget _buildFeedTab(AppColors colors) {
     final visiblePosts = _visiblePosts;
 
-    return Column(
-      children: [
-        _buildComposer(colors),
-        const SizedBox(height: 14),
-        _buildFeedControls(colors),
-        const SizedBox(height: 14),
-
-        // Posts list or empty state
-        Expanded(
-          child: _isLoadingFeed
-              ? Center(
-                  child: CircularProgressIndicator(color: colors.primary),
-                )
-              : _posts.isEmpty
-                  ? RefreshIndicator(
-                      onRefresh: _refreshFeed,
-                      child: ListView(
-                        physics: const AlwaysScrollableScrollPhysics(
-                          parent: BouncingScrollPhysics(),
-                        ),
-                        children: [
-                          const SizedBox(height: 60),
-                          _buildEmptyFeedState(colors),
-                          const SizedBox(height: 40),
-                        ],
-                      ),
-                    )
-                  : visiblePosts.isEmpty
-                      ? RefreshIndicator(
-                          onRefresh: _refreshFeed,
-                          child: ListView(
-                            physics: const AlwaysScrollableScrollPhysics(
-                              parent: BouncingScrollPhysics(),
-                            ),
-                            children: [
-                              const SizedBox(height: 60),
-                              _buildNoResultsState(colors),
-                              const SizedBox(height: 40),
-                            ],
-                          ),
-                        )
-                      : RefreshIndicator(
-                          onRefresh: _refreshFeed,
-                          child: ListView.separated(
-                            padding: const EdgeInsets.fromLTRB(20, 4, 20, 48),
-                            physics: const AlwaysScrollableScrollPhysics(
-                              parent: BouncingScrollPhysics(),
-                            ),
-                            itemCount: visiblePosts.length,
-                            separatorBuilder: (_, __) =>
-                                const SizedBox(height: 28),
-                            itemBuilder: (context, index) =>
-                                _buildPostCard(visiblePosts[index], colors),
-                          ),
-                        ),
+    return RefreshIndicator(
+      onRefresh: _refreshFeed,
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(
+          parent: BouncingScrollPhysics(),
         ),
-      ],
-    );
-  }
-
-  Widget _buildComposer(AppColors colors) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-      child: GestureDetector(
-        onTap: _showCreatePostSheet,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          decoration: BoxDecoration(
-            color: colors.surfaceVariant.withValues(alpha: 0.6),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: colors.border.withValues(alpha: 0.6),
-              width: 1,
+        slivers: [
+          // Search, write button, filters and sort all scroll away with the
+          // feed so posts get the full screen while browsing.
+          SliverToBoxAdapter(child: _buildFeedControls(colors)),
+          if (_isLoadingFeed)
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: Center(
+                child: CircularProgressIndicator(color: colors.primary),
+              ),
+            )
+          else if (_posts.isEmpty)
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: _buildEmptyFeedState(colors),
+            )
+          else if (visiblePosts.isEmpty)
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: _buildNoResultsState(colors),
+            )
+          else
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(12, 14, 12, 48),
+              sliver: SliverList.separated(
+                itemCount: visiblePosts.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 14),
+                itemBuilder: (context, index) =>
+                    _buildPostCard(visiblePosts[index], colors),
+              ),
             ),
-          ),
-          child: Row(
-            children: [
-              _buildUserAvatar(36, colors),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Share with the community...',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: colors.textTertiary,
-                        fontWeight: FontWeight.w500,
-                        fontSize: 14,
-                      ),
-                ),
-              ),
-              Icon(
-                Icons.edit_outlined,
-                size: 18,
-                color: colors.textTertiary,
-              ),
-            ],
-          ),
-        ),
+        ],
       ),
-    );
-  }
-
-  Widget _buildUserAvatar(double size, AppColors colors) {
-    final fallback = singleton.name.isNotEmpty && singleton.name != '[Name]'
-        ? singleton.name[0].toUpperCase()
-        : 'U';
-    return _buildAvatar(
-      imagePath: singleton.image,
-      fallbackLabel: fallback,
-      size: size,
-      backgroundColor: colors.primary.withValues(alpha: 0.1),
-      textColor: colors.primary,
     );
   }
 
@@ -1124,86 +878,132 @@ class _CommunityScreenState extends State<CommunityScreen>
     final categories = <String>['All', ..._postCategories];
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          TextField(
-            controller: _feedSearchController,
-            onChanged: (value) {
-              _searchDebounce?.cancel();
-              _searchDebounce = Timer(const Duration(milliseconds: 160), () {
-                if (!mounted) return;
-                setState(() => _feedSearchQuery = value);
-              });
-            },
-            style:
-                Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 14),
-            decoration: InputDecoration(
-              hintText: 'Search',
-              prefixIcon: Icon(Icons.search_rounded,
-                  color: colors.textTertiary, size: 18),
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              filled: true,
-              fillColor: colors.surfaceVariant.withValues(alpha: 0.5),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
-              ),
-              suffixIcon: _feedSearchQuery.isNotEmpty
-                  ? IconButton(
-                      icon: Icon(Icons.close_rounded,
-                          size: 18, color: colors.textTertiary),
-                      onPressed: () {
-                        _feedSearchController.clear();
-                        setState(() {
-                          _feedSearchQuery = '';
-                        });
-                      },
-                    )
-                  : null,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: categories.map((category) {
-              final selected = _feedFilterCategory == category;
-              return GestureDetector(
-                onTap: () {
-                  HapticUtils.selectionClick();
-                  setState(() => _feedFilterCategory = category);
-                },
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: selected
-                        ? colors.primary
-                        : colors.surfaceVariant.withValues(alpha: 0.6),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: selected
-                          ? colors.primary
-                          : colors.border.withValues(alpha: 0.7),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _feedSearchController,
+                  onChanged: (value) {
+                    _searchDebounce?.cancel();
+                    _searchDebounce =
+                        Timer(const Duration(milliseconds: 160), () {
+                      if (!mounted) return;
+                      setState(() => _feedSearchQuery = value);
+                    });
+                  },
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodyMedium
+                      ?.copyWith(fontSize: 14),
+                  decoration: InputDecoration(
+                    hintText: 'Search',
+                    prefixIcon: Icon(Icons.search_rounded,
+                        color: colors.textTertiary, size: 18),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 12),
+                    filled: true,
+                    fillColor: colors.surfaceVariant.withValues(alpha: 0.5),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
                     ),
-                  ),
-                  child: Text(
-                    category,
-                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                          color: selected
-                              ? colors.textOnPrimary
-                              : colors.textSecondary,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 12,
-                        ),
+                    suffixIcon: _feedSearchQuery.isNotEmpty
+                        ? IconButton(
+                            icon: Icon(Icons.close_rounded,
+                                size: 18, color: colors.textTertiary),
+                            onPressed: () {
+                              _feedSearchController.clear();
+                              setState(() {
+                                _feedSearchQuery = '';
+                              });
+                            },
+                          )
+                        : null,
                   ),
                 ),
-              );
-            }).toList(),
+              ),
+              const SizedBox(width: 10),
+              Semantics(
+                button: true,
+                label: 'Write a post',
+                child: GestureDetector(
+                  onTap: _openCreatePostPage,
+                  child: Container(
+                    width: 46,
+                    height: 46,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [colors.primaryLight, colors.primary],
+                      ),
+                      borderRadius: BorderRadius.circular(14),
+                      boxShadow: [
+                        BoxShadow(
+                          color: colors.primary.withValues(alpha: 0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.edit_rounded,
+                      color: Colors.white,
+                      size: 21,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 34,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: categories.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 6),
+              itemBuilder: (context, index) {
+                final category = categories[index];
+                final selected = _feedFilterCategory == category;
+                return GestureDetector(
+                  onTap: () {
+                    HapticUtils.selectionClick();
+                    setState(() => _feedFilterCategory = category);
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? colors.primary
+                          : colors.surfaceVariant.withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: selected
+                            ? colors.primary
+                            : colors.border.withValues(alpha: 0.7),
+                      ),
+                    ),
+                    child: Text(
+                      category,
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                            color: selected
+                                ? colors.textOnPrimary
+                                : colors.textSecondary,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                          ),
+                    ),
+                  ),
+                );
+              },
+            ),
           ),
           const SizedBox(height: 10),
           Row(
@@ -1326,7 +1126,7 @@ class _CommunityScreenState extends State<CommunityScreen>
             ),
             const SizedBox(height: 20),
             ElevatedButton(
-              onPressed: _showCreatePostSheet,
+              onPressed: _openCreatePostPage,
               child: const Text('Create Post'),
             ),
           ],
@@ -2053,5 +1853,206 @@ class _CommunityScreenState extends State<CommunityScreen>
       return '${(count / 1000).toStringAsFixed(1)}k';
     }
     return count.toString();
+  }
+}
+
+class _CreatePostScreen extends StatefulWidget {
+  const _CreatePostScreen();
+
+  @override
+  State<_CreatePostScreen> createState() => _CreatePostScreenState();
+}
+
+class _CreatePostScreenState extends State<_CreatePostScreen> {
+  final singleton = Singleton();
+  final TextEditingController _controller = TextEditingController();
+  String? _selectedCategory;
+  bool _submitting = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final content = _controller.text.trim();
+    if (content.isEmpty ||
+        content.length > _CommunityScreenState._maxPostLength ||
+        _submitting) {
+      return;
+    }
+
+    setState(() => _submitting = true);
+    HapticUtils.lightImpact();
+    final success = await singleton.createCommunityPost(
+      content: content,
+      category: _selectedCategory ?? 'General',
+    );
+    if (!mounted) return;
+
+    if (success) {
+      Navigator.of(context).pop(true);
+    } else {
+      setState(() => _submitting = false);
+      final errorMessage =
+          singleton.consumeLastCommunityError() ?? 'Unable to share post.';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMessage),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(6),
+          ),
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final canPost = _controller.text.trim().isNotEmpty && !_submitting;
+
+    return Scaffold(
+      backgroundColor: colors.background,
+      appBar: AppBar(
+        backgroundColor: colors.background,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.close_rounded, color: colors.textPrimary),
+          onPressed: _submitting ? null : () => Navigator.of(context).pop(),
+        ),
+        title: Text(
+          'Create Post',
+          style: TextStyle(
+            color: colors.textPrimary,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: FilledButton(
+              onPressed: canPost ? _submit : null,
+              style: FilledButton.styleFrom(
+                backgroundColor: colors.primary,
+                disabledBackgroundColor: colors.primary.withValues(alpha: 0.35),
+                foregroundColor: Colors.white,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+              child: _submitting
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Text(
+                      'Post',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+            ),
+          ),
+        ],
+      ),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Category',
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: colors.textSecondary,
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: _CommunityScreenState._postCategories.map((category) {
+                  final isSelected = _selectedCategory == category;
+                  return GestureDetector(
+                    onTap: () {
+                      HapticUtils.selectionClick();
+                      setState(() => _selectedCategory = category);
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 160),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: isSelected ? colors.primary : colors.surface,
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color: isSelected ? colors.primary : colors.border,
+                        ),
+                      ),
+                      child: Text(
+                        category,
+                        style: TextStyle(
+                          color:
+                              isSelected ? Colors.white : colors.textSecondary,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 16),
+              Expanded(
+                child: TextField(
+                  controller: _controller,
+                  maxLines: null,
+                  expands: true,
+                  textAlignVertical: TextAlignVertical.top,
+                  maxLength: _CommunityScreenState._maxPostLength,
+                  autofocus: true,
+                  onChanged: (_) => setState(() {}),
+                  style: Theme.of(context).textTheme.bodyLarge,
+                  decoration: InputDecoration(
+                    hintText:
+                        'Share your thoughts, experience, or questions...',
+                    hintStyle: TextStyle(color: colors.textTertiary),
+                    filled: true,
+                    fillColor: colors.surface,
+                    contentPadding: const EdgeInsets.all(16),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide(color: colors.border),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide(color: colors.border),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide(color: colors.primary),
+                    ),
+                    counterStyle:
+                        Theme.of(context).textTheme.labelSmall?.copyWith(
+                              color: colors.textTertiary,
+                            ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

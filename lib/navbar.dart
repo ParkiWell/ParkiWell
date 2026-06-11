@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'dart:io';
 
 import 'Recovery/exercise.dart';
@@ -29,6 +30,7 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
   final tutorialService = TutorialService();
   int currentIndex = 0;
   int _previousIndex = 0;
+  Timer? _tabSettleTimer;
   bool _tabTransitionMovesForward = true;
   bool button = false;
   bool addPost = false;
@@ -113,6 +115,7 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    _tabSettleTimer?.cancel();
     singleton.removeListener(_onSingletonPageChange);
     _fabAnimationController.dispose();
     super.dispose();
@@ -159,7 +162,63 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
   void _onSingletonPageChange() {
     if (!mounted) return;
     final targetIndex = singleton.page;
-    _setCurrentIndex(targetIndex, syncSingleton: false);
+    if (targetIndex != currentIndex) {
+      _setCurrentIndex(targetIndex, syncSingleton: false);
+    } else {
+      // Data-only change (e.g. profile name/avatar updated): refresh the
+      // app bar without a tab transition.
+      setState(() {});
+    }
+  }
+
+  String _appBarTitle() {
+    if (currentIndex != 0) return navItems[currentIndex].label;
+    final raw = singleton.name.trim();
+    final firstName =
+        (raw.isEmpty || raw == '[Name]') ? null : raw.split(' ').first;
+    return _timeGreeting(firstName);
+  }
+
+  String _timeGreeting(String? name) {
+    final now = DateTime.now();
+    final hour = now.hour;
+
+    final List<String> pool;
+    if (hour >= 5 && hour < 12) {
+      pool = const [
+        'Good morning',
+        'Morning',
+        'Welcome back',
+        'Have a great day',
+      ];
+    } else if (hour >= 12 && hour < 17) {
+      pool = const [
+        'Good afternoon',
+        'Welcome back',
+        'Great to see you',
+        'Hope you\'re well',
+      ];
+    } else if (hour >= 17 && hour < 21) {
+      pool = const [
+        'Good evening',
+        'Welcome back',
+        'Great to see you',
+        'Evening',
+      ];
+    } else {
+      pool = const [
+        'Good evening',
+        'Welcome back',
+        'Winding down',
+        'Rest well',
+      ];
+    }
+
+    // Stable for the whole day so the header doesn't flicker between
+    // rebuilds, but rotates day to day.
+    final seed = now.year * 400 + now.month * 31 + now.day;
+    final greeting = pool[seed % pool.length];
+    return name == null ? greeting : '$greeting, $name';
   }
 
   void _setCurrentIndex(int index, {required bool syncSingleton}) {
@@ -179,6 +238,14 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
       } else {
         _fabAnimationController.reverse();
       }
+    });
+
+    // Unmount the outgoing tab once the slide transition settles; keeping it
+    // mounted indefinitely leaks state and risks duplicate GlobalKeys.
+    _tabSettleTimer?.cancel();
+    _tabSettleTimer = Timer(const Duration(milliseconds: 300), () {
+      if (!mounted) return;
+      setState(() => _previousIndex = currentIndex);
     });
   }
 
@@ -446,126 +513,22 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
   }
 
   void _showEditProfileDialog() {
-    final colors = context.colors;
-    final nameController = TextEditingController(
-      text: singleton.name == '[Name]' ? '' : singleton.name,
-    );
-    final emailController = TextEditingController(
-      text: singleton.email == '[Email]' ? '' : singleton.email,
-    );
-
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: colors.surface,
+      backgroundColor: context.colors.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
       ),
       builder: (BuildContext c) {
-        return Container(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(c).viewInsets.bottom,
-          ),
-          decoration: BoxDecoration(
-            color: colors.surface,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Handle bar
-                Center(
-                  child: Container(
-                    width: 32,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: colors.border,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  'Edit Profile',
-                  style: Theme.of(c).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                ),
-                const SizedBox(height: 20),
-                ModernTextField(
-                  controller: nameController,
-                  label: 'Name',
-                  hint: 'Enter your name',
-                  prefixIcon: Icons.person_outline,
-                ),
-                const SizedBox(height: 12),
-                ModernTextField(
-                  controller: emailController,
-                  label: 'Email',
-                  hint: 'Enter your email',
-                  prefixIcon: Icons.email_outlined,
-                  keyboardType: TextInputType.emailAddress,
-                ),
-                const SizedBox(height: 24),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextButton(
-                        onPressed: () {
-                          HapticUtils.lightImpact();
-                          Navigator.pop(c);
-                        },
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(6),
-                            side: BorderSide(color: colors.border),
-                          ),
-                        ),
-                        child: Text(
-                          'Cancel',
-                          style: TextStyle(color: colors.textSecondary),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: () async {
-                          HapticUtils.lightImpact();
-                          await updateAccount(
-                            rawName: nameController.text,
-                            rawEmail: emailController.text,
-                          );
-                          if (!mounted || !c.mounted) return;
-                          Navigator.pop(c);
-                          await Navigator.pushNamedAndRemoveUntil(
-                            context,
-                            '/',
-                            (r) => false,
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
-                        child: const Text('Save'),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-              ],
-            ),
-          ),
+        return _EditProfileSheet(
+          initialName: singleton.name == '[Name]' ? '' : singleton.name,
+          initialEmail: singleton.email == '[Email]' ? '' : singleton.email,
+          onSave: (name, email) =>
+              updateAccount(rawName: name, rawEmail: email),
         );
       },
-    ).whenComplete(() {
-      nameController.dispose();
-      emailController.dispose();
-    });
+    );
   }
 
   @override
@@ -597,37 +560,60 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
       scrolledUnderElevation: 0,
       backgroundColor: colors.background,
       toolbarHeight: 46,
-      leadingWidth: 180,
+      leadingWidth: 280,
       leading: Padding(
         padding: const EdgeInsets.only(left: 14),
         child: Row(
           children: [
-            ClipRect(
-              child: Container(
-                key: _titleKey,
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 180),
-                  switchInCurve: Curves.easeOutCubic,
-                  switchOutCurve: Curves.easeOutCubic,
-                  layoutBuilder: (currentChild, _) {
-                    return currentChild ?? const SizedBox.shrink();
-                  },
-                  transitionBuilder: (child, animation) => FadeTransition(
-                    opacity: animation,
-                    child: SlideTransition(
-                      position: Tween<Offset>(
-                        begin: const Offset(0.06, 0),
-                        end: Offset.zero,
-                      ).animate(animation),
-                      child: child,
-                    ),
-                  ),
-                  child: Text(
-                    navItems[currentIndex].label,
-                    key: ValueKey<int>(currentIndex),
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
+            Flexible(
+              child: ClipRect(
+                child: Container(
+                  key: _titleKey,
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 240),
+                    layoutBuilder: (currentChild, previousChildren) {
+                      return Stack(
+                        alignment: Alignment.centerLeft,
+                        children: <Widget>[
+                          ...previousChildren,
+                          if (currentChild != null) currentChild,
+                        ],
+                      );
+                    },
+                    transitionBuilder: (child, animation) {
+                      // Sequence the swap: the outgoing title finishes
+                      // fading out in the first half before the incoming
+                      // one fades in, so the two never overlap.
+                      final fade = CurvedAnimation(
+                        parent: animation,
+                        curve: const Interval(0.5, 1.0, curve: Curves.easeOut),
+                      );
+                      return FadeTransition(
+                        opacity: fade,
+                        child: SlideTransition(
+                          position: Tween<Offset>(
+                            begin: const Offset(0.04, 0),
+                            end: Offset.zero,
+                          ).animate(fade),
+                          child: child,
                         ),
+                      );
+                    },
+                    // Scale down instead of ellipsizing so long greetings
+                    // always fit on one line.
+                    child: FittedBox(
+                      key: ValueKey<int>(currentIndex),
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        _appBarTitle(),
+                        maxLines: 1,
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 20,
+                            ),
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -735,10 +721,15 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
                 duration: const Duration(milliseconds: 220),
                 curve: Curves.easeOutCubic,
                 offset: targetOffset,
-                child: RepaintBoundary(
-                  child: ColoredBox(
-                    color: colors.background,
-                    child: _tabs[index],
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutCubic,
+                  opacity: isCurrent ? 1.0 : 0.0,
+                  child: RepaintBoundary(
+                    child: ColoredBox(
+                      color: colors.background,
+                      child: _tabs[index],
+                    ),
                   ),
                 ),
               ),
@@ -826,4 +817,128 @@ class _NavItem {
   final String label;
 
   _NavItem({required this.icon, required this.activeIcon, required this.label});
+}
+
+class _EditProfileSheet extends StatefulWidget {
+  final String initialName;
+  final String initialEmail;
+  final Future<void> Function(String name, String email) onSave;
+
+  const _EditProfileSheet({
+    required this.initialName,
+    required this.initialEmail,
+    required this.onSave,
+  });
+
+  @override
+  State<_EditProfileSheet> createState() => _EditProfileSheetState();
+}
+
+class _EditProfileSheetState extends State<_EditProfileSheet> {
+  late final TextEditingController _nameController =
+      TextEditingController(text: widget.initialName);
+  late final TextEditingController _emailController =
+      TextEditingController(text: widget.initialEmail);
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _emailController.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    HapticUtils.lightImpact();
+    final name = _nameController.text;
+    final email = _emailController.text;
+    Navigator.pop(context);
+    widget.onSave(name, email);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 32,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: colors.border,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Edit Profile',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+            const SizedBox(height: 20),
+            ModernTextField(
+              controller: _nameController,
+              label: 'Name',
+              hint: 'Enter your name',
+              prefixIcon: Icons.person_outline,
+            ),
+            const SizedBox(height: 12),
+            ModernTextField(
+              controller: _emailController,
+              label: 'Email',
+              hint: 'Enter your email',
+              prefixIcon: Icons.email_outlined,
+              keyboardType: TextInputType.emailAddress,
+            ),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                Expanded(
+                  child: TextButton(
+                    onPressed: () {
+                      HapticUtils.lightImpact();
+                      Navigator.pop(context);
+                    },
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(6),
+                        side: BorderSide(color: colors.border),
+                      ),
+                    ),
+                    child: Text(
+                      'Cancel',
+                      style: TextStyle(color: colors.textSecondary),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: _save,
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    child: const Text('Save'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
+    );
+  }
 }
