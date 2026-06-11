@@ -81,15 +81,20 @@ class _RecoveryScreenState extends State<RecoveryScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'Therapy',
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        color: colors.textSecondary,
-                        fontWeight: FontWeight.w700,
-                      ),
-                ),
+              Text(
+                'Therapy',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      color: colors.textPrimary,
+                      fontWeight: FontWeight.w800,
+                    ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Choose a practice area, then start or log a session.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: colors.textSecondary,
+                      height: 1.35,
+                    ),
               ),
               const SizedBox(height: 12),
               _RecoveryFeatureCard(
@@ -121,9 +126,18 @@ class _RecoveryScreenState extends State<RecoveryScreen> {
               ),
               const SizedBox(height: 24),
               Text(
-                'Exercise and therapy to support your health',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                'Your plan',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      color: colors.textPrimary,
+                      fontWeight: FontWeight.w800,
+                    ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Set weekly goals and review how often you practice.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: colors.textSecondary,
+                      height: 1.35,
                     ),
               ),
               const SizedBox(height: 16),
@@ -151,6 +165,8 @@ class _RecoveryScreenState extends State<RecoveryScreen> {
                 singleton: singleton,
                 picks: _recommendedWorkouts,
               ),
+              const SizedBox(height: 18),
+              _RecentRecoveryLogsCard(singleton: singleton),
               const SizedBox(height: 24),
             ],
           ),
@@ -194,7 +210,7 @@ class _GoalProgressCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Weekly Goals',
+                      'Weekly practice goal',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                             fontWeight: FontWeight.w700,
                           ),
@@ -202,10 +218,11 @@ class _GoalProgressCard extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       totalGoal == 0
-                          ? 'Set a weekly target for speech and movement.'
+                          ? 'Pick how many speech and physical sessions you want.'
                           : '$totalDone of $totalGoal sessions this week',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             color: colors.textSecondary,
+                            height: 1.35,
                           ),
                     ),
                   ],
@@ -474,11 +491,24 @@ class _TherapyTrackingChart extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Text(
-                  'Therapy Tracking',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Therapy tracking',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      'Speech and physical sessions by time period.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: colors.textSecondary,
+                            height: 1.35,
+                          ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -909,6 +939,229 @@ class _LegendItem extends StatelessWidget {
   }
 }
 
+class _RecentRecoveryLogsCard extends StatelessWidget {
+  final Singleton singleton;
+
+  const _RecentRecoveryLogsCard({required this.singleton});
+
+  void _showDeletedSnack(
+    BuildContext context,
+    AppColors colors,
+    String title,
+  ) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          margin: const EdgeInsets.fromLTRB(18, 0, 18, 22),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          behavior: SnackBarBehavior.floating,
+          elevation: 0,
+          backgroundColor: colors.surface.blend(colors.error, 0.12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+            side: BorderSide(color: colors.border.blend(colors.error, 0.45)),
+          ),
+          content: Text(
+            '$title log deleted.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: colors.textPrimary,
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+        ),
+      );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final sessions = singleton.recoverySessions.reversed.toList();
+
+    return ModernCard(
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Session logs',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Remove accidental session logs from your tracking history.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: colors.textSecondary,
+                  height: 1.35,
+                ),
+          ),
+          const SizedBox(height: 14),
+          if (sessions.isEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: colors.surfaceVariant.withValues(alpha: 0.72),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: colors.border.withValues(alpha: 0.7)),
+              ),
+              child: Text(
+                'No sessions logged yet.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: colors.textTertiary,
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
+            )
+          else
+            for (var index = 0; index < sessions.length; index += 1) ...[
+              _RecentRecoveryLogRow(
+                session: sessions[index],
+                colors: colors,
+                onDelete: () {
+                  HapticUtils.lightImpact();
+                  final title = _sessionTitle(sessions[index]);
+                  final deleted = singleton.deleteRecoverySessionById(
+                    sessions[index]['id']?.toString() ?? '',
+                  );
+                  if (deleted) {
+                    _showDeletedSnack(context, colors, title);
+                  }
+                },
+              ),
+              if (index != sessions.length - 1) const SizedBox(height: 10),
+            ],
+        ],
+      ),
+    );
+  }
+}
+
+class _RecentRecoveryLogRow extends StatelessWidget {
+  final Map<String, dynamic> session;
+  final AppColors colors;
+  final VoidCallback onDelete;
+
+  const _RecentRecoveryLogRow({
+    required this.session,
+    required this.colors,
+    required this.onDelete,
+  });
+
+  bool get _isPhysical => session['type'] == Singleton.recoveryTypePhysical;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = _isPhysical ? colors.secondary : colors.primary;
+    final icon = _isPhysical
+        ? Icons.fitness_center_rounded
+        : Icons.record_voice_over_rounded;
+    final typeLabel = _isPhysical ? 'Physical' : 'Speech';
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: colors.surfaceVariant.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colors.border.withValues(alpha: 0.7)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: accent, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _sessionTitle(session),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  '$typeLabel - ${_sessionTime(session)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: colors.textSecondary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          IconButton(
+            tooltip: 'Delete log',
+            onPressed: onDelete,
+            style: IconButton.styleFrom(
+              backgroundColor: colors.surface,
+              fixedSize: const Size(38, 38),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(color: colors.border.blend(colors.error, 0.4)),
+              ),
+            ),
+            icon: Icon(
+              Icons.delete_outline_rounded,
+              color: colors.error,
+              size: 19,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _sessionTitle(Map<String, dynamic> session) {
+  final title = session['title']?.toString().trim();
+  if (title != null && title.isNotEmpty) return title;
+  return session['type'] == Singleton.recoveryTypePhysical
+      ? 'Physical exercise'
+      : 'Speech exercise';
+}
+
+String _sessionTime(Map<String, dynamic> session) {
+  final date = DateTime.tryParse(
+    session['completed_at']?.toString() ?? '',
+  )?.toLocal();
+  if (date == null) return 'Unknown time';
+
+  const months = <String>[
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+  final hour = date.hour % 12 == 0 ? 12 : date.hour % 12;
+  final minute = date.minute.toString().padLeft(2, '0');
+  final period = date.hour >= 12 ? 'PM' : 'AM';
+  return '${months[date.month - 1]} ${date.day}, $hour:$minute $period';
+}
+
 class _RecommendedWorkoutsCard extends StatelessWidget {
   final Singleton singleton;
   final List<({String videoId, String type})> picks;
@@ -960,7 +1213,8 @@ class _RecommendedWorkoutsCard extends StatelessWidget {
         videoId: pick.videoId,
         type: pick.type,
         title: data[0],
-        detail: data.length > 2 ? data[2] : (isPhysical ? 'Exercise' : 'Speech'),
+        detail:
+            data.length > 2 ? data[2] : (isPhysical ? 'Exercise' : 'Speech'),
         icon: isPhysical
             ? Icons.fitness_center_rounded
             : Icons.record_voice_over_rounded,
@@ -977,16 +1231,17 @@ class _RecommendedWorkoutsCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Recommended Workouts',
+            'Recommended sessions',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   fontWeight: FontWeight.w700,
                 ),
           ),
           const SizedBox(height: 4),
           Text(
-            'Suggested from sessions you have practiced least.',
+            'Start with the lessons you have practiced least.',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: colors.textSecondary,
+                  height: 1.35,
                 ),
           ),
           const SizedBox(height: 14),

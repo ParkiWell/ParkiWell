@@ -457,6 +457,22 @@ class Singleton extends ChangeNotifier {
     return recoverySessionCountForVideo(type, normalized);
   }
 
+  bool deleteRecoverySessionById(String id) {
+    final trimmedId = id.trim();
+    if (trimmedId.isEmpty) return false;
+
+    final index = recoverySessions.indexWhere(
+      (session) => session['id']?.toString() == trimmedId,
+    );
+    if (index == -1) return false;
+
+    recoverySessions.removeAt(index);
+    exerNum = totalRecoverySessions;
+    _persistLocalCache();
+    notifyListenersSafe();
+    return true;
+  }
+
   int recoverySessionsForType(
     String type, {
     DateTime? from,

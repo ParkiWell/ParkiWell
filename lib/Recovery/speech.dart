@@ -27,6 +27,7 @@ class _SpeechScreenState extends State<SpeechScreen>
     super.initState();
     speeches = singleton.speeches;
     videoIds = singleton.speeches.keys.toList();
+    singleton.addListener(_onSingletonUpdate);
 
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 380),
@@ -41,8 +42,13 @@ class _SpeechScreenState extends State<SpeechScreen>
 
   @override
   void dispose() {
+    singleton.removeListener(_onSingletonUpdate);
     _animationController.dispose();
     super.dispose();
+  }
+
+  void _onSingletonUpdate() {
+    if (mounted) setState(() {});
   }
 
   void _showSpeechGuide() {
@@ -213,7 +219,7 @@ class _SpeechScreenState extends State<SpeechScreen>
                       onTap: () {
                         HapticUtils.cardTap();
                         singleton.setCurrentUrl(videoId);
-                        Navigator.popAndPushNamed(context, '/speechAudio');
+                        Navigator.pushNamed(context, '/speechAudio');
                       },
                     ),
                   ),
@@ -445,24 +451,62 @@ class _SpeechVideoCardState extends State<_SpeechVideoCard> {
                           fontWeight: FontWeight.bold,
                         ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    widget.description,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: colors.textSecondary,
+                  const SizedBox(height: 10),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: colors.surfaceVariant.withValues(alpha: 0.7),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: colors.border.withValues(alpha: 0.65),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'What you will practice',
+                          style:
+                              Theme.of(context).textTheme.labelSmall?.copyWith(
+                                    color: colors.textTertiary,
+                                    fontWeight: FontWeight.w800,
+                                  ),
                         ),
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
+                        const SizedBox(height: 5),
+                        Text(
+                          widget.description,
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: colors.textSecondary,
+                                    height: 1.35,
+                                  ),
+                          maxLines: 4,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
                   ),
                   if (widget.source.isNotEmpty) ...[
                     const SizedBox(height: 8),
-                    Text(
-                      widget.source,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: colors.textTertiary,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 11,
-                          ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: colors.surface,
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(color: colors.border),
+                      ),
+                      child: Text(
+                        widget.source,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: colors.textTertiary,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 11,
+                            ),
+                      ),
                     ),
                   ],
                   const SizedBox(height: 14),

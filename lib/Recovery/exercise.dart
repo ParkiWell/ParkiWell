@@ -29,6 +29,7 @@ class _ExerciseScreenState extends State<ExerciseScreen>
     super.initState();
     exercises = singleton.exercises;
     urls = singleton.exercises.keys.toList();
+    singleton.addListener(_onSingletonUpdate);
 
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 380),
@@ -43,8 +44,13 @@ class _ExerciseScreenState extends State<ExerciseScreen>
 
   @override
   void dispose() {
+    singleton.removeListener(_onSingletonUpdate);
     _animationController.dispose();
     super.dispose();
+  }
+
+  void _onSingletonUpdate() {
+    if (mounted) setState(() {});
   }
 
   void _showExerciseGuide() {
@@ -226,7 +232,7 @@ class _ExerciseScreenState extends State<ExerciseScreen>
                           onTap: () {
                             HapticUtils.cardTap();
                             singleton.setCurrentUrl(urls[index]);
-                            Navigator.popAndPushNamed(
+                            Navigator.pushNamed(
                                 context, '/exerciseVideoScreen');
                           },
                         ),
@@ -434,30 +440,86 @@ class _ExerciseCardState extends State<_ExerciseCard> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.fitness_center_rounded,
+                        size: 16,
+                        color: colors.primary,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Physical exercise',
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              color: colors.primary,
+                              fontWeight: FontWeight.w700,
+                            ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
                   Text(
                     widget.title,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
                         ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    widget.description,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: colors.textSecondary,
+                  const SizedBox(height: 10),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: colors.surfaceVariant.withValues(alpha: 0.7),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: colors.border.withValues(alpha: 0.65),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'What you will practice',
+                          style:
+                              Theme.of(context).textTheme.labelSmall?.copyWith(
+                                    color: colors.textTertiary,
+                                    fontWeight: FontWeight.w800,
+                                  ),
                         ),
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
+                        const SizedBox(height: 5),
+                        Text(
+                          widget.description,
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: colors.textSecondary,
+                                    height: 1.35,
+                                  ),
+                          maxLines: 4,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
                   ),
                   if (widget.source.isNotEmpty) ...[
                     const SizedBox(height: 8),
-                    Text(
-                      widget.source,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: colors.textTertiary,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 11,
-                          ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: colors.surface,
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(color: colors.border),
+                      ),
+                      child: Text(
+                        widget.source,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: colors.textTertiary,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 11,
+                            ),
+                      ),
                     ),
                   ],
                   const SizedBox(height: 14),

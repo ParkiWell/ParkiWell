@@ -46,16 +46,11 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
   final GlobalKey _settingsKey = GlobalKey();
   final GlobalKey _fabKey = GlobalKey();
   final GlobalKey _exerciseCardKey = GlobalKey();
+  final GlobalKey _logSymptomQuickActionKey = GlobalKey();
+  final GlobalKey _addMedicationQuickActionKey = GlobalKey();
+  final GlobalKey _medicationsToolCardKey = GlobalKey();
   final List<GlobalKey> _navItemKeys =
       List<GlobalKey>.generate(5, (_) => GlobalKey());
-
-  late final List<Widget> _tabs = [
-    const HomeScreen(),
-    const ManageScreen(),
-    RecoveryScreen(exerciseCardKey: _exerciseCardKey),
-    const CommunityScreen(),
-    const ProfileScreen(),
-  ];
 
   final List<_NavItem> navItems = [
     _NavItem(icon: Icons.home_outlined, activeIcon: Icons.home, label: 'Home'),
@@ -277,7 +272,7 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
         },
       ),
       TutorialStep(
-        targetKey: TutorialTargets.logSymptomQuickActionKey,
+        targetKey: _logSymptomQuickActionKey,
         title: 'Start Symptom Entry',
         description:
             'Tap Log Symptom to open the symptom form and capture what you felt.',
@@ -307,7 +302,7 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
             'When details are ready, save the entry to track symptom trends.',
       ),
       TutorialStep(
-        targetKey: TutorialTargets.addMedicationQuickActionKey,
+        targetKey: _addMedicationQuickActionKey,
         title: 'Start Medication Entry',
         description:
             'Next, open Add Medication to create a medication schedule.',
@@ -337,7 +332,7 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
             'Save to add this medication schedule to your weekly plan.',
       ),
       TutorialStep(
-        targetKey: TutorialTargets.medicationsToolCardKey,
+        targetKey: _medicationsToolCardKey,
         title: 'Open Medication List',
         description:
             'Open Medications to review saved schedules and details in one place.',
@@ -728,7 +723,7 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
                   child: RepaintBoundary(
                     child: ColoredBox(
                       color: colors.background,
-                      child: _tabs[index],
+                      child: _buildTab(index),
                     ),
                   ),
                 ),
@@ -738,6 +733,27 @@ class _NavbarState extends State<Navbar> with TickerProviderStateMixin {
         }).toList(),
       ),
     );
+  }
+
+  Widget _buildTab(int index) {
+    switch (index) {
+      case 0:
+        return const HomeScreen();
+      case 1:
+        return ManageScreen(
+          logSymptomQuickActionKey: _logSymptomQuickActionKey,
+          addMedicationQuickActionKey: _addMedicationQuickActionKey,
+          medicationsToolCardKey: _medicationsToolCardKey,
+        );
+      case 2:
+        return RecoveryScreen(exerciseCardKey: _exerciseCardKey);
+      case 3:
+        return const CommunityScreen();
+      case 4:
+        return const ProfileScreen();
+      default:
+        return const HomeScreen();
+    }
   }
 
   Widget _buildNavItem(

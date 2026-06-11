@@ -4,6 +4,9 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import '../theme/app_theme.dart';
 import '../utils/haptic_utils.dart';
+import '../widgets/modern_button.dart';
+import '../widgets/modern_card.dart';
+import '../widgets/session_count_button.dart';
 
 class SpeechAudio extends StatefulWidget {
   const SpeechAudio({super.key});
@@ -51,6 +54,51 @@ class _SpeechAudioState extends State<SpeechAudio> {
   @override
   void dispose() => super.dispose();
 
+  void _showLoggedSnack(String title, int count) {
+    final colors = context.colors;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            '$title logged. Completed $count time${count == 1 ? '' : 's'}.',
+          ),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: colors.success,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      );
+  }
+
+  void _logSessionAndReturn() {
+    final videoId = _videoId ?? singleton.currentURL;
+    final normalized = singleton.normalizeYouTubeVideoId(videoId);
+    if (normalized == null) {
+      HapticUtils.error();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('This speech session link appears invalid.'),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: context.colors.error,
+        ),
+      );
+      return;
+    }
+
+    HapticUtils.success();
+    final count = singleton.recordSpeechExerciseSession(normalized);
+    final title = singleton.speeches[normalized]?.first ?? 'Speech session';
+    _showLoggedSnack(title, count);
+
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop(true);
+    } else {
+      Navigator.of(context).pushReplacementNamed('/speechScreen');
+    }
+  }
+
   Future<void> _openInAppBrowser() async {
     if (_videoId == null) return;
     final uri = Uri.parse(_youtubeUrl);
@@ -90,6 +138,8 @@ class _SpeechAudioState extends State<SpeechAudio> {
     final speechData = singleton.speeches[singleton.currentURL];
     final source =
         speechData != null && speechData.length > 3 ? speechData[3] : '';
+    final sessionCount =
+        singleton.speechSessionCountForVideo(singleton.currentURL);
 
     if (speechData == null) {
       return Scaffold(
@@ -168,24 +218,42 @@ class _SpeechAudioState extends State<SpeechAudio> {
                       fontWeight: FontWeight.bold,
                     ),
               ),
-              const SizedBox(height: 8),
-              Text(
-                speechData[1],
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: colors.textSecondary,
+              const SizedBox(height: 12),
+              ModernCard(
+                padding: const EdgeInsets.all(14),
+                margin: EdgeInsets.zero,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Session focus',
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                            color: colors.textTertiary,
+                            fontWeight: FontWeight.w800,
+                          ),
                     ),
-              ),
-              if (source.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Text(
-                  source,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: colors.textTertiary,
-                        fontWeight: FontWeight.w600,
+                    const SizedBox(height: 6),
+                    Text(
+                      speechData[1],
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: colors.textSecondary,
+                            height: 1.4,
+                          ),
+                    ),
+                    if (source.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Text(
+                        source,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: colors.textTertiary,
+                              fontWeight: FontWeight.w700,
+                            ),
                       ),
+                    ],
+                  ],
                 ),
-              ],
-              const SizedBox(height: 16),
+              ),
+              const SizedBox(height: 12),
               Container(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -309,6 +377,67 @@ class _SpeechAudioState extends State<SpeechAudio> {
                         ],
                       ),
                     ),
+              const SizedBox(height: 16),
+              ModernCard(
+                padding: const EdgeInsets.all(16),
+                margin: EdgeInsets.zero,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.check_circle_outline_rounded,
+                          size: 19,
+                          color: colors.primary,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Finished this speech session?',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleSmall
+                                ?.copyWith(fontWeight: FontWeight.w800),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Log it once when you complete the video. You will return to the page you came from.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: colors.textSecondary,
+                            height: 1.35,
+                          ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: SessionCountChip(
+                              count: sessionCount,
+                              accent: colors.primary,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        ModernButton(
+                          text: 'Log session',
+                          icon: Icons.add_rounded,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          onPressed: _logSessionAndReturn,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
         ),

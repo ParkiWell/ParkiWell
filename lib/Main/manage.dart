@@ -1,13 +1,21 @@
 import 'package:flutter/material.dart';
 
-import '../services/tutorial_targets.dart';
 import '../singleton.dart';
 import '../theme/app_theme.dart';
 import '../utils/haptic_utils.dart';
 import '../widgets/modern_card.dart';
 
 class ManageScreen extends StatefulWidget {
-  const ManageScreen({super.key});
+  final GlobalKey? logSymptomQuickActionKey;
+  final GlobalKey? addMedicationQuickActionKey;
+  final GlobalKey? medicationsToolCardKey;
+
+  const ManageScreen({
+    super.key,
+    this.logSymptomQuickActionKey,
+    this.addMedicationQuickActionKey,
+    this.medicationsToolCardKey,
+  });
 
   @override
   State<ManageScreen> createState() => _ManageScreenState();
@@ -192,7 +200,7 @@ class _ManageScreenState extends State<ManageScreen> {
               children: [
                 Expanded(
                   child: _QuickAction(
-                    cardKey: TutorialTargets.logSymptomQuickActionKey,
+                    cardKey: widget.logSymptomQuickActionKey,
                     icon: Icons.add_chart_rounded,
                     label: 'Log Symptom',
                     accentColor: colors.primary,
@@ -205,7 +213,7 @@ class _ManageScreenState extends State<ManageScreen> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: _QuickAction(
-                    cardKey: TutorialTargets.addMedicationQuickActionKey,
+                    cardKey: widget.addMedicationQuickActionKey,
                     icon: Icons.add_alarm_rounded,
                     label: 'Add Medication',
                     accentColor: colors.secondary,
@@ -243,7 +251,7 @@ class _ManageScreenState extends State<ManageScreen> {
               subtitle: 'Set reminders and track your medications',
               statValue: '$totalMeds',
               statLabel: 'scheduled',
-              cardKey: TutorialTargets.medicationsToolCardKey,
+              cardKey: widget.medicationsToolCardKey,
               onTap: () {
                 HapticUtils.lightImpact();
                 Navigator.pushNamed(context, '/scheduleScreen');

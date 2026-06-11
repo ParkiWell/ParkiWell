@@ -12,6 +12,7 @@ import '../theme/app_theme.dart';
 import '../utils/haptic_utils.dart';
 import '../widgets/modern_button.dart';
 import '../widgets/modern_card.dart';
+import '../widgets/session_count_button.dart';
 import '../widgets/tutorial_overlay.dart';
 
 class ExerciseVideo extends StatefulWidget {
@@ -174,6 +175,51 @@ class _ExerciseVideoState extends State<ExerciseVideo> {
     controller?.dispose();
   }
 
+  void _showLoggedSnack(String title, int count) {
+    final colors = context.colors;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            '$title logged. Completed $count time${count == 1 ? '' : 's'}.',
+          ),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: colors.success,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      );
+  }
+
+  void _logSessionAndReturn() {
+    final videoId = _videoId ?? singleton.currentURL;
+    final normalized = singleton.normalizeYouTubeVideoId(videoId);
+    if (normalized == null) {
+      HapticUtils.error();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('This exercise link appears invalid.'),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: context.colors.error,
+        ),
+      );
+      return;
+    }
+
+    HapticUtils.success();
+    final count = singleton.recordPhysicalExerciseSession(normalized);
+    final title = singleton.exercises[normalized]?.first ?? 'Exercise';
+    _showLoggedSnack(title, count);
+
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop(true);
+    } else {
+      Navigator.of(context).pushReplacementNamed('/exerciseScreen');
+    }
+  }
+
   void _showAnalysisDialog() {
     final colors = context.colors;
 
@@ -262,6 +308,8 @@ class _ExerciseVideoState extends State<ExerciseVideo> {
     }
 
     final source = exerciseData.length > 3 ? exerciseData[3] : '';
+    final sessionCount =
+        singleton.exerciseSessionCountForVideo(singleton.currentURL);
 
     return TutorialOverlay(
       steps: const [],
@@ -325,24 +373,44 @@ class _ExerciseVideoState extends State<ExerciseVideo> {
                         fontWeight: FontWeight.bold,
                       ),
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  exerciseData[1],
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: colors.textSecondary,
+                const SizedBox(height: 12),
+                ModernCard(
+                  padding: const EdgeInsets.all(14),
+                  margin: EdgeInsets.zero,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Session focus',
+                        style:
+                            Theme.of(context).textTheme.labelMedium?.copyWith(
+                                  color: colors.textTertiary,
+                                  fontWeight: FontWeight.w800,
+                                ),
                       ),
-                ),
-                if (source.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    source,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: colors.textTertiary,
-                          fontWeight: FontWeight.w600,
+                      const SizedBox(height: 6),
+                      Text(
+                        exerciseData[1],
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: colors.textSecondary,
+                              height: 1.4,
+                            ),
+                      ),
+                      if (source.isNotEmpty) ...[
+                        const SizedBox(height: 10),
+                        Text(
+                          source,
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: colors.textTertiary,
+                                    fontWeight: FontWeight.w700,
+                                  ),
                         ),
+                      ],
+                    ],
                   ),
-                ],
-                const SizedBox(height: 16),
+                ),
+                const SizedBox(height: 12),
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -466,6 +534,67 @@ class _ExerciseVideoState extends State<ExerciseVideo> {
                           ],
                         ),
                       ),
+                const SizedBox(height: 16),
+                ModernCard(
+                  padding: const EdgeInsets.all(16),
+                  margin: EdgeInsets.zero,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.check_circle_outline_rounded,
+                            size: 19,
+                            color: colors.primary,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Finished this exercise?',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleSmall
+                                  ?.copyWith(fontWeight: FontWeight.w800),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Log it once when you complete the video. You will return to the page you came from.',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: colors.textSecondary,
+                              height: 1.35,
+                            ),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: SessionCountChip(
+                                count: sessionCount,
+                                accent: colors.primary,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          ModernButton(
+                            text: 'Log session',
+                            icon: Icons.add_rounded,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            onPressed: _logSessionAndReturn,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
                 const SizedBox(height: 16),
                 Row(
                   children: [

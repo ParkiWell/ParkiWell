@@ -185,6 +185,29 @@ class LineChartSample1State extends State<LineChartSample1>
     final colors = context.colors;
     return LineTouchData(
       handleBuiltInTouches: true,
+      touchSpotThreshold: 24,
+      getTouchedSpotIndicator: (barData, spotIndexes) {
+        return spotIndexes.map((index) {
+          return TouchedSpotIndicatorData(
+            FlLine(
+              color: barData.color!.withValues(alpha: 0.35),
+              strokeWidth: 2,
+              dashArray: [4, 4],
+            ),
+            FlDotData(
+              show: true,
+              getDotPainter: (spot, percent, bar, i) {
+                return FlDotCirclePainter(
+                  radius: 5,
+                  color: bar.color!,
+                  strokeWidth: 2.5,
+                  strokeColor: colors.surface,
+                );
+              },
+            ),
+          );
+        }).toList();
+      },
       touchTooltipData: LineTouchTooltipData(
         getTooltipColor: (spot) => colors.surface,
         tooltipRoundedRadius: 12,
@@ -343,30 +366,14 @@ class LineChartSample1State extends State<LineChartSample1>
     return LineChartBarData(
       isCurved: true,
       curveSmoothness: 0.3,
+      preventCurveOverShooting: true,
       color: colors.chartLine,
       barWidth: 3,
       isStrokeCapRound: true,
-      dotData: FlDotData(
-        show: true,
-        getDotPainter: (spot, percent, barData, index) {
-          return FlDotCirclePainter(
-            radius: 4,
-            color: colors.chartLine,
-            strokeWidth: 2,
-            strokeColor: colors.surface,
-          );
-        },
-      ),
+      dotData: const FlDotData(show: false),
       belowBarData: BarAreaData(
         show: true,
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            colors.chartLine.withValues(alpha: 0.3),
-            colors.chartLine.withValues(alpha: 0.0),
-          ],
-        ),
+        color: colors.chartLine.withValues(alpha: 0.08),
       ),
       spots: pointList,
     );

@@ -227,6 +227,14 @@ void main() {
     expect(singleton.weeklyPhysicalExerciseGoal, equals(6));
     expect(singleton.weeklySpeechExerciseGoal, equals(5));
     expect(singleton.exerNum, equals(3));
+
+    final firstSessionId = singleton.recoverySessions.first['id'] as String;
+    final deleted = singleton.deleteRecoverySessionById(firstSessionId);
+
+    expect(deleted, isTrue);
+    expect(singleton.exerciseSessionCountForVideo(exerciseId), equals(1));
+    expect(singleton.totalRecoverySessions, equals(2));
+    expect(singleton.exerNum, equals(2));
   });
 
   test('Offline log save writes local state and marks pending sync', () async {
