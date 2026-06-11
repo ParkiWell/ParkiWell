@@ -66,12 +66,6 @@ class LineChartSample1State extends State<LineChartSample1>
 
   bool get _medicationChartHasData => singleton.schedule.isNotEmpty;
 
-  String get _welcomeTitle {
-    final n = singleton.name.trim();
-    if (n.isEmpty || n == '[Name]') return 'Welcome';
-    return 'Welcome back, $n';
-  }
-
   DateTime? _parseLogTimestamp(String value) {
     final parts = value.split(',');
     if (parts.length != 2) return null;
@@ -388,30 +382,6 @@ class LineChartSample1State extends State<LineChartSample1>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Welcome section
-          FadeTransition(
-            opacity: _animation,
-            child: Text(
-              _welcomeTitle,
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: -0.3,
-                  ),
-            ),
-          ),
-          const SizedBox(height: 6),
-          FadeTransition(
-            opacity: _animation,
-            child: Text(
-              'Here\'s your health overview',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: colors.textSecondary,
-                    height: 1.4,
-                  ),
-            ),
-          ),
-          const SizedBox(height: 24),
-
           // Quick stats row
           FadeTransition(
             opacity: _animation,

@@ -66,6 +66,13 @@ class _TutorialOverlayState extends State<TutorialOverlay> {
 
   void _onTutorialChanged() {
     if (!mounted) return;
+    if (_service.restartRequested &&
+        !_service.isActive &&
+        widget.enabled &&
+        widget.steps.isNotEmpty) {
+      _service.consumeRestartRequest();
+      _startIfNeeded();
+    }
     if (_service.currentStepIndex != _lastStepIndex) {
       _lastStepIndex = _service.currentStepIndex;
       _lastEnsuredVisibleStepIndex = -1;

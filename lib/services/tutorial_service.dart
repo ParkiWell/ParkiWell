@@ -58,6 +58,20 @@ class TutorialService extends ChangeNotifier {
     await prefs.remove(_completionKey);
   }
 
+  bool _restartRequested = false;
+  bool get restartRequested => _restartRequested;
+
+  /// Asks the mounted TutorialOverlay (e.g. the Navbar's) to start the
+  /// tutorial again without remounting the widget tree.
+  void requestRestart() {
+    _restartRequested = true;
+    notifyListeners();
+  }
+
+  void consumeRestartRequest() {
+    _restartRequested = false;
+  }
+
   void start(List<TutorialStep> steps) {
     if (steps.isEmpty) return;
     _steps = List<TutorialStep>.from(steps);

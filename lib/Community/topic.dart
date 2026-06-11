@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:levio/navbar.dart';
 import 'package:levio/theme/app_theme.dart';
-import 'package:levio/utils/app_routes.dart';
 
 /// Legacy placeholder -- not actively used in the current navigation flow.
 class TopicScreen extends StatefulWidget {
@@ -24,8 +22,9 @@ class _TopicScreenState extends State<TopicScreen> {
         leading: IconButton(
           icon: Icon(Icons.arrow_back_rounded, color: colors.textPrimary),
           onPressed: () {
-            Navigator.of(context)
-                .pushReplacement(buildSubtleFadeRoute(page: const Navbar()));
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            }
           },
         ),
         title: Text(

@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:levio/singleton.dart';
 import '../theme/app_theme.dart';
 import '../utils/haptic_utils.dart';
+import '../widgets/card_action_button.dart';
+import '../widgets/guide_dialog.dart';
+import '../widgets/session_count_button.dart';
 
 class SpeechScreen extends StatefulWidget {
   const SpeechScreen({super.key});
@@ -42,52 +45,42 @@ class _SpeechScreenState extends State<SpeechScreen>
     super.dispose();
   }
 
-  void _showSpeechTextGuide() {
-    final colors = context.colors;
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (BuildContext c) {
-        return Container(
-          decoration: BoxDecoration(
-            color: colors.surface,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Speech Guide',
-                  style: Theme.of(c).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  'Use these videos to practice speaking loudly and clearly. Pause and repeat sections as needed.',
-                  style: Theme.of(c).textTheme.bodySmall?.copyWith(
-                        color: colors.textSecondary,
-                        height: 1.5,
-                      ),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  'Sources: Official YouTube channels listed on each lesson card.',
-                  style: Theme.of(c).textTheme.bodySmall?.copyWith(
-                        color: colors.textTertiary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+  void _showSpeechGuide() {
+    showGuideDialog(
+      context,
+      icon: Icons.record_voice_over_rounded,
+      title: 'Speech Guide',
+      body:
+          'Use these videos to practice speaking loudly and clearly. Pause and repeat sections as needed.\n\nTap Log on a lesson card each time you finish a session to track how many times you have done it.',
+      footnote:
+          'Sources: Official YouTube channels listed on each lesson card.',
     );
+  }
+
+  void _showLoggedSnack(String title, int count) {
+    final colors = context.colors;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          margin: const EdgeInsets.fromLTRB(18, 0, 18, 22),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          behavior: SnackBarBehavior.floating,
+          elevation: 0,
+          backgroundColor: colors.surface.blend(colors.success, 0.14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+            side: BorderSide(color: colors.border.blend(colors.success, 0.45)),
+          ),
+          content: Text(
+            '$title logged. Completed $count time${count == 1 ? '' : 's'}.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: colors.textPrimary,
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+        ),
+      );
   }
 
   @override
@@ -128,11 +121,12 @@ class _SpeechScreenState extends State<SpeechScreen>
           TextButton.icon(
             onPressed: () {
               HapticUtils.lightImpact();
-              _showSpeechTextGuide();
+              _showSpeechGuide();
             },
-            icon: Icon(Icons.notes_rounded, color: colors.primary, size: 18),
+            icon:
+                Icon(Icons.menu_book_rounded, color: colors.primary, size: 18),
             label: Text(
-              'Text',
+              'Guide',
               style: Theme.of(context).textTheme.labelMedium?.copyWith(
                     color: colors.primary,
                     fontWeight: FontWeight.w700,
@@ -207,9 +201,17 @@ class _SpeechScreenState extends State<SpeechScreen>
                       source: speechData.length > 3 ? speechData[3] : '',
                       thumbnailUrl:
                           'https://img.youtube.com/vi/$videoId/hqdefault.jpg',
+                      sessionCount:
+                          singleton.speechSessionCountForVideo(videoId),
+                      onLogSession: () {
+                        HapticUtils.success();
+                        final count =
+                            singleton.recordSpeechExerciseSession(videoId);
+                        setState(() {});
+                        _showLoggedSnack(speechData[0], count);
+                      },
                       onTap: () {
                         HapticUtils.cardTap();
-                        singleton.markSpeechVideoCompleted(videoId);
                         singleton.setCurrentUrl(videoId);
                         Navigator.popAndPushNamed(context, '/speechAudio');
                       },
@@ -231,6 +233,8 @@ class _SpeechVideoCard extends StatefulWidget {
   final String duration;
   final String source;
   final String thumbnailUrl;
+  final int sessionCount;
+  final VoidCallback onLogSession;
   final VoidCallback onTap;
 
   const _SpeechVideoCard({
@@ -239,6 +243,8 @@ class _SpeechVideoCard extends StatefulWidget {
     required this.duration,
     required this.source,
     required this.thumbnailUrl,
+    required this.sessionCount,
+    required this.onLogSession,
     required this.onTap,
   });
 
@@ -397,6 +403,15 @@ class _SpeechVideoCardState extends State<_SpeechVideoCard> {
                       ),
                     ),
                   ),
+                  // Session counter
+                  Positioned(
+                    top: 12,
+                    right: 12,
+                    child: SessionCountBadge(
+                      count: widget.sessionCount,
+                      accent: colors.info,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -450,6 +465,35 @@ class _SpeechVideoCardState extends State<_SpeechVideoCard> {
                           ),
                     ),
                   ],
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: SessionCountChip(
+                            count: widget.sessionCount,
+                            accent: colors.info,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      CardActionButton(
+                        label: 'Log',
+                        icon: Icons.add_rounded,
+                        accent: colors.info,
+                        onTap: widget.onLogSession,
+                      ),
+                      const SizedBox(width: 8),
+                      CardActionButton(
+                        label: 'Start',
+                        icon: Icons.play_arrow_rounded,
+                        accent: colors.info,
+                        filled: true,
+                        onTap: widget.onTap,
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),

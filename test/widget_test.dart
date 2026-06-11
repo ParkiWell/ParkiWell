@@ -47,6 +47,9 @@ void main() {
     singleton.currentURL = '';
     singleton.exerNum = 0;
     singleton.postNum = 0;
+    singleton.recoverySessions.clear();
+    singleton.weeklySpeechExerciseGoal = 4;
+    singleton.weeklyPhysicalExerciseGoal = 4;
   });
 
   testWidgets('Enhanced splash renders branded UI elements', (tester) async {
@@ -107,6 +110,48 @@ void main() {
     expect(find.text('Welcome back'), findsOneWidget);
   });
 
+  testWidgets('Sign up walks through name, goals, then account stages',
+      (tester) async {
+    await tester.pumpWidget(const MyApp());
+
+    // Through splash.
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.pump(const Duration(milliseconds: 1800));
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pump(const Duration(milliseconds: 450));
+    await tester.pump(const Duration(milliseconds: 600));
+
+    // Finish landing entrance, then start the journey.
+    await tester.pump(const Duration(milliseconds: 2000));
+    await tester.tap(find.text('Start Strong with Levio'));
+
+    // Landing exit fade + animated hand-off into the profile stage.
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(find.text('Set up your profile'), findsOneWidget);
+
+    await tester.enterText(find.widgetWithText(TextField, 'First name'), 'Ada');
+    await tester.enterText(
+        find.widgetWithText(TextField, 'Last name'), 'Lovelace');
+    await tester.tap(find.text('Continue to Goals'));
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(find.text('Set therapy goals'), findsOneWidget);
+    expect(find.text('Speech exercises'), findsOneWidget);
+    expect(find.text('Physical exercises'), findsOneWidget);
+
+    // Bump the speech goal once and continue.
+    await tester.tap(find.byIcon(Icons.add_rounded).first);
+    await tester.pump();
+    await tester.tap(find.text('Continue to Account'));
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(find.text('Create your account'), findsOneWidget);
+    expect(singleton.weeklySpeechExerciseGoal, equals(5));
+    expect(singleton.weeklyPhysicalExerciseGoal, equals(4));
+  });
+
   test('Recovery catalog keeps valid YouTube IDs', () {
     final idPattern = RegExp(r'^[A-Za-z0-9_-]{11}$');
     for (final id in singleton.exercises.keys) {
@@ -164,6 +209,24 @@ void main() {
     expect(singleton.medsPerDay['Wednesday'], equals(2));
     expect(singleton.medsPerDay['Friday'], equals(2));
     expect(singleton.medsPerDay['Sunday'], equals(1));
+  });
+
+  test('Recovery tracking counts repeated therapy sessions', () {
+    final exerciseId = singleton.exercises.keys.first;
+    final speechId = singleton.speeches.keys.first;
+
+    singleton.recordPhysicalExerciseSession(exerciseId);
+    singleton.recordPhysicalExerciseSession(exerciseId);
+    singleton.recordSpeechExerciseSession(speechId);
+    singleton.setTherapyGoals(weeklySpeech: 5, weeklyPhysical: 6);
+
+    expect(singleton.exerciseSessionCountForVideo(exerciseId), equals(2));
+    expect(singleton.speechSessionCountForVideo(speechId), equals(1));
+    expect(singleton.weeklyPhysicalExerciseSessions, equals(2));
+    expect(singleton.weeklySpeechExerciseSessions, equals(1));
+    expect(singleton.weeklyPhysicalExerciseGoal, equals(6));
+    expect(singleton.weeklySpeechExerciseGoal, equals(5));
+    expect(singleton.exerNum, equals(3));
   });
 
   test('Offline log save writes local state and marks pending sync', () async {
