@@ -166,7 +166,7 @@ class CloudBackendService {
     try {
       await Supabase.initialize(
         url: BackendConfig.supabaseUrl,
-        anonKey: BackendConfig.supabaseAnonKey,
+        publishableKey: BackendConfig.supabaseAnonKey,
         authOptions: const FlutterAuthClientOptions(autoRefreshToken: true),
       );
 

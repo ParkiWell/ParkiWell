@@ -746,22 +746,13 @@ class Singleton extends ChangeNotifier {
   }
 
   String get connectivityLabel {
-    switch (_connectionType) {
-      case ConnectivityResult.wifi:
-        return 'Wi-Fi';
-      case ConnectivityResult.mobile:
-        return 'Cellular';
-      case ConnectivityResult.ethernet:
-        return 'Ethernet';
-      case ConnectivityResult.vpn:
-        return 'VPN';
-      case ConnectivityResult.bluetooth:
-        return 'Bluetooth';
-      case ConnectivityResult.other:
-        return 'Network';
-      case ConnectivityResult.none:
-        return 'Offline';
-    }
+    if (_connectionType == ConnectivityResult.wifi) return 'Wi-Fi';
+    if (_connectionType == ConnectivityResult.mobile) return 'Cellular';
+    if (_connectionType == ConnectivityResult.ethernet) return 'Ethernet';
+    if (_connectionType == ConnectivityResult.vpn) return 'VPN';
+    if (_connectionType == ConnectivityResult.bluetooth) return 'Bluetooth';
+    if (_connectionType == ConnectivityResult.none) return 'Offline';
+    return 'Network';
   }
 
   String? consumeLastCommunityError() {
