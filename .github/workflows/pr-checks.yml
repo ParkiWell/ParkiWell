@@ -2,9 +2,9 @@ name: Pull Request Checks
 
 on:
   pull_request:
-    branches: [main, develop, staging]
+    branches: [main, develop, testing, staging, production]
   push:
-    branches: [main, develop, staging]
+    branches: [main, develop, testing, staging, production]
 
 env:
   FLUTTER_VERSION: '3.38.6'
