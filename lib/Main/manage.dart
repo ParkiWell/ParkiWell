@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../singleton.dart';
 import '../theme/app_theme.dart';
 import '../utils/haptic_utils.dart';
+import '../widgets/liquid_glass.dart';
 import '../widgets/modern_card.dart';
 
 class ManageScreen extends StatefulWidget {
@@ -119,73 +120,82 @@ class _ManageScreenState extends State<ManageScreen> {
     final totalLogs = singleton.log.length;
     final totalMeds = singleton.schedule.length;
 
-    return Container(
-      color: colors.background,
+    return LiquidBackground(
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 26),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Track symptoms and manage medications',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: colors.textSecondary,
-                    height: 1.35,
-                  ),
+            Row(
+              children: [
+                Icon(
+                  Icons.insights_outlined,
+                  size: 17,
+                  color: colors.textTertiary,
+                ),
+                const SizedBox(width: 7),
+                Text(
+                  'Your overview',
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: colors.textSecondary,
+                      ),
+                ),
+              ],
             ),
-            const SizedBox(height: 18),
-            ModernCard(
-              padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.insights_rounded,
-                          size: 15, color: colors.textTertiary),
-                      const SizedBox(width: 6),
-                      Text(
-                        'Today at a glance',
-                        style:
-                            Theme.of(context).textTheme.labelMedium?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                  color: colors.textTertiary,
-                                ),
-                      ),
-                    ],
+            const SizedBox(height: 10),
+            Container(
+              key: const ValueKey('manage-overview-strip'),
+              padding: const EdgeInsets.symmetric(vertical: 15),
+              decoration: BoxDecoration(
+                color: colors.cardBackground,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: colors.border.withValues(
+                    alpha: context.isDarkMode ? 0.72 : 0.58,
                   ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _InsightChip(
-                          label: 'Symptom logs',
-                          value: '$totalLogs',
-                          icon: Icons.favorite_outline_rounded,
-                          accentColor: colors.primary,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: _InsightChip(
-                          label: 'Meds today',
-                          value: '$dueToday',
-                          icon: Icons.medication_outlined,
-                          accentColor: colors.secondary,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: _InsightChip(
-                          label: 'Streak',
-                          value: '${streak}d',
-                          icon: Icons.local_fire_department_outlined,
-                          accentColor: colors.warning,
-                        ),
-                      ),
-                    ],
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: colors.shadow.withValues(
+                      alpha: context.isDarkMode ? 0.18 : 0.055,
+                    ),
+                    blurRadius: 18,
+                    offset: const Offset(0, 6),
                   ),
                 ],
+              ),
+              child: IntrinsicHeight(
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: _InsightMetric(
+                        label: 'Symptom logs',
+                        value: '$totalLogs',
+                        icon: Icons.favorite_outline_rounded,
+                        accentColor: colors.primary,
+                      ),
+                    ),
+                    _MetricDivider(color: colors.divider),
+                    Expanded(
+                      child: _InsightMetric(
+                        label: 'Meds today',
+                        value: '$dueToday',
+                        icon: Icons.medication_outlined,
+                        accentColor: colors.secondary,
+                      ),
+                    ),
+                    _MetricDivider(color: colors.divider),
+                    Expanded(
+                      child: _InsightMetric(
+                        label: 'Streak',
+                        value: '${streak}d',
+                        icon: Icons.local_fire_department_outlined,
+                        accentColor: colors.warning,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 20),
@@ -289,19 +299,11 @@ class _QuickAction extends StatelessWidget {
       onTap: onTap,
       backgroundColor: colors.cardBackground,
       border: Border.all(color: colors.border),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
       child: Row(
         children: [
-          Container(
-            width: 34,
-            height: 34,
-            decoration: BoxDecoration(
-              color: accentColor.withValues(alpha: 0.16),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, color: accentColor, size: 18),
-          ),
-          const SizedBox(width: 10),
+          Icon(icon, color: accentColor, size: 21),
+          const SizedBox(width: 12),
           Expanded(
             child: Text(
               label,
@@ -317,13 +319,13 @@ class _QuickAction extends StatelessWidget {
   }
 }
 
-class _InsightChip extends StatelessWidget {
+class _InsightMetric extends StatelessWidget {
   final String label;
   final String value;
   final IconData icon;
   final Color accentColor;
 
-  const _InsightChip({
+  const _InsightMetric({
     required this.label,
     required this.value,
     required this.icon,
@@ -334,44 +336,54 @@ class _InsightChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
 
-    return ModernCard(
-      margin: EdgeInsets.zero,
-      backgroundColor: colors.cardBackground,
-      border: Border.all(color: colors.border.withValues(alpha: 0.7)),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 13),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Container(
-            width: 24,
-            height: 24,
-            decoration: BoxDecoration(
-              color: accentColor.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(7),
-            ),
-            child: Icon(icon, color: accentColor, size: 13),
+          Row(
+            children: [
+              Icon(icon, color: accentColor, size: 18),
+              const Spacer(),
+              Text(
+                value,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: colors.textPrimary,
+                      letterSpacing: -0.4,
+                    ),
+              ),
+            ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  color: colors.textPrimary,
-                ),
-          ),
-          const SizedBox(height: 1),
+          const SizedBox(height: 9),
           Text(
             label,
-            softWrap: true,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: colors.textTertiary,
-                  fontWeight: FontWeight.w500,
-                  fontSize: 10.5,
+                  color: colors.textSecondary,
+                  fontWeight: FontWeight.w600,
+                  height: 1.2,
                 ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _MetricDivider extends StatelessWidget {
+  final Color color;
+
+  const _MetricDivider({required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 1,
+      margin: const EdgeInsets.symmetric(vertical: 2),
+      color: color.withValues(alpha: 0.72),
     );
   }
 }
@@ -405,19 +417,7 @@ class _ManageFeatureCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       child: Row(
         children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: colors.primary.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(
-              icon,
-              color: colors.primary,
-              size: 22,
-            ),
-          ),
+          Icon(icon, color: colors.primary, size: 24),
           const SizedBox(width: 14),
           Expanded(
             child: Column(

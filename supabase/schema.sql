@@ -42,6 +42,8 @@ create table if not exists public.logs (
   event_time text,
   symptom text,
   severity text,
+  client_updated_at timestamptz not null default timezone('utc', now()),
+  last_mutation_id text not null default '',
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())
 );
@@ -53,9 +55,65 @@ create table if not exists public.schedules (
   data text not null,
   details text,
   days text,
+  client_updated_at timestamptz not null default timezone('utc', now()),
+  last_mutation_id text not null default '',
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())
 );
+
+create table if not exists public.recovery_sessions (
+  id text primary key,
+  user_id text not null references public.users(id) on delete cascade,
+  type text not null check (type in ('physical', 'speech')),
+  video_id text not null,
+  title text not null,
+  completed_at timestamptz not null default timezone('utc', now()),
+  client_updated_at timestamptz not null default timezone('utc', now()),
+  last_mutation_id text not null default '',
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+create table if not exists public.medication_events (
+  id text primary key,
+  user_id text not null references public.users(id) on delete cascade,
+  schedule_id text,
+  medication_name text not null,
+  scheduled_at timestamptz not null,
+  taken_at timestamptz,
+  status text not null default 'scheduled'
+    check (status in ('scheduled', 'taken', 'skipped')),
+  client_updated_at timestamptz not null default timezone('utc', now()),
+  last_mutation_id text not null default '',
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+create table if not exists public.sync_tombstones (
+  entity_type text not null,
+  entity_id text not null,
+  user_id text not null references public.users(id) on delete cascade,
+  deleted_at timestamptz not null,
+  mutation_id text not null,
+  created_at timestamptz not null default timezone('utc', now()),
+  primary key (entity_type, entity_id, user_id)
+);
+
+alter table public.logs
+  add column if not exists client_updated_at timestamptz not null
+    default timezone('utc', now());
+alter table public.logs
+  add column if not exists last_mutation_id text not null default '';
+alter table public.schedules
+  add column if not exists client_updated_at timestamptz not null
+    default timezone('utc', now());
+alter table public.schedules
+  add column if not exists last_mutation_id text not null default '';
+alter table public.recovery_sessions
+  add column if not exists client_updated_at timestamptz not null
+    default timezone('utc', now());
+alter table public.recovery_sessions
+  add column if not exists last_mutation_id text not null default '';
 
 create table if not exists public.community_posts (
   id text primary key,
@@ -104,6 +162,17 @@ create index if not exists idx_logs_user_created
   on public.logs(user_id, created_at desc);
 create index if not exists idx_schedules_user_created
   on public.schedules(user_id, created_at desc);
+create index if not exists idx_recovery_sessions_user_completed
+  on public.recovery_sessions(user_id, completed_at desc);
+create index if not exists idx_recovery_sessions_user_video
+  on public.recovery_sessions(user_id, type, video_id);
+create index if not exists idx_medication_events_user_scheduled
+  on public.medication_events(user_id, scheduled_at desc);
+create index if not exists idx_medication_events_user_taken
+  on public.medication_events(user_id, taken_at desc)
+  where taken_at is not null;
+create index if not exists idx_sync_tombstones_user_deleted
+  on public.sync_tombstones(user_id, deleted_at desc);
 create index if not exists idx_posts_created
   on public.community_posts(created_at desc);
 create index if not exists idx_posts_user_created
@@ -132,6 +201,16 @@ for each row execute function public.set_updated_at();
 drop trigger if exists trg_schedules_updated_at on public.schedules;
 create trigger trg_schedules_updated_at
 before update on public.schedules
+for each row execute function public.set_updated_at();
+
+drop trigger if exists trg_recovery_sessions_updated_at on public.recovery_sessions;
+create trigger trg_recovery_sessions_updated_at
+before update on public.recovery_sessions
+for each row execute function public.set_updated_at();
+
+drop trigger if exists trg_medication_events_updated_at on public.medication_events;
+create trigger trg_medication_events_updated_at
+before update on public.medication_events
 for each row execute function public.set_updated_at();
 
 drop trigger if exists trg_posts_updated_at on public.community_posts;
@@ -183,9 +262,286 @@ $$;
 revoke all on function public.increment_post_like(text) from public;
 grant execute on function public.increment_post_like(text) to authenticated;
 
+create or replace function public.apply_health_mutations(p_mutations jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user_id text := auth.uid()::text;
+  v_mutation jsonb;
+  v_mutation_id text;
+  v_entity_type text;
+  v_entity_id text;
+  v_operation text;
+  v_payload jsonb;
+  v_client_updated_at timestamptz;
+  v_acknowledged jsonb := '[]'::jsonb;
+begin
+  if v_user_id is null then
+    raise exception 'Authentication required';
+  end if;
+  if p_mutations is null or jsonb_typeof(p_mutations) <> 'array' then
+    raise exception 'p_mutations must be a JSON array';
+  end if;
+  if jsonb_array_length(p_mutations) > 500 then
+    raise exception 'A maximum of 500 mutations may be applied per batch';
+  end if;
+
+  for v_mutation in
+    select value from jsonb_array_elements(p_mutations)
+  loop
+    v_mutation_id := trim(coalesce(v_mutation ->> 'mutation_id', ''));
+    v_entity_type := trim(coalesce(v_mutation ->> 'entity_type', ''));
+    v_entity_id := trim(coalesce(v_mutation ->> 'entity_id', ''));
+    v_operation := trim(coalesce(v_mutation ->> 'operation', ''));
+    v_payload := coalesce(v_mutation -> 'payload', '{}'::jsonb);
+    v_client_updated_at := coalesce(
+      nullif(v_mutation ->> 'client_updated_at', '')::timestamptz,
+      timezone('utc', now())
+    );
+
+    if v_mutation_id = '' or v_entity_id = '' then
+      raise exception 'Mutation and entity ids are required';
+    end if;
+    if v_entity_type not in (
+      'log',
+      'schedule',
+      'recoverySession',
+      'medicationEvent'
+    ) then
+      raise exception 'Unsupported entity type: %', v_entity_type;
+    end if;
+    if v_operation not in ('upsert', 'delete') then
+      raise exception 'Unsupported mutation operation: %', v_operation;
+    end if;
+
+    if v_operation = 'delete' then
+      insert into public.sync_tombstones (
+        entity_type,
+        entity_id,
+        user_id,
+        deleted_at,
+        mutation_id
+      ) values (
+        v_entity_type,
+        v_entity_id,
+        v_user_id,
+        v_client_updated_at,
+        v_mutation_id
+      )
+      on conflict (entity_type, entity_id, user_id) do update
+        set deleted_at = excluded.deleted_at,
+            mutation_id = excluded.mutation_id
+      where (public.sync_tombstones.deleted_at,
+             public.sync_tombstones.mutation_id)
+            <= (excluded.deleted_at, excluded.mutation_id);
+
+      if exists (
+        select 1
+        from public.sync_tombstones tombstone
+        where tombstone.entity_type = v_entity_type
+          and tombstone.entity_id = v_entity_id
+          and tombstone.user_id = v_user_id
+          and tombstone.mutation_id = v_mutation_id
+      ) then
+        if v_entity_type = 'log' then
+          delete from public.logs
+          where id = v_entity_id
+            and user_id = v_user_id
+            and (client_updated_at, last_mutation_id)
+                <= (v_client_updated_at, v_mutation_id);
+        elsif v_entity_type = 'schedule' then
+          delete from public.schedules
+          where id = v_entity_id
+            and user_id = v_user_id
+            and (client_updated_at, last_mutation_id)
+                <= (v_client_updated_at, v_mutation_id);
+        elsif v_entity_type = 'recoverySession' then
+          delete from public.recovery_sessions
+          where id = v_entity_id
+            and user_id = v_user_id
+            and (client_updated_at, last_mutation_id)
+                <= (v_client_updated_at, v_mutation_id);
+        elsif v_entity_type = 'medicationEvent' then
+          delete from public.medication_events
+          where id = v_entity_id
+            and user_id = v_user_id
+            and (client_updated_at, last_mutation_id)
+                <= (v_client_updated_at, v_mutation_id);
+        end if;
+      end if;
+    elsif not exists (
+      select 1
+      from public.sync_tombstones tombstone
+      where tombstone.entity_type = v_entity_type
+        and tombstone.entity_id = v_entity_id
+        and tombstone.user_id = v_user_id
+        and (tombstone.deleted_at, tombstone.mutation_id)
+            > (v_client_updated_at, v_mutation_id)
+    ) then
+      delete from public.sync_tombstones
+      where entity_type = v_entity_type
+        and entity_id = v_entity_id
+        and user_id = v_user_id
+        and (deleted_at, mutation_id)
+            <= (v_client_updated_at, v_mutation_id);
+
+      if v_entity_type = 'log' then
+        insert into public.logs (
+          id,
+          user_id,
+          title,
+          data,
+          event_time,
+          symptom,
+          severity,
+          client_updated_at,
+          last_mutation_id
+        ) values (
+          v_entity_id,
+          v_user_id,
+          coalesce(v_payload ->> 'symptom', ''),
+          v_payload::text,
+          v_payload ->> 'time',
+          v_payload ->> 'symptom',
+          v_payload ->> 'severity',
+          v_client_updated_at,
+          v_mutation_id
+        )
+        on conflict (id) do update
+          set title = excluded.title,
+              data = excluded.data,
+              event_time = excluded.event_time,
+              symptom = excluded.symptom,
+              severity = excluded.severity,
+              client_updated_at = excluded.client_updated_at,
+              last_mutation_id = excluded.last_mutation_id
+        where public.logs.user_id = v_user_id
+          and (public.logs.client_updated_at, public.logs.last_mutation_id)
+              <= (excluded.client_updated_at, excluded.last_mutation_id);
+      elsif v_entity_type = 'schedule' then
+        insert into public.schedules (
+          id,
+          user_id,
+          title,
+          data,
+          details,
+          days,
+          client_updated_at,
+          last_mutation_id
+        ) values (
+          v_entity_id,
+          v_user_id,
+          coalesce(v_payload ->> 'name', ''),
+          v_payload::text,
+          v_payload ->> 'details',
+          v_payload ->> 'days',
+          v_client_updated_at,
+          v_mutation_id
+        )
+        on conflict (id) do update
+          set title = excluded.title,
+              data = excluded.data,
+              details = excluded.details,
+              days = excluded.days,
+              client_updated_at = excluded.client_updated_at,
+              last_mutation_id = excluded.last_mutation_id
+        where public.schedules.user_id = v_user_id
+          and (public.schedules.client_updated_at,
+               public.schedules.last_mutation_id)
+              <= (excluded.client_updated_at, excluded.last_mutation_id);
+      elsif v_entity_type = 'recoverySession' then
+        insert into public.recovery_sessions (
+          id,
+          user_id,
+          type,
+          video_id,
+          title,
+          completed_at,
+          client_updated_at,
+          last_mutation_id
+        ) values (
+          v_entity_id,
+          v_user_id,
+          v_payload ->> 'type',
+          v_payload ->> 'video_id',
+          v_payload ->> 'title',
+          coalesce(
+            nullif(v_payload ->> 'completed_at', '')::timestamptz,
+            v_client_updated_at
+          ),
+          v_client_updated_at,
+          v_mutation_id
+        )
+        on conflict (id) do update
+          set type = excluded.type,
+              video_id = excluded.video_id,
+              title = excluded.title,
+              completed_at = excluded.completed_at,
+              client_updated_at = excluded.client_updated_at,
+              last_mutation_id = excluded.last_mutation_id
+        where public.recovery_sessions.user_id = v_user_id
+          and (public.recovery_sessions.client_updated_at,
+               public.recovery_sessions.last_mutation_id)
+              <= (excluded.client_updated_at, excluded.last_mutation_id);
+      elsif v_entity_type = 'medicationEvent' then
+        insert into public.medication_events (
+          id,
+          user_id,
+          schedule_id,
+          medication_name,
+          scheduled_at,
+          taken_at,
+          status,
+          client_updated_at,
+          last_mutation_id
+        ) values (
+          v_entity_id,
+          v_user_id,
+          nullif(v_payload ->> 'schedule_id', ''),
+          coalesce(v_payload ->> 'medication_name', ''),
+          coalesce(
+            nullif(v_payload ->> 'scheduled_at', '')::timestamptz,
+            v_client_updated_at
+          ),
+          nullif(v_payload ->> 'taken_at', '')::timestamptz,
+          coalesce(nullif(v_payload ->> 'status', ''), 'scheduled'),
+          v_client_updated_at,
+          v_mutation_id
+        )
+        on conflict (id) do update
+          set schedule_id = excluded.schedule_id,
+              medication_name = excluded.medication_name,
+              scheduled_at = excluded.scheduled_at,
+              taken_at = excluded.taken_at,
+              status = excluded.status,
+              client_updated_at = excluded.client_updated_at,
+              last_mutation_id = excluded.last_mutation_id
+        where public.medication_events.user_id = v_user_id
+          and (public.medication_events.client_updated_at,
+               public.medication_events.last_mutation_id)
+              <= (excluded.client_updated_at, excluded.last_mutation_id);
+      end if;
+    end if;
+
+    v_acknowledged := v_acknowledged || jsonb_build_array(v_mutation_id);
+  end loop;
+
+  return v_acknowledged;
+end;
+$$;
+
+revoke all on function public.apply_health_mutations(jsonb) from public;
+grant execute on function public.apply_health_mutations(jsonb) to authenticated;
+
 alter table public.users enable row level security;
 alter table public.logs enable row level security;
 alter table public.schedules enable row level security;
+alter table public.recovery_sessions enable row level security;
+alter table public.medication_events enable row level security;
+alter table public.sync_tombstones enable row level security;
 alter table public.community_posts enable row level security;
 alter table public.community_comments enable row level security;
 alter table public.community_post_likes enable row level security;
@@ -194,6 +550,9 @@ alter table public.community_group_memberships enable row level security;
 drop policy if exists bootstrap_users_all on public.users;
 drop policy if exists bootstrap_logs_all on public.logs;
 drop policy if exists bootstrap_schedules_all on public.schedules;
+drop policy if exists bootstrap_recovery_sessions_all on public.recovery_sessions;
+drop policy if exists bootstrap_medication_events_all on public.medication_events;
+drop policy if exists bootstrap_sync_tombstones_all on public.sync_tombstones;
 drop policy if exists bootstrap_posts_all on public.community_posts;
 drop policy if exists bootstrap_comments_all on public.community_comments;
 drop policy if exists bootstrap_post_likes_all on public.community_post_likes;
@@ -263,6 +622,63 @@ create policy schedules_update_own on public.schedules
 
 create policy schedules_delete_own on public.schedules
   for delete to authenticated
+  using (user_id = public.current_uid());
+
+drop policy if exists recovery_sessions_select_own on public.recovery_sessions;
+drop policy if exists recovery_sessions_insert_own on public.recovery_sessions;
+drop policy if exists recovery_sessions_update_own on public.recovery_sessions;
+drop policy if exists recovery_sessions_delete_own on public.recovery_sessions;
+
+create policy recovery_sessions_select_own on public.recovery_sessions
+  for select to authenticated
+  using (user_id = public.current_uid());
+
+create policy recovery_sessions_insert_own on public.recovery_sessions
+  for insert to authenticated
+  with check (
+    user_id = public.current_uid()
+    and length(trim(video_id)) > 0
+    and length(trim(title)) > 0
+  );
+
+create policy recovery_sessions_update_own on public.recovery_sessions
+  for update to authenticated
+  using (user_id = public.current_uid())
+  with check (user_id = public.current_uid());
+
+create policy recovery_sessions_delete_own on public.recovery_sessions
+  for delete to authenticated
+  using (user_id = public.current_uid());
+
+drop policy if exists medication_events_select_own on public.medication_events;
+drop policy if exists medication_events_insert_own on public.medication_events;
+drop policy if exists medication_events_update_own on public.medication_events;
+drop policy if exists medication_events_delete_own on public.medication_events;
+
+create policy medication_events_select_own on public.medication_events
+  for select to authenticated
+  using (user_id = public.current_uid());
+
+create policy medication_events_insert_own on public.medication_events
+  for insert to authenticated
+  with check (
+    user_id = public.current_uid()
+    and length(trim(medication_name)) > 0
+  );
+
+create policy medication_events_update_own on public.medication_events
+  for update to authenticated
+  using (user_id = public.current_uid())
+  with check (user_id = public.current_uid());
+
+create policy medication_events_delete_own on public.medication_events
+  for delete to authenticated
+  using (user_id = public.current_uid());
+
+drop policy if exists sync_tombstones_select_own on public.sync_tombstones;
+
+create policy sync_tombstones_select_own on public.sync_tombstones
+  for select to authenticated
   using (user_id = public.current_uid());
 
 drop policy if exists posts_select_all on public.community_posts;

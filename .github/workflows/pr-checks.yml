@@ -7,7 +7,7 @@ on:
     branches: [main, develop, testing, staging, production]
 
 env:
-  FLUTTER_VERSION: '3.38.6'
+  FLUTTER_VERSION: '3.44.0'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -21,6 +21,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
 
+      - name: Check public repository safety
+        run: bash scripts/check-public-repo.sh
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -32,10 +35,10 @@ jobs:
         run: flutter pub get
 
       - name: Check formatting
-        run: dart format --set-exit-if-changed lib/
+        run: dart format --set-exit-if-changed lib test
 
       - name: Analyze code
-        run: flutter analyze --no-fatal-infos
+        run: flutter analyze --fatal-infos
 
       - name: Check for outdated dependencies
         run: flutter pub outdated
@@ -93,16 +96,20 @@ jobs:
           grep -q "create table if not exists public.users" supabase/schema.sql
           grep -q "create table if not exists public.logs" supabase/schema.sql
           grep -q "create table if not exists public.schedules" supabase/schema.sql
+          grep -q "create table if not exists public.medication_events" supabase/schema.sql
+          grep -q "create table if not exists public.sync_tombstones" supabase/schema.sql
           grep -q "create table if not exists public.community_posts" supabase/schema.sql
+          grep -q "create or replace function public.apply_health_mutations" supabase/schema.sql
           grep -q "alter table public.users enable row level security" supabase/schema.sql
           grep -q "alter table public.logs enable row level security" supabase/schema.sql
           grep -q "create policy users_select_own" supabase/schema.sql
           grep -q "create policy logs_insert_own" supabase/schema.sql
           grep -q "create policy schedules_insert_own" supabase/schema.sql
+          grep -q "create policy medication_events_insert_own" supabase/schema.sql
 
       - name: Analyze cloud backend sources
         run: |
-          flutter analyze --no-fatal-infos \
+          flutter analyze --fatal-infos \
             lib/config/backend_config.dart \
             lib/services/cloud_backend_service.dart \
             lib/singleton.dart

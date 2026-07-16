@@ -45,14 +45,9 @@ dependencies:
   # UI Components
   image_picker: ^1.0.4
   fl_chart: ^0.67.0
-  flutter_switch: ^0.3.2
   google_fonts: ^6.1.0
-  flutter_animate: ^4.5.0
-  shimmer: ^3.0.0
   
   # Media
-  youtube_player_iframe: ^5.2.2
-  audioplayers: ^5.2.1
   video_player: ^2.9.2
   url_launcher: ^6.3.1
   share_plus: ^11.1.0
@@ -63,6 +58,8 @@ dependencies:
   connectivity_plus: ^6.0.5
   package_info_plus: ^8.0.2
   webview_flutter: ^4.13.1
+  sign_in_with_apple: ^8.1.0
+  crypto: ^3.0.7
 
 dependency_overrides:
   win32: ^5.5.0
@@ -70,6 +67,10 @@ dependency_overrides:
 
 dev_dependencies:
   flutter_test:
+    sdk: flutter
+  integration_test:
+    sdk: flutter
+  flutter_driver:
     sdk: flutter
 
   # The "flutter_lints" package below contains a set of recommended lints to
@@ -88,7 +89,7 @@ flutter_launcher_icons:
   remove_alpha_ios: true
   image_path: "images/app_icon_full.png"
   min_sdk_android: 21
-  adaptive_icon_background: "#F3F7FF"
+  adaptive_icon_background: "#F7F8F5"
   adaptive_icon_foreground: "images/logo.png"
   web:
     generate: true
@@ -198,6 +199,8 @@ flutter:
     - images/711128.png
     - images/logo.png
     - images/app_icon.png
+    - images/levio_mark.svg
+    - images/levio_app_icon.svg
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in

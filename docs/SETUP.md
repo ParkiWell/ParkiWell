@@ -102,7 +102,8 @@ Create environments in **Settings > Environments**:
 
 ## 6. Backend Environment Variables
 
-Levio is cloud-only (Supabase).  
+Levio uses Supabase for authenticated cloud persistence and keeps pending
+health-record mutations in an on-device journal for offline replay.
 Use these defines for local/CI builds:
 
 ```bash

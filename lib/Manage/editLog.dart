@@ -1,14 +1,14 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
-import '../singleton.dart';
 import '../services/tutorial_targets.dart';
+import '../singleton.dart';
 import '../theme/app_theme.dart';
 import '../utils/haptic_utils.dart';
-import '../widgets/modern_button.dart';
-import '../widgets/modern_card.dart';
-import '../widgets/modern_input.dart';
+import '../widgets/date_time_controls.dart';
+import '../widgets/liquid_glass.dart';
 import '../widgets/tutorial_overlay.dart';
+
+enum _WhenPreset { now, today, custom }
 
 class EditLogScreen extends StatefulWidget {
   const EditLogScreen({super.key});
@@ -19,9 +19,6 @@ class EditLogScreen extends StatefulWidget {
 
 class _EditLogScreenState extends State<EditLogScreen>
     with SingleTickerProviderStateMixin {
-  final singleton = Singleton();
-  final _symptomController = TextEditingController();
-
   static const List<String> _severityOptions = <String>[
     'Very Mild',
     'Mild',
@@ -29,8 +26,7 @@ class _EditLogScreenState extends State<EditLogScreen>
     'Severe',
     'Very Severe',
   ];
-
-  final List<String> _months = const <String>[
+  static const List<String> _months = <String>[
     'January',
     'February',
     'March',
@@ -45,330 +41,213 @@ class _EditLogScreenState extends State<EditLogScreen>
     'December',
   ];
 
-  late final AnimationController _animationController;
-  late final Animation<double> _animation;
+  final singleton = Singleton();
+  final _symptomController = TextEditingController();
+  final _symptomFocus = FocusNode();
+
+  late final AnimationController _introController;
+  late final Animation<double> _fade;
+  late final Animation<Offset> _slide;
 
   DateTime _selectedDateTime = DateTime.now();
   String _selectedSeverity = 'Moderate';
-  bool _isLoading = false;
+  _WhenPreset _selectedPreset = _WhenPreset.now;
+  bool _isSaving = false;
 
   @override
   void initState() {
     super.initState();
-    _animationController = AnimationController(
-      duration: const Duration(milliseconds: 520),
+    final reduceMotion = WidgetsBinding
+        .instance.platformDispatcher.accessibilityFeatures.disableAnimations;
+    _introController = AnimationController(
+      duration:
+          reduceMotion ? Duration.zero : const Duration(milliseconds: 260),
       vsync: this,
     )..forward();
-    _animation = CurvedAnimation(
-      parent: _animationController,
+    _fade = CurvedAnimation(
+      parent: _introController,
       curve: Curves.easeOutCubic,
     );
+    _slide = Tween<Offset>(
+      begin: const Offset(0, 0.018),
+      end: Offset.zero,
+    ).animate(_fade);
   }
 
   @override
   void dispose() {
-    _animationController.dispose();
+    _introController.dispose();
     _symptomController.dispose();
+    _symptomFocus.dispose();
     super.dispose();
   }
 
   Color _severityColor(String severity, AppColors colors) {
-    if (severity == 'Very Mild' || severity == 'Mild') {
-      return colors.success;
-    }
-    if (severity == 'Moderate') {
-      return colors.warning;
-    }
+    if (severity == 'Very Mild' || severity == 'Mild') return colors.success;
+    if (severity == 'Moderate') return colors.warning;
     return colors.error;
   }
 
-  String _formatDisplayDate(DateTime dateTime) {
-    return '${_months[dateTime.month - 1]} ${dateTime.day}, ${dateTime.year}';
+  String _formatDisplayDate(DateTime value) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final date = DateTime(value.year, value.month, value.day);
+    if (date == today) return 'Today';
+    if (date == today.subtract(const Duration(days: 1))) return 'Yesterday';
+    return '${_months[value.month - 1]} ${value.day}, ${value.year}';
   }
 
-  String _formatDisplayTime(DateTime dateTime) {
-    final hour = dateTime.hour % 12 == 0 ? 12 : dateTime.hour % 12;
-    final minute = dateTime.minute.toString().padLeft(2, '0');
-    final suffix = dateTime.hour >= 12 ? 'PM' : 'AM';
+  String _formatDisplayTime(DateTime value) {
+    final hour = value.hour % 12 == 0 ? 12 : value.hour % 12;
+    final minute = value.minute.toString().padLeft(2, '0');
+    final suffix = value.hour >= 12 ? 'PM' : 'AM';
     return '$hour:$minute $suffix';
   }
 
-  String _formatStorageTime(DateTime dateTime) {
-    final hour = dateTime.hour.toString().padLeft(2, '0');
-    final minute = dateTime.minute.toString().padLeft(2, '0');
-    final day = dateTime.day.toString().padLeft(2, '0');
-    final month = _months[dateTime.month - 1];
-    final year = dateTime.year;
-    return '$hour:$minute, $day $month $year';
+  bool _isToday(DateTime value) {
+    final now = DateTime.now();
+    return value.year == now.year &&
+        value.month == now.month &&
+        value.day == now.day;
+  }
+
+  String _formatStorageTime(DateTime value) {
+    final hour = value.hour.toString().padLeft(2, '0');
+    final minute = value.minute.toString().padLeft(2, '0');
+    final day = value.day.toString().padLeft(2, '0');
+    return '$hour:$minute, $day ${_months[value.month - 1]} ${value.year}';
+  }
+
+  void _selectPreset(_WhenPreset preset) {
+    final now = DateTime.now();
+    final DateTime next;
+    switch (preset) {
+      case _WhenPreset.now:
+        next = now;
+      case _WhenPreset.today:
+        final selectedTime = TimeOfDay.fromDateTime(_selectedDateTime);
+        final candidate = DateTime(
+          now.year,
+          now.month,
+          now.day,
+          selectedTime.hour,
+          selectedTime.minute,
+        );
+        next = candidate.isAfter(now) ? now : candidate;
+      case _WhenPreset.custom:
+        _pickDate();
+        return;
+    }
+    HapticUtils.selectionClick();
+    setState(() {
+      _selectedPreset = preset;
+      _selectedDateTime = next;
+    });
+  }
+
+  Future<void> _pickDate() async {
+    HapticUtils.selectionClick();
+    final now = DateTime.now();
+    final firstDate = DateTime(2000);
+    final selectedDate = DateTime(
+      _selectedDateTime.year,
+      _selectedDateTime.month,
+      _selectedDateTime.day,
+    );
+    final initialDate = selectedDate.isBefore(firstDate)
+        ? firstDate
+        : (selectedDate.isAfter(now) ? now : selectedDate);
+
+    final date = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: firstDate,
+      lastDate: now,
+      helpText: 'WHEN DID THIS HAPPEN?',
+      cancelText: 'Cancel',
+      confirmText: 'Choose date',
+    );
+    if (date == null || !mounted) return;
+
+    final result = DateTime(
+      date.year,
+      date.month,
+      date.day,
+      _selectedDateTime.hour,
+      _selectedDateTime.minute,
+    );
+    final safeResult = result.isAfter(DateTime.now()) ? DateTime.now() : result;
+
+    setState(() {
+      _selectedPreset =
+          _isToday(safeResult) ? _WhenPreset.today : _WhenPreset.custom;
+      _selectedDateTime = safeResult;
+    });
+  }
+
+  Future<void> _pickTime() async {
+    HapticUtils.selectionClick();
+    final time = await showLevioTimePicker(
+      context: context,
+      selectedDate: _selectedDateTime,
+      initialTime: TimeOfDay.fromDateTime(_selectedDateTime),
+    );
+    if (time == null || !mounted) return;
+
+    setState(() {
+      _selectedDateTime = DateTime(
+        _selectedDateTime.year,
+        _selectedDateTime.month,
+        _selectedDateTime.day,
+        time.hour,
+        time.minute,
+      );
+      _selectedPreset =
+          _isToday(_selectedDateTime) ? _WhenPreset.today : _WhenPreset.custom;
+    });
   }
 
   Future<void> _submitLog() async {
-    if (_symptomController.text.trim().isEmpty) {
+    final symptom = _symptomController.text.trim();
+    if (symptom.isEmpty) {
+      HapticUtils.error();
+      _symptomFocus.requestFocus();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Describe the symptom before saving.')),
+      );
+      return;
+    }
+    final selectedDateTime =
+        _selectedPreset == _WhenPreset.now ? DateTime.now() : _selectedDateTime;
+    if (selectedDateTime.isAfter(DateTime.now())) {
       HapticUtils.error();
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Please enter a symptom description'),
-          backgroundColor: context.colors.error,
-        ),
+        const SnackBar(
+            content: Text('A symptom cannot be logged in the future.')),
       );
       return;
     }
 
-    setState(() => _isLoading = true);
     HapticUtils.mediumImpact();
-
-    try {
-      final saved = await singleton.saveLog(
-        _formatStorageTime(_selectedDateTime),
-        _symptomController.text.trim(),
-        _selectedSeverity,
-      );
-      if (!saved) {
-        throw Exception('Unable to save symptom log');
-      }
-
-      HapticUtils.success();
-      if (mounted) {
-        _showSuccessDialog();
-      }
-    } catch (e) {
-      HapticUtils.error();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error saving symptom: $e'),
-          backgroundColor: context.colors.error,
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
-  }
-
-  void _showSuccessDialog() {
-    final colors = context.colors;
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext c) {
-        return AlertDialog(
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(height: 10),
-              Container(
-                width: 70,
-                height: 70,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      colors.success,
-                      colors.secondary,
-                    ],
-                  ),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.check_rounded,
-                    color: Colors.white, size: 42),
-              ),
-              const SizedBox(height: 18),
-              Text(
-                'Symptom Saved',
-                style: Theme.of(c).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Your symptom log has been recorded with timestamp and severity.',
-                textAlign: TextAlign.center,
-                style: Theme.of(c).textTheme.bodyMedium?.copyWith(
-                      color: colors.textSecondary,
-                    ),
-              ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: ModernButton(
-                      text: 'Add More',
-                      isOutlined: true,
-                      onPressed: () {
-                        Navigator.pop(c);
-                        _symptomController.clear();
-                        setState(() {
-                          _selectedSeverity = 'Moderate';
-                          _selectedDateTime = DateTime.now();
-                        });
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: ModernButton(
-                      text: 'View Logs',
-                      onPressed: () {
-                        Navigator.pop(c);
-                        Navigator.pushNamed(context, '/logScreen');
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        );
-      },
+    setState(() => _isSaving = true);
+    final saved = await singleton.saveLog(
+      _formatStorageTime(selectedDateTime),
+      symptom,
+      _selectedSeverity,
     );
-  }
-
-  Widget _buildHeader(AppColors colors) {
-    return ModernCard(
-      backgroundColor: colors.cardBackground,
-      border: Border.all(
-        color: colors.border,
-      ),
-      padding: const EdgeInsets.all(18),
-      child: Row(
-        children: [
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              color: colors.primary.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Icon(
-              Icons.monitor_heart_rounded,
-              color: colors.primary,
-              size: 28,
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Log Symptom',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: colors.textPrimary,
-                      ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Capture symptom details quickly and track changes over time.',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: colors.textSecondary,
-                      ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSeveritySelector(AppColors colors) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Severity',
-          style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-        ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: _severityOptions.map((severity) {
-            final isSelected = _selectedSeverity == severity;
-            final chipColor = _severityColor(severity, colors);
-
-            return _SeverityChip(
-              label: severity,
-              selected: isSelected,
-              chipColor: chipColor,
-              onTap: () {
-                HapticUtils.selectionClick();
-                setState(() => _selectedSeverity = severity);
-              },
-            );
-          }).toList(),
-        ),
-      ],
-    );
-  }
-
-  Future<void> _pickDateAndTime() async {
-    HapticUtils.selectionClick();
     if (!mounted) return;
-    final result = await showModalBottomSheet<DateTime>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => _DateTimePickerSheet(
-        initial: _selectedDateTime,
-        months: _months,
-      ),
-    );
-    if (result != null && mounted) {
-      setState(() => _selectedDateTime = result);
-    }
-  }
 
-  Widget _buildDateTimeSection(AppColors colors) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'When did it occur?',
-          style: Theme.of(context).textTheme.titleSmall,
-        ),
-        const SizedBox(height: 10),
-        ModernCard(
-          onTap: _pickDateAndTime,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          child: Row(
-            children: [
-              Icon(
-                Icons.calendar_month_rounded,
-                color: colors.primary,
-                size: 22,
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _formatDisplayDate(_selectedDateTime),
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                            color: colors.textPrimary,
-                          ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      _formatDisplayTime(_selectedDateTime),
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: colors.textTertiary,
-                          ),
-                    ),
-                  ],
-                ),
-              ),
-              Icon(Icons.edit_calendar_rounded,
-                  color: colors.textTertiary, size: 20),
-            ],
-          ),
-        ),
-      ],
-    );
+    setState(() => _isSaving = false);
+    if (!saved) {
+      HapticUtils.error();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to save this symptom right now.')),
+      );
+      return;
+    }
+
+    HapticUtils.success();
+    await Navigator.of(context).pushReplacementNamed('/logScreen');
   }
 
   @override
@@ -380,92 +259,185 @@ class _EditLogScreenState extends State<EditLogScreen>
       child: Scaffold(
         backgroundColor: colors.background,
         appBar: AppBar(
-          backgroundColor: colors.background,
-          surfaceTintColor: Colors.transparent,
-          elevation: 0,
-          scrolledUnderElevation: 0,
           leading: IconButton(
-            icon: Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: colors.surfaceVariant,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(
-                Icons.arrow_back_rounded,
-                color: colors.textPrimary,
-                size: 20,
-              ),
-            ),
-            onPressed: () {
-              HapticUtils.lightImpact();
-              Navigator.popAndPushNamed(context, '/logScreen');
-            },
+            tooltip: 'Back',
+            onPressed: () => Navigator.of(context).maybePop(),
+            icon: const Icon(Icons.arrow_back_rounded),
           ),
-          title: Text('Symptom Log',
-              style: TextStyle(
-                  color: colors.textPrimary, fontWeight: FontWeight.w600)),
+          title: const Text('Log a symptom'),
         ),
-        body: FadeTransition(
-          opacity: _animation,
-          child: Container(
-            color: colors.background,
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+        body: LiquidBackground(
+          child: FadeTransition(
+            opacity: _fade,
+            child: SlideTransition(
+              position: _slide,
+              child: ListView(
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
                 children: [
-                  _buildHeader(colors),
-                  const SizedBox(height: 16),
-                  ModernCard(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'What symptom did you experience?',
-                          style: Theme.of(context).textTheme.titleSmall,
+                  Text(
+                    'Capture what changed',
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                          color: colors.textPrimary,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.5,
                         ),
-                        const SizedBox(height: 10),
-                        Container(
-                          key: TutorialTargets.symptomInputKey,
-                          child: ModernTextField(
-                            controller: _symptomController,
-                            hint: 'e.g., Tremor in left hand after lunch',
-                            maxLines: 3,
-                          ),
+                  ),
+                  const SizedBox(height: 7),
+                  Text(
+                    'A short, specific note is easier to recognize later. You can backfill entries to any date from 2000 onward.',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: colors.textSecondary,
+                          height: 1.45,
                         ),
-                        const SizedBox(height: 14),
-                        _buildSeveritySelector(colors),
-                        const SizedBox(height: 14),
-                        _buildDateTimeSection(colors),
-                      ],
+                  ),
+                  const SizedBox(height: 22),
+                  const SectionHeading(title: 'What did you notice?'),
+                  const SizedBox(height: 10),
+                  GlassSurface(
+                    padding: const EdgeInsets.all(4),
+                    child: Container(
+                      key: TutorialTargets.symptomInputKey,
+                      child: TextField(
+                        controller: _symptomController,
+                        focusNode: _symptomFocus,
+                        textCapitalization: TextCapitalization.sentences,
+                        textInputAction: TextInputAction.newline,
+                        minLines: 4,
+                        maxLines: 6,
+                        maxLength: 280,
+                        decoration: const InputDecoration(
+                          hintText:
+                              'Example: Left-hand tremor became stronger after lunch…',
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          filled: false,
+                          counterText: '',
+                          contentPadding: EdgeInsets.fromLTRB(14, 13, 14, 12),
+                        ),
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 20),
-                  Text(
-                    '$_selectedSeverity · ${_formatDisplayDate(_selectedDateTime)} at ${_formatDisplayTime(_selectedDateTime)}',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: colors.textTertiary,
-                          fontWeight: FontWeight.w500,
-                        ),
+                  const SizedBox(height: 24),
+                  const SectionHeading(
+                    title: 'How noticeable was it?',
+                    description: 'Choose the closest level for this moment.',
                   ),
                   const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: Container(
-                      key: TutorialTargets.saveSymptomButtonKey,
-                      child: ModernButton(
-                        text: 'Save Symptom',
-                        icon: Icons.check_rounded,
-                        isLoading: _isLoading,
-                        onPressed: _submitLog,
-                      ),
-                    ),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _severityOptions.map((severity) {
+                      return _SeverityOption(
+                        label: severity,
+                        color: _severityColor(severity, colors),
+                        selected: _selectedSeverity == severity,
+                        onTap: () {
+                          HapticUtils.selectionClick();
+                          setState(() => _selectedSeverity = severity);
+                        },
+                      );
+                    }).toList(growable: false),
                   ),
+                  const SizedBox(height: 24),
+                  const SectionHeading(
+                    title: 'When did it happen?',
+                    description:
+                        'Choose a day first, then adjust the time separately.',
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _TimePresetChip(
+                        label: 'Now',
+                        selected: _selectedPreset == _WhenPreset.now,
+                        onTap: () => _selectPreset(_WhenPreset.now),
+                      ),
+                      _TimePresetChip(
+                        label: 'Today',
+                        selected: _selectedPreset == _WhenPreset.today,
+                        onTap: () => _selectPreset(_WhenPreset.today),
+                      ),
+                      _TimePresetChip(
+                        label: 'Select date',
+                        selected: _selectedPreset == _WhenPreset.custom,
+                        onTap: () => _selectPreset(_WhenPreset.custom),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: LevioDateTimeField(
+                          label: 'Date',
+                          value: _formatDisplayDate(_selectedDateTime),
+                          icon: Icons.calendar_today_outlined,
+                          onTap: _pickDate,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: LevioDateTimeField(
+                          label: 'Time',
+                          value: _selectedPreset == _WhenPreset.now
+                              ? 'Current time'
+                              : _formatDisplayTime(_selectedDateTime),
+                          icon: Icons.schedule_rounded,
+                          onTap: _pickTime,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (_selectedPreset == _WhenPreset.now) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      'The current time will be captured when you save.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: colors.textTertiary,
+                          ),
+                    ),
+                  ],
                 ],
+              ),
+            ),
+          ),
+        ),
+        bottomNavigationBar: SafeArea(
+          top: false,
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(20, 10, 20, 12),
+            decoration: BoxDecoration(
+              color: colors.surface.withValues(alpha: 0.94),
+              border: Border(top: BorderSide(color: colors.border)),
+            ),
+            child: Container(
+              key: TutorialTargets.saveSymptomButtonKey,
+              child: ValueListenableBuilder<TextEditingValue>(
+                valueListenable: _symptomController,
+                builder: (context, value, child) {
+                  return FilledButton.icon(
+                    onPressed: value.text.trim().isEmpty || _isSaving
+                        ? null
+                        : _submitLog,
+                    icon: _isSaving
+                        ? SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: colors.textOnPrimary,
+                            ),
+                          )
+                        : const Icon(Icons.check_rounded),
+                    label: Text(_isSaving ? 'Saving…' : 'Save symptom'),
+                  );
+                },
               ),
             ),
           ),
@@ -475,529 +447,146 @@ class _EditLogScreenState extends State<EditLogScreen>
   }
 }
 
-/// Custom date & time picker bottom sheet.
-/// Date: horizontal scrollable date chips (Today, Yesterday, past 30 days).
-/// Time: iOS-style scroll wheels for hour, minute, and AM/PM.
-class _DateTimePickerSheet extends StatefulWidget {
-  final DateTime initial;
-  final List<String> months;
-
-  const _DateTimePickerSheet({
-    required this.initial,
-    required this.months,
-  });
-
-  @override
-  State<_DateTimePickerSheet> createState() => _DateTimePickerSheetState();
-}
-
-class _DateTimePickerSheetState extends State<_DateTimePickerSheet> {
-  static const List<int> _minuteOptions = <int>[
-    0,
-    5,
-    10,
-    15,
-    20,
-    25,
-    30,
-    35,
-    40,
-    45,
-    50,
-    55,
-  ];
-
-  late DateTime _date;
-  late int _hour12;
-  late int _minute;
-  late bool _isPm;
-
-  late final FixedExtentScrollController _hourController;
-  late final FixedExtentScrollController _minuteController;
-  late final FixedExtentScrollController _amPmController;
-  late final ScrollController _dateScrollController;
-
-  /// Generate the list of dates: past 30 days through today.
-  late final List<DateTime> _dates;
-
-  @override
-  void initState() {
-    super.initState();
-    final initialMinute = widget.initial.minute - (widget.initial.minute % 5);
-    final normalizedInitial = DateTime(
-      widget.initial.year,
-      widget.initial.month,
-      widget.initial.day,
-      widget.initial.hour,
-      initialMinute,
-    );
-    _date = DateTime(
-      normalizedInitial.year,
-      normalizedInitial.month,
-      normalizedInitial.day,
-    );
-    final h = normalizedInitial.hour;
-    _hour12 = h == 0 ? 12 : (h > 12 ? h - 12 : h);
-    _minute = normalizedInitial.minute;
-    _isPm = normalizedInitial.hour >= 12;
-
-    // Generate dates from 30 days ago to today
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    _dates = List<DateTime>.generate(31, (i) {
-      return today.subtract(Duration(days: 30 - i));
-    });
-
-    // Initialize scroll controllers at the correct positions
-    _hourController = FixedExtentScrollController(initialItem: _hour12 - 1);
-    _minuteController = FixedExtentScrollController(
-      initialItem: _minuteOptions.indexOf(_minute),
-    );
-    _amPmController = FixedExtentScrollController(initialItem: _isPm ? 1 : 0);
-    _dateScrollController = ScrollController();
-
-    // Scroll date list to the selected date after first frame
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final idx = _dates.indexWhere((d) =>
-          d.year == _date.year && d.month == _date.month && d.day == _date.day);
-      if (idx >= 0 && _dateScrollController.hasClients) {
-        // Each chip is 68 wide + 8 gap = 76
-        final offset = (idx * 76.0) - 40;
-        _dateScrollController.animateTo(
-          offset.clamp(0.0, _dateScrollController.position.maxScrollExtent),
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _hourController.dispose();
-    _minuteController.dispose();
-    _amPmController.dispose();
-    _dateScrollController.dispose();
-    super.dispose();
-  }
-
-  DateTime get _result {
-    final hour24 = _isPm
-        ? (_hour12 == 12 ? 12 : _hour12 + 12)
-        : (_hour12 == 12 ? 0 : _hour12);
-    return DateTime(_date.year, _date.month, _date.day, hour24, _minute);
-  }
-
-  bool _isSpecialDate(DateTime d) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final yesterday = today.subtract(const Duration(days: 1));
-    final dt = DateTime(d.year, d.month, d.day);
-    return dt == today || dt == yesterday;
-  }
-
-  String _specialLabel(DateTime d) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final yesterday = today.subtract(const Duration(days: 1));
-    final dt = DateTime(d.year, d.month, d.day);
-    if (dt == today) return 'Today';
-    if (dt == yesterday) return 'Yest.';
-    return '';
-  }
-
-  String _weekdayShort(DateTime d) {
-    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    return days[d.weekday - 1];
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    final safeBottom = MediaQuery.paddingOf(context).bottom;
-    final textTheme = Theme.of(context).textTheme;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.10),
-            blurRadius: 20,
-            offset: const Offset(0, -4),
-          ),
-        ],
-      ),
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: EdgeInsets.fromLTRB(20, 12, 20, safeBottom + 12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Handle
-              Center(
-                child: Container(
-                  width: 36,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: colors.border.withValues(alpha: 0.6),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Header with icon
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: colors.primary.withValues(alpha: 0.10),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(Icons.schedule_rounded,
-                        size: 20, color: colors.primary),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    'Date & time',
-                    style: textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: colors.textPrimary,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-
-              // ─── DATE SECTION ───
-              Text(
-                'Date',
-                style: textTheme.labelLarge?.copyWith(
-                  color: colors.textTertiary,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 10),
-              SizedBox(
-                height: 68,
-                child: ListView.separated(
-                  controller: _dateScrollController,
-                  scrollDirection: Axis.horizontal,
-                  itemCount: _dates.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 8),
-                  itemBuilder: (context, i) {
-                    final d = _dates[i];
-                    final isSelected = _date.year == d.year &&
-                        _date.month == d.month &&
-                        _date.day == d.day;
-                    final isSpecial = _isSpecialDate(d);
-
-                    return GestureDetector(
-                      onTap: () {
-                        HapticUtils.selectionClick();
-                        setState(() => _date = d);
-                      },
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        width: 68,
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? colors.primary
-                              : colors.surfaceVariant.withValues(alpha: 0.5),
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(
-                            color: isSelected
-                                ? colors.primary
-                                : colors.border.withValues(alpha: 0.4),
-                            width: isSelected ? 1.5 : 1,
-                          ),
-                        ),
-                        alignment: Alignment.center,
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            if (isSpecial) ...[
-                              Text(
-                                _specialLabel(d),
-                                style: textTheme.labelSmall?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                  color: isSelected
-                                      ? colors.textOnPrimary
-                                          .withValues(alpha: 0.8)
-                                      : colors.textTertiary,
-                                  fontSize: 10,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                            ] else ...[
-                              Text(
-                                _weekdayShort(d),
-                                style: textTheme.labelSmall?.copyWith(
-                                  fontWeight: FontWeight.w500,
-                                  color: isSelected
-                                      ? colors.textOnPrimary
-                                          .withValues(alpha: 0.8)
-                                      : colors.textTertiary,
-                                  fontSize: 10,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                            ],
-                            Text(
-                              '${d.day}',
-                              style: textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.w700,
-                                color: isSelected
-                                    ? colors.textOnPrimary
-                                    : colors.textPrimary,
-                              ),
-                            ),
-                            Text(
-                              widget.months[d.month - 1].substring(0, 3),
-                              style: textTheme.labelSmall?.copyWith(
-                                fontWeight: FontWeight.w500,
-                                color: isSelected
-                                    ? colors.textOnPrimary
-                                        .withValues(alpha: 0.8)
-                                    : colors.textSecondary,
-                                fontSize: 10,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              // ─── TIME SECTION ───
-              Text(
-                'Time',
-                style: textTheme.labelLarge?.copyWith(
-                  color: colors.textTertiary,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 10),
-
-              // Scroll wheel time picker
-              Container(
-                height: 160,
-                decoration: BoxDecoration(
-                  color: colors.surfaceVariant.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(16),
-                  border:
-                      Border.all(color: colors.border.withValues(alpha: 0.3)),
-                ),
-                child: Stack(
-                  children: [
-                    // Selection highlight band
-                    Positioned.fill(
-                      child: Align(
-                        alignment: Alignment.center,
-                        child: Container(
-                          height: 40,
-                          margin: const EdgeInsets.symmetric(horizontal: 12),
-                          decoration: BoxDecoration(
-                            color: colors.primary.withValues(alpha: 0.08),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                      ),
-                    ),
-                    Row(
-                      children: [
-                        // Hour wheel
-                        Expanded(
-                          flex: 3,
-                          child: CupertinoPicker(
-                            scrollController: _hourController,
-                            itemExtent: 40,
-                            diameterRatio: 1.2,
-                            squeeze: 1.0,
-                            selectionOverlay: const SizedBox.shrink(),
-                            onSelectedItemChanged: (index) {
-                              HapticUtils.selectionClick();
-                              setState(() => _hour12 = index + 1);
-                            },
-                            children: List.generate(12, (i) {
-                              final hour = i + 1;
-                              final isSelected = hour == _hour12;
-                              return Center(
-                                child: Text(
-                                  '$hour',
-                                  style: textTheme.headlineSmall?.copyWith(
-                                    fontWeight: isSelected
-                                        ? FontWeight.w700
-                                        : FontWeight.w400,
-                                    color: isSelected
-                                        ? colors.primary
-                                        : colors.textSecondary
-                                            .withValues(alpha: 0.6),
-                                  ),
-                                ),
-                              );
-                            }),
-                          ),
-                        ),
-                        // Colon separator
-                        Text(
-                          ':',
-                          style: textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            color: colors.textTertiary,
-                          ),
-                        ),
-                        // Minute wheel
-                        Expanded(
-                          flex: 3,
-                          child: CupertinoPicker(
-                            scrollController: _minuteController,
-                            itemExtent: 40,
-                            diameterRatio: 1.2,
-                            squeeze: 1.0,
-                            selectionOverlay: const SizedBox.shrink(),
-                            onSelectedItemChanged: (index) {
-                              HapticUtils.selectionClick();
-                              setState(() => _minute = _minuteOptions[index]);
-                            },
-                            children: List.generate(_minuteOptions.length, (i) {
-                              final minute = _minuteOptions[i];
-                              final isSelected = minute == _minute;
-                              return Center(
-                                child: Text(
-                                  minute.toString().padLeft(2, '0'),
-                                  style: textTheme.headlineSmall?.copyWith(
-                                    fontWeight: isSelected
-                                        ? FontWeight.w700
-                                        : FontWeight.w400,
-                                    color: isSelected
-                                        ? colors.primary
-                                        : colors.textSecondary
-                                            .withValues(alpha: 0.6),
-                                  ),
-                                ),
-                              );
-                            }),
-                          ),
-                        ),
-                        // AM/PM wheel
-                        Expanded(
-                          flex: 2,
-                          child: CupertinoPicker(
-                            scrollController: _amPmController,
-                            itemExtent: 40,
-                            diameterRatio: 1.2,
-                            squeeze: 1.0,
-                            selectionOverlay: const SizedBox.shrink(),
-                            onSelectedItemChanged: (index) {
-                              HapticUtils.selectionClick();
-                              setState(() => _isPm = index == 1);
-                            },
-                            children: ['AM', 'PM'].map((label) {
-                              final isSelected = (label == 'AM' && !_isPm) ||
-                                  (label == 'PM' && _isPm);
-                              return Center(
-                                child: Text(
-                                  label,
-                                  style: textTheme.titleMedium?.copyWith(
-                                    fontWeight: isSelected
-                                        ? FontWeight.w700
-                                        : FontWeight.w400,
-                                    color: isSelected
-                                        ? colors.primary
-                                        : colors.textSecondary
-                                            .withValues(alpha: 0.6),
-                                  ),
-                                ),
-                              );
-                            }).toList(),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // ─── DONE BUTTON ───
-              SizedBox(
-                height: 52,
-                child: FilledButton(
-                  onPressed: () {
-                    HapticUtils.selectionClick();
-                    Navigator.of(context).pop(_result);
-                  },
-                  style: FilledButton.styleFrom(
-                    backgroundColor: colors.primary,
-                    foregroundColor: colors.textOnPrimary,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14)),
-                  ),
-                  child: const Text('Done',
-                      style:
-                          TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SeverityChip extends StatefulWidget {
+class _SeverityOption extends StatelessWidget {
   final String label;
+  final Color color;
   final bool selected;
-  final Color chipColor;
   final VoidCallback onTap;
 
-  const _SeverityChip({
+  const _SeverityOption({
     required this.label,
+    required this.color,
     required this.selected,
-    required this.chipColor,
     required this.onTap,
   });
 
   @override
-  State<_SeverityChip> createState() => _SeverityChipState();
+  Widget build(BuildContext context) {
+    return _AnimatedSelectionChip(
+      label: label,
+      selected: selected,
+      accentColor: color,
+      onTap: onTap,
+    );
+  }
 }
 
-class _SeverityChipState extends State<_SeverityChip> {
+class _TimePresetChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _TimePresetChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return _AnimatedSelectionChip(
+      label: label,
+      selected: selected,
+      accentColor: context.colors.primary,
+      onTap: onTap,
+    );
+  }
+}
+
+class _AnimatedSelectionChip extends StatefulWidget {
+  final String label;
+  final bool selected;
+  final Color accentColor;
+  final VoidCallback onTap;
+
+  const _AnimatedSelectionChip({
+    required this.label,
+    required this.selected,
+    required this.accentColor,
+    required this.onTap,
+  });
+
+  @override
+  State<_AnimatedSelectionChip> createState() => _AnimatedSelectionChipState();
+}
+
+class _AnimatedSelectionChipState extends State<_AnimatedSelectionChip> {
+  bool _pressed = false;
+
+  void _setPressed(bool value) {
+    if (_pressed == value) return;
+    setState(() => _pressed = value);
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final selected = widget.selected;
+    final reduceMotion =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    final selectionDuration =
+        reduceMotion ? Duration.zero : const Duration(milliseconds: 180);
+    final pressDuration =
+        reduceMotion ? Duration.zero : const Duration(milliseconds: 90);
 
-    return GestureDetector(
-      onTap: widget.onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-        decoration: BoxDecoration(
-          color: selected
-              ? widget.chipColor.withValues(alpha: 0.12)
-              : colors.surfaceVariant,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: selected ? widget.chipColor : colors.border,
-            width: selected ? 1.5 : 1,
-          ),
-        ),
-        child: Text(
-          widget.label,
-          style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                color: selected ? widget.chipColor : colors.textSecondary,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+    return Semantics(
+      button: true,
+      selected: widget.selected,
+      child: AnimatedScale(
+        scale: _pressed ? 0.985 : 1,
+        duration: pressDuration,
+        curve: Curves.easeOutCubic,
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(13),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: widget.onTap,
+            onHighlightChanged: _setPressed,
+            borderRadius: BorderRadius.circular(13),
+            splashColor: widget.accentColor.withValues(alpha: 0.055),
+            highlightColor: Colors.transparent,
+            child: AnimatedContainer(
+              duration: selectionDuration,
+              curve: Curves.easeOutCubic,
+              constraints: const BoxConstraints(minHeight: 48),
+              padding: const EdgeInsets.symmetric(horizontal: 17, vertical: 11),
+              decoration: BoxDecoration(
+                color: widget.selected
+                    ? widget.accentColor.withValues(
+                        alpha: context.isDarkMode ? 0.15 : 0.075,
+                      )
+                    : colors.cardBackground,
+                borderRadius: BorderRadius.circular(13),
+                border: Border.all(
+                  color: widget.selected
+                      ? widget.accentColor.withValues(alpha: 0.88)
+                      : colors.border.withValues(alpha: 0.82),
+                  width: widget.selected ? 1.4 : 1,
+                ),
+                boxShadow: widget.selected
+                    ? [
+                        BoxShadow(
+                          color: widget.accentColor.withValues(alpha: 0.08),
+                          blurRadius: 10,
+                          offset: const Offset(0, 3),
+                        ),
+                      ]
+                    : const [],
               ),
+              child: AnimatedDefaultTextStyle(
+                duration: selectionDuration,
+                curve: Curves.easeOutCubic,
+                style: Theme.of(context).textTheme.labelLarge!.copyWith(
+                      color: widget.selected
+                          ? widget.accentColor
+                          : colors.textSecondary,
+                      fontWeight:
+                          widget.selected ? FontWeight.w700 : FontWeight.w600,
+                    ),
+                child: Text(widget.label),
+              ),
+            ),
+          ),
         ),
       ),
     );

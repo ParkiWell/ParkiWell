@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -9,6 +11,7 @@ import 'package:levio/screens/onboarding_flow.dart';
 import 'package:levio/screens/splash_screen.dart';
 import 'package:levio/services/app_logger.dart';
 import 'package:levio/config/environment.dart';
+import 'package:levio/widgets/password_update_dialog.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:terminate_restart/terminate_restart.dart';
 
@@ -106,18 +109,51 @@ enum AppScreen { splash, onboarding, home }
 
 class _MyAppState extends State<MyApp> {
   final singleton = Singleton();
+  final _navigatorKey = GlobalKey<NavigatorState>();
+  StreamSubscription<void>? _passwordRecoverySubscription;
+  bool _passwordDialogVisible = false;
   AppScreen _currentScreen = AppScreen.splash;
 
   @override
   void initState() {
     super.initState();
     singleton.addListener(_onSingletonChange);
+    _passwordRecoverySubscription =
+        singleton.passwordRecoveryEvents.listen((_) => _showPasswordRecovery());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (singleton.isPasswordRecoveryPending) _showPasswordRecovery();
+    });
   }
 
   @override
   void dispose() {
     singleton.removeListener(_onSingletonChange);
+    _passwordRecoverySubscription?.cancel();
     super.dispose();
+  }
+
+  Future<void> _showPasswordRecovery() async {
+    if (_passwordDialogVisible) return;
+    final dialogContext = _navigatorKey.currentContext;
+    if (dialogContext == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _showPasswordRecovery();
+      });
+      return;
+    }
+
+    _passwordDialogVisible = true;
+    final updated = await showPasswordUpdateDialog(dialogContext);
+    _passwordDialogVisible = false;
+    if (updated != true || !mounted) return;
+
+    final messengerContext = _navigatorKey.currentContext;
+    if (messengerContext == null || !messengerContext.mounted) return;
+    ScaffoldMessenger.of(messengerContext)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(content: Text('Your password has been updated.')),
+      );
   }
 
   void _onSingletonChange() {
@@ -150,6 +186,8 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
+    final reduceMotion = WidgetsBinding
+        .instance.platformDispatcher.accessibilityFeatures.disableAnimations;
     // Update system UI overlay style based on theme
     SystemChrome.setSystemUIOverlayStyle(
       singleton.colorMode == 0
@@ -171,11 +209,13 @@ class _MyAppState extends State<MyApp> {
     };
 
     return MaterialApp(
+      navigatorKey: _navigatorKey,
       title: 'Levio',
       routes: namedRoutes,
       onGenerateRoute: onGenerateAppRoute,
       home: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 500),
+        duration:
+            reduceMotion ? Duration.zero : const Duration(milliseconds: 500),
         switchInCurve: Curves.easeOutCubic,
         switchOutCurve: Curves.easeInCubic,
         child: KeyedSubtree(
