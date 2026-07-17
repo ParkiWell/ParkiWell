@@ -322,8 +322,7 @@ app after an update means the revised policy applies.
 
 ## 18. Contact Us
 
-Privacy questions or requests: **[PRIVACY CONTACT EMAIL]**
-Postal: [COMPANY / OWNER LEGAL NAME], [MAILING ADDRESS]
+Privacy questions or requests: **<jcscen@gmail.com>**
 
 We aim to acknowledge every privacy request within 7 days and resolve it
 within the timelines required by applicable law.

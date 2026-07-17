@@ -249,5 +249,4 @@ the Service.
 
 ## 21. Contact
 
-Questions about these Terms: **[SUPPORT CONTACT EMAIL]**
-[COMPANY / OWNER LEGAL NAME], [MAILING ADDRESS]
+Questions about these Terms: **<jcscen@gmail.com>**
