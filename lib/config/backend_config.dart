@@ -14,7 +14,7 @@ class BackendConfig {
       String.fromEnvironment('SUPABASE_ANON_KEY', defaultValue: '');
   static const String supabaseAuthRedirectUrl = String.fromEnvironment(
     'SUPABASE_AUTH_REDIRECT_URL',
-    defaultValue: 'com.levio.app://login-callback/',
+    defaultValue: 'com.parkiwell.app://login-callback/',
   );
 
   static BackendProvider get provider {

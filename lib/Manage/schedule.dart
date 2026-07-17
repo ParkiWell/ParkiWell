@@ -107,6 +107,32 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                   badgeColor: scheduleColor,
                 ),
                 const SizedBox(height: 18),
+                SizedBox(
+                  width: double.infinity,
+                  child: ModernButton(
+                    text: 'Mark as Taken',
+                    icon: Icons.check_circle_outline_rounded,
+                    onPressed: () async {
+                      HapticUtils.success();
+                      final saved =
+                          await singleton.recordMedicationTaken(index);
+                      if (!mounted || !c.mounted) return;
+                      Navigator.pop(c);
+                      setState(() {});
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            saved
+                                ? '${name(index)} recorded'
+                                : 'Unable to record this dose',
+                          ),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 10),
                 Row(
                   children: [
                     Expanded(
@@ -345,18 +371,10 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: 70,
-                height: 70,
-                decoration: BoxDecoration(
-                  color: colors.secondary.withValues(alpha: 0.12),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.medication_liquid_rounded,
-                  color: colors.secondary,
-                  size: 34,
-                ),
+              Icon(
+                Icons.medication_liquid_outlined,
+                color: colors.secondary,
+                size: 38,
               ),
               const SizedBox(height: 16),
               Text(
@@ -463,18 +481,10 @@ class _ScheduleCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       child: Row(
         children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: colors.secondary.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(
-              Icons.medication_rounded,
-              color: colors.secondary,
-              size: 22,
-            ),
+          Icon(
+            Icons.medication_outlined,
+            color: colors.secondary,
+            size: 23,
           ),
           const SizedBox(width: 12),
           Expanded(

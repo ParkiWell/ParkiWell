@@ -1,8 +1,5 @@
-gradle-wrapper.jar
 /.gradle
 /captures/
-/gradlew
-/gradlew.bat
 /local.properties
 GeneratedPluginRegistrant.java
 lib/firebase_options.dart/
@@ -15,5 +12,4 @@ macos/Runner/GoogleService-Info.plist/
 key.properties
 **/*.keystore
 **/*.jks
-
 

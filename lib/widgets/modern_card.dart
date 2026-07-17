@@ -22,7 +22,7 @@ class ModernCard extends StatefulWidget {
     this.padding,
     this.margin,
     this.backgroundColor,
-    this.borderRadius = 16,
+    this.borderRadius = 20,
     this.showBorder = true,
     this.gradient,
     this.border,
@@ -89,9 +89,9 @@ class _ModernCardState extends State<ModernCard> {
           boxShadow: [
             BoxShadow(
               color: colors.shadow,
-              blurRadius: _isPressed ? 6 : 14,
+              blurRadius: _isPressed ? 5 : 12,
               spreadRadius: 0,
-              offset: Offset(0, _isPressed ? 2 : 4),
+              offset: Offset(0, _isPressed ? 2 : 5),
             ),
           ],
         ),
@@ -135,17 +135,10 @@ class FeatureCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: colors.surface.blend(iconColor ?? colors.primary, 0.14),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(
-              icon,
-              size: 22,
-              color: iconColor ?? colors.primary,
-            ),
+          Icon(
+            icon,
+            size: 24,
+            color: iconColor ?? colors.primary,
           ),
           const SizedBox(width: 14),
           Expanded(

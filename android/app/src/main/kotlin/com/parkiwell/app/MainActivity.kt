@@ -1,4 +1,4 @@
-package com.levio.app
+package com.parkiwell.app
 
 import io.flutter.embedding.android.FlutterActivity
 

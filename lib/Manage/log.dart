@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import '../singleton.dart';
 import '../theme/app_theme.dart';
 import '../utils/haptic_utils.dart';
-import '../widgets/modern_button.dart';
+import '../widgets/date_time_controls.dart';
+import '../widgets/liquid_glass.dart';
 import '../widgets/modern_card.dart';
 
 class LogScreen extends StatefulWidget {
@@ -14,7 +15,6 @@ class LogScreen extends StatefulWidget {
 }
 
 class _LogScreenState extends State<LogScreen> {
-  final singleton = Singleton();
   static const List<String> _severityOptions = <String>[
     'Very Mild',
     'Mild',
@@ -22,10 +22,27 @@ class _LogScreenState extends State<LogScreen> {
     'Severe',
     'Very Severe',
   ];
+  static const List<String> _monthNames = <String>[
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+  ];
 
-  String time(int index) => singleton.log[index][0];
-  String symptom(int index) => singleton.log[index][1];
-  String severity(int index) => singleton.log[index][2];
+  final singleton = Singleton();
+
+  String _time(int index) => singleton.log[index][0];
+  String _symptom(int index) => singleton.log[index][1];
+  String _severity(int index) => singleton.log[index][2];
+
   DateTime? _parseStorageTime(String value) {
     final parts = value.split(',');
     if (parts.length != 2) return null;
@@ -36,7 +53,7 @@ class _LogScreenState extends State<LogScreen> {
     final hour = int.tryParse(timePart[0]);
     final minute = int.tryParse(timePart[1]);
     final day = int.tryParse(datePart[0]);
-    final month = singleton.monthMap[datePart[1]];
+    final month = int.tryParse(singleton.monthMap[datePart[1]] ?? '');
     final year = int.tryParse(datePart[2]);
     if (hour == null ||
         minute == null ||
@@ -45,52 +62,46 @@ class _LogScreenState extends State<LogScreen> {
         year == null) {
       return null;
     }
-    return DateTime(year, int.parse(month), day, hour, minute);
+    return DateTime(year, month, day, hour, minute);
   }
 
   String _formatStorageTime(DateTime value) {
-    const monthNames = <String>[
-      'January',
-      'February',
-      'March',
-      'April',
-      'May',
-      'June',
-      'July',
-      'August',
-      'September',
-      'October',
-      'November',
-      'December',
-    ];
     final hour = value.hour.toString().padLeft(2, '0');
     final minute = value.minute.toString().padLeft(2, '0');
     final day = value.day.toString().padLeft(2, '0');
-    final month = monthNames[value.month - 1];
-    return '$hour:$minute, $day $month ${value.year}';
+    return '$hour:$minute, $day ${_monthNames[value.month - 1]} ${value.year}';
   }
 
-  String _formatDisplayTime(String value) {
-    final parsed = _parseStorageTime(value);
-    if (parsed == null) return value;
-    final hour12 = parsed.hour % 12 == 0 ? 12 : parsed.hour % 12;
-    final minute = parsed.minute.toString().padLeft(2, '0');
-    final suffix = parsed.hour >= 12 ? 'PM' : 'AM';
-    const monthNames = <String>[
-      'January',
-      'February',
-      'March',
-      'April',
-      'May',
-      'June',
-      'July',
-      'August',
-      'September',
-      'October',
-      'November',
-      'December',
-    ];
-    return '$hour12:$minute $suffix, ${parsed.day} ${monthNames[parsed.month - 1]} ${parsed.year}';
+  String _formatTime(DateTime? value) {
+    if (value == null) return 'Time unavailable';
+    final hour = value.hour % 12 == 0 ? 12 : value.hour % 12;
+    final minute = value.minute.toString().padLeft(2, '0');
+    return '$hour:$minute ${value.hour >= 12 ? 'PM' : 'AM'}';
+  }
+
+  String _formatFullDateTime(DateTime? value) {
+    if (value == null) return 'Date unavailable';
+    return '${_monthNames[value.month - 1]} ${value.day}, ${value.year} at ${_formatTime(value)}';
+  }
+
+  String _groupLabel(DateTime? value) {
+    if (value == null) return 'Earlier';
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final date = DateTime(value.year, value.month, value.day);
+    if (date == today) return 'Today';
+    if (date == today.subtract(const Duration(days: 1))) return 'Yesterday';
+    return '${_monthNames[value.month - 1]} ${value.day}, ${value.year}';
+  }
+
+  bool _startsNewGroup(int index) {
+    if (index == 0) return true;
+    final current = _parseStorageTime(_time(index));
+    final previous = _parseStorageTime(_time(index - 1));
+    if (current == null || previous == null) return true;
+    return current.year != previous.year ||
+        current.month != previous.month ||
+        current.day != previous.day;
   }
 
   Color _severityColor(String value, AppColors colors) {
@@ -101,308 +112,315 @@ class _LogScreenState extends State<LogScreen> {
     return colors.info;
   }
 
-  void _showLogDetails(int index) {
-    final colors = context.colors;
+  Future<void> _showLogDetails(int index) async {
     HapticUtils.lightImpact();
+    final colors = context.colors;
+    final date = _parseStorageTime(_time(index));
+    final severityColor = _severityColor(_severity(index), colors);
 
-    showModalBottomSheet(
+    await showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (BuildContext c) {
-        final sevColor = _severityColor(severity(index), colors);
-        return Container(
+      builder: (sheetContext) => SafeArea(
+        top: false,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 18),
           decoration: BoxDecoration(
             color: colors.surface,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
+            border: Border(top: BorderSide(color: colors.border)),
           ),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 34,
-                    height: 4,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: colors.border,
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Symptom details',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            color: colors.textPrimary,
+                            fontWeight: FontWeight.w800,
+                          ),
+                    ),
+                  ),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
-                      color: colors.border,
-                      borderRadius: BorderRadius.circular(999),
+                      color: severityColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                    child: Text(
+                      _severity(index),
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            color: severityColor,
+                            fontWeight: FontWeight.w800,
+                          ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 18),
-                ModernCard(
-                  backgroundColor: colors.surfaceVariant,
-                  border: Border.all(
-                    color: colors.border.withValues(alpha: 0.9),
-                  ),
-                  padding: const EdgeInsets.all(14),
-                  child: Row(
-                    children: [
-                      Icon(Icons.insights_rounded, color: colors.primary),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          'Logged at ${_formatDisplayTime(time(index))}',
-                          style:
-                              Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: colors.textPrimary,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 14),
-                _DetailRow(
-                    label: 'Symptom', value: symptom(index), colors: colors),
-                const SizedBox(height: 10),
-                _DetailRow(
-                  label: 'Severity',
-                  value: severity(index),
-                  colors: colors,
-                  badgeColor: sevColor,
-                ),
-                const SizedBox(height: 18),
-                Row(
-                  children: [
-                    Expanded(
-                      child: ModernButton(
-                        text: 'Close',
-                        isOutlined: true,
-                        onPressed: () => Navigator.pop(c),
-                      ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _formatFullDateTime(date),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: colors.textSecondary,
                     ),
-                    const SizedBox(width: 10),
-                    ModernIconButton(
-                      icon: Icons.edit_outlined,
-                      backgroundColor: colors.secondary,
+              ),
+              const SizedBox(height: 18),
+              Text(
+                _symptom(index),
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: colors.textPrimary,
+                      height: 1.5,
+                    ),
+              ),
+              const SizedBox(height: 22),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
                       onPressed: () async {
-                        Navigator.pop(c);
-                        await _showEditLogDialog(index);
+                        Navigator.pop(sheetContext);
+                        await _showEditLogSheet(index);
                       },
+                      icon: const Icon(Icons.edit_outlined, size: 18),
+                      label: const Text('Edit'),
                     ),
-                    const SizedBox(width: 10),
-                    ModernIconButton(
-                      icon: Icons.delete_outline_rounded,
-                      backgroundColor: colors.error,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: TextButton.icon(
                       onPressed: () async {
-                        HapticUtils.lightImpact();
-                        await singleton.deleteEntireList(index, 'logs');
-                        if (!mounted || !c.mounted) return;
-                        Navigator.pop(c);
+                        await singleton.deleteLog(index);
+                        if (!mounted || !sheetContext.mounted) return;
+                        Navigator.pop(sheetContext);
                         setState(() {});
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Symptom log deleted.')),
+                        );
                       },
+                      style: TextButton.styleFrom(
+                        foregroundColor: colors.error,
+                      ),
+                      icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                      label: const Text('Delete'),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-              ],
-            ),
+                  ),
+                ],
+              ),
+            ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 
-  Future<void> _showEditLogDialog(int index) async {
+  Future<void> _showEditLogSheet(int index) async {
     if (index < 0 || index >= singleton.log.length) return;
     final colors = context.colors;
-    final symptomController = TextEditingController(text: symptom(index));
-    var selectedSeverity = severity(index);
-    var selectedDateTime = _parseStorageTime(time(index)) ?? DateTime.now();
+    final symptomController = TextEditingController(text: _symptom(index));
+    var selectedSeverity = _severity(index);
+    var selectedDateTime = _parseStorageTime(_time(index)) ?? DateTime.now();
+    var isSaving = false;
 
-    Future<void> pickDateTime(StateSetter setModalState) async {
-      final pickedDate = await showDatePicker(
+    Future<void> pickDate(StateSetter setSheetState) async {
+      final now = DateTime.now();
+      final firstDate = DateTime(2000);
+      final initial = selectedDateTime.isBefore(firstDate)
+          ? firstDate
+          : (selectedDateTime.isAfter(now) ? now : selectedDateTime);
+      final date = await showDatePicker(
         context: context,
-        initialDate: selectedDateTime,
-        firstDate: DateTime(2020),
-        lastDate: DateTime(2100),
+        initialDate: initial,
+        firstDate: firstDate,
+        lastDate: now,
+        helpText: 'WHEN DID THIS HAPPEN?',
       );
-      if (pickedDate == null) return;
-      if (!mounted) return;
-      final pickedTime = await showTimePicker(
+      if (date == null || !mounted) return;
+
+      final result = DateTime(
+        date.year,
+        date.month,
+        date.day,
+        selectedDateTime.hour,
+        selectedDateTime.minute,
+      );
+      setSheetState(() {
+        selectedDateTime = result.isAfter(now) ? now : result;
+      });
+    }
+
+    Future<void> pickTime(StateSetter setSheetState) async {
+      final time = await showParkiWellTimePicker(
         context: context,
+        selectedDate: selectedDateTime,
         initialTime: TimeOfDay.fromDateTime(selectedDateTime),
       );
-      if (pickedTime == null) return;
-      setModalState(() {
+      if (time == null || !mounted) return;
+      setSheetState(() {
         selectedDateTime = DateTime(
-          pickedDate.year,
-          pickedDate.month,
-          pickedDate.day,
-          pickedTime.hour,
-          pickedTime.minute,
+          selectedDateTime.year,
+          selectedDateTime.month,
+          selectedDateTime.day,
+          time.hour,
+          time.minute,
         );
       });
     }
 
-    await showModalBottomSheet(
+    await showModalBottomSheet<void>(
       context: context,
-      isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (BuildContext c) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            return Container(
-              decoration: BoxDecoration(
-                color: colors.surface,
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(22)),
-              ),
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(
-                  20,
-                  18,
-                  20,
-                  MediaQuery.of(context).viewInsets.bottom + 18,
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Edit Symptom Log',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: symptomController,
-                      decoration: const InputDecoration(labelText: 'Symptom'),
-                    ),
-                    const SizedBox(height: 10),
-                    DropdownButtonFormField<String>(
-                      initialValue: selectedSeverity,
-                      decoration: const InputDecoration(labelText: 'Severity'),
-                      items: _severityOptions
-                          .map(
-                            (s) => DropdownMenuItem<String>(
-                              value: s,
-                              child: Text(s),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (value) {
-                        if (value == null) return;
-                        setModalState(() => selectedSeverity = value);
-                      },
-                    ),
-                    const SizedBox(height: 10),
-                    InkWell(
-                      onTap: () => pickDateTime(setModalState),
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: colors.surfaceVariant,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: colors.border),
-                        ),
-                        child: Text(
-                          _formatDisplayTime(
-                              _formatStorageTime(selectedDateTime)),
-                          style:
-                              Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                        ),
+      isScrollControlled: true,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) => Padding(
+          padding: EdgeInsets.only(
+            top: MediaQuery.paddingOf(context).top + 24,
+          ),
+          child: Container(
+            padding: EdgeInsets.fromLTRB(
+              20,
+              12,
+              20,
+              MediaQuery.viewInsetsOf(context).bottom + 18,
+            ),
+            decoration: BoxDecoration(
+              color: colors.surface,
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(26)),
+              border: Border(top: BorderSide(color: colors.border)),
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 36,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: colors.border,
+                        borderRadius: BorderRadius.circular(99),
                       ),
                     ),
-                    const SizedBox(height: 14),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: ModernButton(
-                            text: 'Cancel',
-                            isOutlined: true,
-                            onPressed: () => Navigator.pop(c),
-                          ),
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    'Edit symptom',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
                         ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: ModernButton(
-                            text: 'Save',
-                            onPressed: () async {
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: symptomController,
+                    minLines: 3,
+                    maxLines: 5,
+                    maxLength: 280,
+                    textCapitalization: TextCapitalization.sentences,
+                    decoration: const InputDecoration(
+                      labelText: 'What did you notice?',
+                      alignLabelWithHint: true,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedSeverity,
+                    decoration: const InputDecoration(labelText: 'Severity'),
+                    items: _severityOptions
+                        .map(
+                          (value) => DropdownMenuItem<String>(
+                            value: value,
+                            child: Text(value),
+                          ),
+                        )
+                        .toList(growable: false),
+                    onChanged: (value) {
+                      if (value != null) {
+                        setSheetState(() => selectedSeverity = value);
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ParkiWellDateTimeField(
+                          label: 'Date',
+                          value:
+                              '${_monthNames[selectedDateTime.month - 1]} ${selectedDateTime.day}, ${selectedDateTime.year}',
+                          icon: Icons.calendar_today_outlined,
+                          onTap: () => pickDate(setSheetState),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: ParkiWellDateTimeField(
+                          label: 'Time',
+                          value: _formatTime(selectedDateTime),
+                          icon: Icons.schedule_rounded,
+                          onTap: () => pickTime(setSheetState),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: isSaving
+                          ? null
+                          : () async {
                               if (symptomController.text.trim().isEmpty) return;
-                              await singleton.updateLogEntry(
+                              setSheetState(() => isSaving = true);
+                              final saved = await singleton.updateLogEntry(
                                 index,
                                 _formatStorageTime(selectedDateTime),
                                 symptomController.text.trim(),
                                 selectedSeverity,
                               );
-                              if (!mounted || !c.mounted) return;
-                              Navigator.pop(c);
-                              setState(() {});
+                              if (!mounted || !sheetContext.mounted) return;
+                              if (saved) {
+                                Navigator.pop(sheetContext);
+                                setState(() {});
+                              } else {
+                                setSheetState(() => isSaving = false);
+                              }
                             },
-                          ),
-                        ),
-                      ],
+                      icon: isSaving
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.check_rounded),
+                      label: Text(isSaving ? 'Saving…' : 'Save changes'),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            );
-          },
-        );
-      },
-    );
-    symptomController.dispose();
-  }
-
-  Widget _buildSummary(AppColors colors) {
-    final total = singleton.log.length;
-    final latest = total > 0 ? _formatDisplayTime(time(0)) : 'No entries yet';
-
-    return ModernCard(
-      backgroundColor: colors.cardBackground,
-      border: Border.all(color: colors.border),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: colors.primary,
-                  shape: BoxShape.circle,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'Symptom overview',
-                style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: colors.textSecondary,
-                      fontWeight: FontWeight.w700,
-                    ),
-              ),
-            ],
+            ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            '$total symptom logs',
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  color: colors.textPrimary,
-                ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Latest: $latest',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: colors.textSecondary,
-                  fontWeight: FontWeight.w700,
-                ),
-          ),
-        ],
+        ),
       ),
     );
+    symptomController.dispose();
   }
 
   @override
@@ -412,33 +430,26 @@ class _LogScreenState extends State<LogScreen> {
     return Scaffold(
       backgroundColor: colors.background,
       appBar: AppBar(
-        backgroundColor: colors.background,
-        surfaceTintColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back_rounded, color: colors.textPrimary),
+          tooltip: 'Back',
           onPressed: () {
             HapticUtils.lightImpact();
-            Navigator.pushNamed(context, '/');
+            Navigator.of(context).maybePop();
           },
+          icon: const Icon(Icons.arrow_back_rounded),
         ),
-        title: Text('Symptom Log',
-            style: TextStyle(
-                color: colors.textPrimary, fontWeight: FontWeight.w600)),
+        title: const Text('Symptom history'),
       ),
-      body: Container(
-        color: colors.background,
+      body: LiquidBackground(
         child: singleton.log.isEmpty
             ? _buildEmptyState(colors)
             : _buildLogList(colors),
       ),
-      floatingActionButton: ModernFAB(
-        icon: Icons.add,
-        backgroundColor: colors.primaryDark,
-        onPressed: () => Navigator.popAndPushNamed(context, '/editLogScreen'),
-        extended: true,
-        label: 'Add Log',
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () =>
+            Navigator.of(context).pushReplacementNamed('/editLogScreen'),
+        icon: const Icon(Icons.add_rounded),
+        label: const Text('Log symptom'),
       ),
     );
   }
@@ -446,48 +457,40 @@ class _LogScreenState extends State<LogScreen> {
   Widget _buildEmptyState(AppColors colors) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(26),
-        child: ModernCard(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 70,
-                height: 70,
-                decoration: BoxDecoration(
-                  color: colors.primary.withValues(alpha: 0.12),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.favorite_outline_rounded,
-                  color: colors.primary,
-                  size: 34,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text('No symptoms logged',
-                  style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 6),
-              Text(
-                'Track symptoms consistently to identify trends and share progress with your care team.',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: colors.textSecondary,
-                    ),
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: ModernButton(
-                  text: 'Create First Log',
-                  icon: Icons.add_rounded,
-                  onPressed: () =>
-                      Navigator.popAndPushNamed(context, '/editLogScreen'),
-                ),
-              ),
-            ],
-          ),
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.monitor_heart_outlined,
+              color: colors.primary,
+              size: 42,
+            ),
+            const SizedBox(height: 18),
+            Text(
+              'Your history starts here',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+            ),
+            const SizedBox(height: 7),
+            Text(
+              'Log a symptom from today or add an older entry so changes are easier to recognize over time.',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: colors.textSecondary,
+                    height: 1.45,
+                  ),
+            ),
+            const SizedBox(height: 20),
+            FilledButton.icon(
+              onPressed: () =>
+                  Navigator.of(context).pushReplacementNamed('/editLogScreen'),
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Log your first symptom'),
+            ),
+          ],
         ),
       ),
     );
@@ -495,25 +498,85 @@ class _LogScreenState extends State<LogScreen> {
 
   Widget _buildLogList(AppColors colors) {
     return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(20, 10, 20, 90),
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 104),
       itemCount: singleton.log.length + 1,
-      itemBuilder: (BuildContext context, int index) {
-        if (index == 0) {
+      itemBuilder: (context, listIndex) {
+        if (listIndex == 0) {
+          final latest = _parseStorageTime(_time(0));
           return Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: _buildSummary(colors),
+            padding: const EdgeInsets.only(bottom: 22),
+            child: GlassSurface(
+              padding: const EdgeInsets.all(18),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${singleton.log.length}',
+                          style: Theme.of(context)
+                              .textTheme
+                              .headlineMedium
+                              ?.copyWith(
+                                color: colors.textPrimary,
+                                fontWeight: FontWeight.w800,
+                              ),
+                        ),
+                        Text(
+                          singleton.log.length == 1
+                              ? 'symptom recorded'
+                              : 'symptoms recorded',
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(color: colors.textSecondary),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Text(
+                    'Latest\n${_groupLabel(latest)}',
+                    textAlign: TextAlign.right,
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                          color: colors.textSecondary,
+                          height: 1.4,
+                        ),
+                  ),
+                ],
+              ),
+            ),
           );
         }
 
-        final row = index - 1;
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: _LogCard(
-            time: _formatDisplayTime(time(row)),
-            symptom: symptom(row),
-            severity: severity(row),
-            onTap: () => _showLogDetails(row),
-          ),
+        final index = listIndex - 1;
+        final date = _parseStorageTime(_time(index));
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (_startsNewGroup(index)) ...[
+              Padding(
+                padding: const EdgeInsets.only(left: 2, bottom: 9, top: 2),
+                child: Text(
+                  _groupLabel(date),
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                        color: colors.textPrimary,
+                        fontWeight: FontWeight.w800,
+                      ),
+                ),
+              ),
+            ],
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _LogCard(
+                time: _formatTime(date),
+                symptom: _symptom(index),
+                severity: _severity(index),
+                onTap: () => _showLogDetails(index),
+              ),
+            ),
+          ],
         );
       },
     );
@@ -544,119 +607,52 @@ class _LogCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final sevColor = _severityColor(severity, colors);
-
+    final severityColor = _severityColor(severity, colors);
     return ModernCard(
       onTap: onTap,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      margin: EdgeInsets.zero,
+      borderRadius: 18,
+      padding: const EdgeInsets.fromLTRB(15, 14, 12, 14),
       child: Row(
         children: [
           Container(
-            width: 42,
+            width: 3,
             height: 42,
             decoration: BoxDecoration(
-              color: colors.primary.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(
-              Icons.favorite_outline_rounded,
-              color: colors.primary,
-              size: 22,
+              color: severityColor,
+              borderRadius: BorderRadius.circular(99),
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 13),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  symptom.isEmpty ? 'Symptom' : symptom,
-                  style: Theme.of(context).textTheme.titleSmall,
-                  maxLines: 1,
+                  symptom,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  time,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: colors.textTertiary,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: colors.textPrimary,
+                        fontWeight: FontWeight.w700,
                       ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 10),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: sevColor.withValues(alpha: 0.14),
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Text(
-              severity.isEmpty ? 'N/A' : severity,
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: sevColor,
-                    fontWeight: FontWeight.w700,
-                  ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DetailRow extends StatelessWidget {
-  final String label;
-  final String value;
-  final AppColors colors;
-  final Color? badgeColor;
-
-  const _DetailRow({
-    required this.label,
-    required this.value,
-    required this.colors,
-    this.badgeColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ModernCard(
-      margin: EdgeInsets.zero,
-      padding: const EdgeInsets.all(12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label, style: Theme.of(context).textTheme.labelSmall),
                 const SizedBox(height: 4),
                 Text(
-                  value.isEmpty ? 'Not specified' : value,
-                  style: Theme.of(context).textTheme.bodyMedium,
+                  '$time · $severity',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: colors.textSecondary,
+                      ),
                 ),
               ],
             ),
           ),
-          if (badgeColor != null)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: badgeColor!.withValues(alpha: 0.14),
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: Text(
-                value,
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: badgeColor,
-                      fontWeight: FontWeight.w700,
-                    ),
-              ),
-            ),
+          const SizedBox(width: 8),
+          Icon(
+            Icons.chevron_right_rounded,
+            color: colors.textTertiary,
+            size: 20,
+          ),
         ],
       ),
     );

@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../theme/app_theme.dart';
+import '../widgets/parkiwell_mark.dart';
 
 class SplashScreen extends StatefulWidget {
   final VoidCallback onComplete;
@@ -27,10 +28,13 @@ class _SplashScreenState extends State<SplashScreen>
   late final Animation<double> _progress;
   late final Animation<double> _exitFade;
   late final Animation<double> _exitScale;
+  late final bool _reduceMotion;
 
   @override
   void initState() {
     super.initState();
+    _reduceMotion = WidgetsBinding
+        .instance.platformDispatcher.accessibilityFeatures.disableAnimations;
     _entryController = AnimationController(
       duration: const Duration(milliseconds: 1700),
       vsync: this,
@@ -39,7 +43,10 @@ class _SplashScreenState extends State<SplashScreen>
     _ambientController = AnimationController(
       duration: const Duration(milliseconds: 5600),
       vsync: this,
-    )..repeat();
+    );
+    if (!_reduceMotion) {
+      _ambientController.repeat();
+    }
 
     _exitController = AnimationController(
       duration: const Duration(milliseconds: 400),
@@ -81,6 +88,13 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _start() async {
+    if (_reduceMotion) {
+      _entryController.value = 1;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) widget.onComplete();
+      });
+      return;
+    }
     await Future.delayed(const Duration(milliseconds: 120));
     await _entryController.forward();
     await Future.delayed(const Duration(milliseconds: 180));
@@ -200,7 +214,7 @@ class _SplashScreenState extends State<SplashScreen>
                                 child: Column(
                                   children: [
                                     Text(
-                                      'Levio',
+                                      'ParkiWell',
                                       style: GoogleFonts.plusJakartaSans(
                                         fontSize: 44,
                                         fontWeight: FontWeight.w700,
@@ -274,25 +288,11 @@ class _SplashScreenState extends State<SplashScreen>
     AppColors colors, {
     required bool isDark,
   }) {
-    final pulse = math.sin(_ambientController.value * 2 * math.pi);
-    const logoPath = 'images/logo.png';
-
-    return Transform.scale(
-      scale: 1.0 + (pulse * 0.01),
-      child: SizedBox(
-        width: 132,
-        height: 132,
-        child: Image.asset(
-          logoPath,
-          fit: BoxFit.contain,
-          filterQuality: FilterQuality.high,
-          errorBuilder: (_, __, ___) => Icon(
-            Icons.health_and_safety_rounded,
-            color: isDark ? colors.textPrimary : colors.primary,
-            size: 44,
-          ),
-        ),
-      ),
+    return ParkiWellMark(
+      size: 128,
+      color: isDark
+          ? colors.textPrimary
+          : colors.textPrimary.blend(colors.secondaryDark, 0.32),
     );
   }
 

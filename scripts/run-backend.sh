@@ -16,7 +16,7 @@ fi
 : "${SUPABASE_ANON_KEY:?Set SUPABASE_ANON_KEY in .env.local or environment}"
 
 BACKEND_PROVIDER="${BACKEND_PROVIDER:-supabase}"
-SUPABASE_AUTH_REDIRECT_URL="${SUPABASE_AUTH_REDIRECT_URL:-com.levio.app://login-callback/}"
+SUPABASE_AUTH_REDIRECT_URL="${SUPABASE_AUTH_REDIRECT_URL:-com.parkiwell.app://login-callback/}"
 
 flutter run \
   --dart-define=BACKEND_PROVIDER="$BACKEND_PROVIDER" \
