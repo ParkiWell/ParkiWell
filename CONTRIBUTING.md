@@ -16,12 +16,12 @@ Thank you for your interest in contributing to ParkiWell.
 1. Fork the repository
 2. Clone your fork:
    ```bash
-   git clone https://github.com/YOUR_USERNAME/levio.git
+   git clone https://github.com/YOUR_USERNAME/parkiwell.git
    cd parkiwell
    ```
 3. Add the upstream remote:
    ```bash
-   git remote add upstream https://github.com/Jc-965/levio.git
+   git remote add upstream https://github.com/Jc-965/parkiwell.git
    ```
 4. Install dependencies:
    ```bash
