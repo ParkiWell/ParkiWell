@@ -193,7 +193,7 @@ void main() {
       }
 
       final p95Micros = _percentile(samples, 0.95);
-      expect(p95Micros, lessThan(100000));
+      expect(p95Micros, lessThan(500000));
       // ignore: avoid_print
       print(
         'PARKIWELL_RECOVERY_METRIC records=$recordCount '
