@@ -1,4 +1,4 @@
-# Analysis options for Levio
+# Analysis options for ParkiWell
 # Strict linting rules for production-quality code
 
 include: package:flutter_lints/flutter.yaml

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:async';
@@ -9,6 +10,8 @@ import '../singleton.dart';
 import '../theme/app_theme.dart';
 import '../utils/haptic_utils.dart';
 import '../widgets/modern_button.dart';
+import '../widgets/stage_transition_switcher.dart';
+import '../legal/legal_document_screen.dart';
 
 class EditProfileScreen extends StatefulWidget {
   final VoidCallback? onComplete;
@@ -41,13 +44,22 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   _AuthMode _mode = _AuthMode.signUp;
   _EntryStage _stage = _EntryStage.auth;
+  bool _stageReverse = false;
   final int _modeTransitionDirection = 1;
   bool _isLoading = false;
   bool _replayTutorialAfterEntry = false;
   bool _awaitingEmailVerification = false;
+  bool _passwordVisible = false;
+  bool _confirmPasswordVisible = false;
   int _speechGoal = 4;
   int _physicalGoal = 4;
   String _imagePath = 'images/711128.png';
+  String? _emailError;
+  String? _passwordError;
+  String? _confirmPasswordError;
+  String? _firstNameError;
+  String? _lastNameError;
+  String? _stageErrorMessage;
   CloudAuthProfile? _pendingAuthProfile;
   StreamSubscription<CloudAuthProfile>? _verifiedSignInSubscription;
 
@@ -128,6 +140,39 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
+  bool _validateAccountFields() {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+    final emailError = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(email)
+        ? null
+        : 'Enter a valid email address.';
+    final passwordError =
+        password.length >= 6 ? null : 'Use at least 6 characters.';
+    final confirmPasswordError =
+        _mode == _AuthMode.signUp && _confirmPasswordController.text != password
+            ? 'Passwords do not match.'
+            : null;
+
+    setState(() {
+      _emailError = emailError;
+      _passwordError = passwordError;
+      _confirmPasswordError = confirmPasswordError;
+      _stageErrorMessage = null;
+    });
+    return emailError == null &&
+        passwordError == null &&
+        confirmPasswordError == null;
+  }
+
+  void _openLegalDocument(LegalDocumentType type) {
+    HapticUtils.selectionClick();
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => LegalDocumentScreen(type: type),
+      ),
+    );
+  }
+
   String _friendlyAuthMessage(Object error) {
     final text = error.toString().toLowerCase();
     if (text.contains('cancelled') || text.contains('canceled')) {
@@ -158,6 +203,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   void _showError(String message) {
     if (!mounted) return;
+    setState(() => _stageErrorMessage = message);
     final colors = context.colors;
     HapticUtils.error();
     ScaffoldMessenger.of(context)
@@ -184,6 +230,147 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       );
   }
 
+  void _showNotice(String message) {
+    if (!mounted) return;
+    final colors = context.colors;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          margin: const EdgeInsets.fromLTRB(18, 0, 18, 22),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+          content: Text(
+            message,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: colors.textPrimary,
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+          behavior: SnackBarBehavior.floating,
+          elevation: 0,
+          backgroundColor: colors.surface.blend(colors.info, 0.14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(color: colors.border.blend(colors.info, 0.5)),
+          ),
+        ),
+      );
+  }
+
+  Future<void> _resendVerification() async {
+    if (_isLoading) return;
+    final email = _emailController.text.trim();
+    if (email.isEmpty) return;
+    setState(() {
+      _isLoading = true;
+      _stageErrorMessage = null;
+    });
+    final sent = await singleton.resendEmailVerification(email);
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+    if (sent) {
+      _showNotice('A new verification link was sent to $email.');
+    } else {
+      _showError(
+          'We could not resend the link. Check your connection and try again.');
+    }
+  }
+
+  Future<void> _requestPasswordReset() async {
+    if (_isLoading) return;
+    final email = _emailController.text.trim();
+    if (!RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(email)) {
+      setState(() => _emailError = 'Enter your email to reset your password.');
+      HapticUtils.error();
+      return;
+    }
+    if (!singleton.isCloudConfigured) {
+      _showError('Password recovery is not available right now.');
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _stageErrorMessage = null;
+      _emailError = null;
+    });
+    final sent = await singleton.requestPasswordReset(email);
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+    if (sent) {
+      _showNotice(
+        'If an account exists for $email, a password recovery link is on its way.',
+      );
+    } else {
+      _showError(
+        'We could not send a recovery link. Check your connection and try again.',
+      );
+    }
+  }
+
+  /// Sign in with Apple is shown only on Apple platforms, where App Store
+  /// Guideline 4.8 requires it whenever a third-party login is offered.
+  bool get _supportsAppleSignIn =>
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.iOS ||
+          defaultTargetPlatform == TargetPlatform.macOS);
+
+  Future<void> _signInWithApple() async {
+    if (_isLoading) return;
+    if (!singleton.isCloudConfigured) {
+      _showError('Apple sign in is not available right now.');
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _stageErrorMessage = null;
+    });
+    HapticUtils.mediumImpact();
+    try {
+      final profile = await singleton.signInWithApple();
+      if (profile == null) {
+        // Null also covers the user dismissing the Apple sheet.
+        return;
+      }
+
+      final resolvedEmail = profile.email?.trim();
+      final fallbackName =
+          (resolvedEmail != null && resolvedEmail.contains('@'))
+              ? resolvedEmail.split('@').first
+              : 'User';
+      final resolvedName =
+          (profile.fullName != null && profile.fullName!.trim().isNotEmpty)
+              ? profile.fullName!.trim()
+              : fallbackName;
+
+      if (_mode == _AuthMode.signIn) {
+        final synced = await singleton.createOrSyncAuthenticatedUser(
+          displayName: resolvedName,
+          userEmail: resolvedEmail,
+          profileImage: _imagePath,
+        );
+        if (!synced) {
+          throw Exception('Unable to complete account sync.');
+        }
+        await _finishEntry();
+        return;
+      }
+
+      if (!mounted) return;
+      _replayTutorialAfterEntry = true;
+      _pendingAuthProfile = profile;
+      _emailController.text = resolvedEmail ?? _emailController.text;
+      await _saveProfileAndFinish();
+    } catch (e) {
+      _showError(_friendlyAuthMessage(e));
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
   Future<void> _signInWithGoogle() async {
     if (_isLoading) return;
     if (!singleton.isCloudConfigured) {
@@ -191,7 +378,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       return;
     }
 
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _stageErrorMessage = null;
+    });
     HapticUtils.mediumImpact();
     try {
       final profile = await singleton.signInWithGoogle();
@@ -238,25 +428,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   Future<void> _continueWithEmail() async {
     if (_isLoading) return;
+    if (!_validateAccountFields()) return;
     final email = _emailController.text.trim();
     final password = _passwordController.text;
 
-    if (!email.contains('@')) {
-      _showError('Enter a valid email address.');
-      return;
-    }
-    if (password.length < 6) {
-      _showError('Password must be at least 6 characters.');
-      return;
-    }
-
-    if (_mode == _AuthMode.signUp &&
-        _confirmPasswordController.text != password) {
-      _showError('Passwords do not match.');
-      return;
-    }
-
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _stageErrorMessage = null;
+    });
     HapticUtils.mediumImpact();
     try {
       if (_mode == _AuthMode.signIn) {
@@ -303,7 +482,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           final error = singleton.lastCloudError ?? 'Sign up failed.';
           _awaitingEmailVerification =
               error.toLowerCase().contains('verification link');
-          _showError(_friendlyAuthMessage(error));
+          if (_awaitingEmailVerification) {
+            if (mounted) setState(() => _stageErrorMessage = null);
+            _showNotice(
+              'Check your inbox and open the verification link to finish setup.',
+            );
+          } else {
+            _showError(_friendlyAuthMessage(error));
+          }
           return;
         }
         _pendingAuthProfile = profile;
@@ -337,13 +523,23 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   void _continueFromProfileSetup() {
     final first = _firstNameController.text.trim();
     final last = _lastNameController.text.trim();
-    if (first.isEmpty || last.isEmpty) {
-      _showError('Enter both first and last name.');
+    final firstNameError = first.isEmpty ? 'Enter your first name.' : null;
+    final lastNameError = last.isEmpty ? 'Enter your last name.' : null;
+    setState(() {
+      _firstNameError = firstNameError;
+      _lastNameError = lastNameError;
+      _stageErrorMessage = null;
+    });
+    if (firstNameError != null || lastNameError != null) {
+      HapticUtils.error();
       return;
     }
 
     HapticUtils.selectionClick();
-    setState(() => _stage = _EntryStage.goals);
+    setState(() {
+      _stage = _EntryStage.goals;
+      _stageReverse = false;
+    });
   }
 
   void _continueFromGoals() {
@@ -352,7 +548,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       weeklyPhysical: _physicalGoal,
     );
     HapticUtils.selectionClick();
-    setState(() => _stage = _EntryStage.auth);
+    setState(() {
+      _stage = _EntryStage.auth;
+      _stageReverse = false;
+      _stageErrorMessage = null;
+    });
   }
 
   Future<void> _saveProfileAndFinish() async {
@@ -428,41 +628,163 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             stops: const [0.0, 0.38, 1.0],
           ),
         ),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 280),
-              switchInCurve: Curves.easeOutCubic,
-              switchOutCurve: Curves.easeInCubic,
-              transitionBuilder: (child, animation) => FadeTransition(
-                opacity: animation,
-                child: SlideTransition(
-                  position: Tween<Offset>(
-                    begin: const Offset(0, 0.02),
-                    end: Offset.zero,
-                  ).animate(animation),
-                  child: child,
-                ),
+        child: StageTransitionSwitcher(
+          reverse: _stageReverse,
+          child: switch (_stage) {
+            _EntryStage.auth => KeyedSubtree(
+                key: const ValueKey<String>('stage-auth'),
+                child: _buildAuthStage(colors),
               ),
-              child: switch (_stage) {
-                _EntryStage.auth => KeyedSubtree(
-                    key: const ValueKey<String>('stage-auth'),
-                    child: _buildAuthStage(colors),
-                  ),
-                _EntryStage.profileSetup => KeyedSubtree(
-                    key: const ValueKey<String>('stage-profile'),
-                    child: _buildProfileSetupStage(colors),
-                  ),
-                _EntryStage.goals => KeyedSubtree(
-                    key: const ValueKey<String>('stage-goals'),
-                    child: _buildGoalsStage(colors),
-                  ),
-              },
-            ),
-          ),
+            _EntryStage.profileSetup => KeyedSubtree(
+                key: const ValueKey<String>('stage-profile'),
+                child: _buildProfileSetupStage(colors),
+              ),
+            _EntryStage.goals => KeyedSubtree(
+                key: const ValueKey<String>('stage-goals'),
+                child: _buildGoalsStage(colors),
+              ),
+          },
         ),
       ),
+    );
+  }
+
+  Widget _buildJourneyHeader({
+    required AppColors colors,
+    required VoidCallback onBack,
+    int? step,
+  }) {
+    final isSetup = step != null;
+    return Semantics(
+      container: true,
+      label: isSetup ? 'Setup step ${step + 1} of 3' : 'Sign in',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              _buildTopActionButton(
+                colors: colors,
+                icon: Icons.arrow_back_rounded,
+                tooltip: 'Go back',
+                onTap: onBack,
+              ),
+              const Spacer(),
+              if (isSetup)
+                Text(
+                  'STEP ${step + 1} OF 3',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: colors.textSecondary,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.5,
+                      ),
+                ),
+            ],
+          ),
+          if (isSetup) ...<Widget>[
+            const SizedBox(height: 16),
+            Row(
+              children: List<Widget>.generate(5, (index) {
+                if (index.isOdd) return const SizedBox(width: 8);
+                final segment = index ~/ 2;
+                final active = segment <= step;
+                return Expanded(
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: active ? colors.primary : colors.border,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                );
+              }),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInlineAlert(AppColors colors, String message) {
+    return Semantics(
+      liveRegion: true,
+      container: true,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: colors.surface.blend(colors.error, 0.1),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: colors.border.blend(colors.error, 0.42)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Icon(Icons.error_outline_rounded, color: colors.error, size: 20),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                message,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: colors.textPrimary,
+                      height: 1.4,
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCloudAvailabilityNote(AppColors colors) {
+    final message = _mode == _AuthMode.signIn
+        ? 'Account sign in is temporarily unavailable. Check your connection or try again later.'
+        : 'Cloud sync is unavailable right now. You can finish setup on this device and keep using core tracking offline.';
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: colors.surface.blend(colors.warning, 0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colors.border.blend(colors.warning, 0.34)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Icon(Icons.cloud_off_outlined, color: colors.warning, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: colors.textPrimary,
+                    height: 1.4,
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Interior padding for a full-bleed stage scroll view: content is inset
+  /// past the notch and home indicator, but scrolls edge to edge.
+  EdgeInsets _stagePadding(BuildContext context) {
+    final safe = MediaQuery.paddingOf(context);
+    return EdgeInsets.fromLTRB(20, safe.top + 12, 20, safe.bottom + 20);
+  }
+
+  BoxConstraints _stageMinHeight(
+    BuildContext context,
+    BoxConstraints constraints,
+  ) {
+    return BoxConstraints(
+      minHeight: (constraints.maxHeight - _stagePadding(context).vertical)
+          .clamp(0.0, double.infinity),
     );
   }
 
@@ -471,29 +793,27 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
     return LayoutBuilder(
       builder: (context, constraints) => SingleChildScrollView(
+        padding: _stagePadding(context),
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         child: ConstrainedBox(
-          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          constraints: _stageMinHeight(context, constraints),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Row(
-                children: [
-                  if (widget.onBack != null)
-                    _buildTopActionButton(
-                      colors: colors,
-                      icon: Icons.arrow_back_rounded,
-                      onTap: () {
-                        if (_mode == _AuthMode.signUp) {
-                          setState(() => _stage = _EntryStage.goals);
-                        } else {
-                          widget.onBack!();
-                        }
-                      },
-                    )
-                  else
-                    const SizedBox(width: 44, height: 44),
-                ],
+              _buildJourneyHeader(
+                colors: colors,
+                step: _mode == _AuthMode.signUp ? 2 : null,
+                onBack: () {
+                  if (_mode == _AuthMode.signUp) {
+                    setState(() {
+                      _stage = _EntryStage.goals;
+                      _stageReverse = true;
+                      _stageErrorMessage = null;
+                    });
+                  } else {
+                    widget.onBack?.call();
+                  }
+                },
               ),
               const SizedBox(height: 20),
               _buildModeAnimatedSwitcher(
@@ -525,6 +845,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 ),
               ),
               const SizedBox(height: 18),
+              if (_stageErrorMessage != null) ...[
+                _buildInlineAlert(colors, _stageErrorMessage!),
+                const SizedBox(height: 14),
+              ],
+              if (!cloudReady) ...[
+                _buildCloudAvailabilityNote(colors),
+                const SizedBox(height: 14),
+              ],
               Container(
                 padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
@@ -554,6 +882,21 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           icon: Icons.mail_outline_rounded,
                           keyboardType: TextInputType.emailAddress,
                           autofillHints: const [AutofillHints.email],
+                          textInputAction: TextInputAction.next,
+                          errorText: _emailError,
+                          autocorrect: false,
+                          enableSuggestions: false,
+                          onChanged: (_) {
+                            if (_emailError != null ||
+                                _stageErrorMessage != null ||
+                                _awaitingEmailVerification) {
+                              setState(() {
+                                _emailError = null;
+                                _stageErrorMessage = null;
+                                _awaitingEmailVerification = false;
+                              });
+                            }
+                          },
                         ),
                         const SizedBox(height: 14),
                         _buildFieldLabel('Password'),
@@ -563,9 +906,49 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                               ? 'At least 6 characters'
                               : 'Enter your password',
                           icon: Icons.lock_outline_rounded,
-                          obscureText: true,
+                          obscureText: !_passwordVisible,
                           autofillHints: const [AutofillHints.password],
+                          textInputAction: _mode == _AuthMode.signUp
+                              ? TextInputAction.next
+                              : TextInputAction.done,
+                          errorText: _passwordError,
+                          autocorrect: false,
+                          enableSuggestions: false,
+                          onChanged: (_) {
+                            if (_passwordError != null ||
+                                _stageErrorMessage != null) {
+                              setState(() {
+                                _passwordError = null;
+                                _stageErrorMessage = null;
+                              });
+                            }
+                          },
+                          onSubmitted: _mode == _AuthMode.signIn
+                              ? (_) => _continueWithEmail()
+                              : null,
+                          suffixIcon: IconButton(
+                            tooltip: _passwordVisible
+                                ? 'Hide password'
+                                : 'Show password',
+                            onPressed: () => setState(
+                              () => _passwordVisible = !_passwordVisible,
+                            ),
+                            icon: Icon(
+                              _passwordVisible
+                                  ? Icons.visibility_off_outlined
+                                  : Icons.visibility_outlined,
+                            ),
+                          ),
                         ),
+                        if (_mode == _AuthMode.signIn)
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: TextButton(
+                              onPressed:
+                                  _isLoading ? null : _requestPasswordReset,
+                              child: const Text('Forgot password?'),
+                            ),
+                          ),
                         ClipRect(
                           child: AnimatedSize(
                             duration: const Duration(milliseconds: 220),
@@ -582,7 +965,36 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                         controller: _confirmPasswordController,
                                         hintText: 'Retype your password',
                                         icon: Icons.verified_user_outlined,
-                                        obscureText: true,
+                                        obscureText: !_confirmPasswordVisible,
+                                        textInputAction: TextInputAction.done,
+                                        errorText: _confirmPasswordError,
+                                        autocorrect: false,
+                                        enableSuggestions: false,
+                                        onChanged: (_) {
+                                          if (_confirmPasswordError != null ||
+                                              _stageErrorMessage != null) {
+                                            setState(() {
+                                              _confirmPasswordError = null;
+                                              _stageErrorMessage = null;
+                                            });
+                                          }
+                                        },
+                                        onSubmitted: (_) =>
+                                            _continueWithEmail(),
+                                        suffixIcon: IconButton(
+                                          tooltip: _confirmPasswordVisible
+                                              ? 'Hide password'
+                                              : 'Show password',
+                                          onPressed: () => setState(
+                                            () => _confirmPasswordVisible =
+                                                !_confirmPasswordVisible,
+                                          ),
+                                          icon: Icon(
+                                            _confirmPasswordVisible
+                                                ? Icons.visibility_off_outlined
+                                                : Icons.visibility_outlined,
+                                          ),
+                                        ),
                                       ),
                                     ],
                                   )
@@ -665,10 +1077,20 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                             ),
                           ),
                         ),
+                        if (cloudReady && _supportsAppleSignIn) ...[
+                          const SizedBox(height: 12),
+                          _buildAppleButton(colors),
+                        ],
                         if (cloudReady) ...[
                           const SizedBox(height: 12),
                           _buildGoogleButton(colors),
                         ],
+                        if (_awaitingEmailVerification) ...[
+                          const SizedBox(height: 14),
+                          _buildVerificationPanel(colors),
+                        ],
+                        const SizedBox(height: 14),
+                        _buildLegalConsent(colors),
                       ],
                     ),
                   ),
@@ -718,26 +1140,20 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     required AppColors colors,
     required IconData icon,
     required VoidCallback onTap,
+    String tooltip = 'Go back',
   }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 44,
-        height: 44,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: colors.surface,
-          shape: BoxShape.circle,
-          border: Border.all(color: colors.border),
-          boxShadow: [
-            BoxShadow(
-              color: colors.shadow,
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
+    return SizedBox(
+      width: 48,
+      height: 48,
+      child: IconButton(
+        tooltip: tooltip,
+        onPressed: onTap,
+        icon: Icon(icon, color: colors.textPrimary, size: 21),
+        style: IconButton.styleFrom(
+          backgroundColor: colors.surface,
+          shape: CircleBorder(side: BorderSide(color: colors.border)),
+          elevation: 0,
         ),
-        child: Icon(icon, color: colors.textPrimary, size: 20),
       ),
     );
   }
@@ -762,6 +1178,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     bool obscureText = false,
     List<String>? autofillHints,
     ValueChanged<String>? onChanged,
+    ValueChanged<String>? onSubmitted,
+    TextInputAction? textInputAction,
+    String? errorText,
+    Widget? suffixIcon,
+    bool autocorrect = true,
+    bool enableSuggestions = true,
   }) {
     final colors = context.colors;
     return TextField(
@@ -770,18 +1192,63 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       obscureText: obscureText,
       autofillHints: autofillHints,
       onChanged: onChanged,
+      onSubmitted: onSubmitted,
+      textInputAction: textInputAction,
+      autocorrect: autocorrect,
+      enableSuggestions: enableSuggestions,
       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
             color: colors.textPrimary,
             fontWeight: FontWeight.w600,
           ),
       decoration: InputDecoration(
         hintText: hintText,
+        errorText: errorText,
         prefixIcon: Icon(icon, size: 20, color: colors.textTertiary),
+        suffixIcon: suffixIcon,
         fillColor: colors.surface.blend(colors.background, 0.4),
         filled: true,
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
           vertical: 18,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAppleButton(AppColors colors) {
+    // Apple's guidelines: black button in light mode, white in dark mode,
+    // matching the size and prominence of other sign-in options.
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final background = isDark ? Colors.white : Colors.black;
+    final foreground = isDark ? Colors.black : Colors.white;
+
+    return SizedBox(
+      height: 54,
+      child: FilledButton(
+        onPressed: _isLoading ? null : _signInWithApple,
+        style: FilledButton.styleFrom(
+          elevation: 0,
+          backgroundColor: background,
+          foregroundColor: foreground,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.apple, size: 26, color: foreground),
+            const SizedBox(width: 10),
+            Text(
+              _mode == _AuthMode.signUp
+                  ? 'Sign up with Apple'
+                  : 'Sign in with Apple',
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: foreground,
+                    fontWeight: FontWeight.w800,
+                  ),
+            ),
+          ],
         ),
       ),
     );
@@ -835,6 +1302,111 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
+  Widget _buildVerificationPanel(AppColors colors) {
+    final email = _emailController.text.trim();
+    return Semantics(
+      liveRegion: true,
+      container: true,
+      label: 'Verification email sent to $email',
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: colors.surface.blend(colors.info, 0.1),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: colors.border.blend(colors.info, 0.4)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Icon(Icons.mark_email_read_outlined,
+                    color: colors.info, size: 21),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        'Check your inbox',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: colors.textPrimary,
+                              fontWeight: FontWeight.w800,
+                            ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        'Open the link sent to $email. ParkiWell will finish setup when you return.',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: colors.textSecondary,
+                              height: 1.4,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: _isLoading ? null : _resendVerification,
+                icon: const Icon(Icons.refresh_rounded, size: 18),
+                label: const Text('Resend verification email'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLegalConsent(AppColors colors) {
+    return Column(
+      children: <Widget>[
+        Text(
+          'By continuing, you agree to ParkiWell\'s',
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: colors.textSecondary,
+              ),
+        ),
+        Wrap(
+          alignment: WrapAlignment.center,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: <Widget>[
+            TextButton(
+              onPressed: () =>
+                  _openLegalDocument(LegalDocumentType.termsOfService),
+              child: const Text('Terms of Service'),
+            ),
+            Text(
+              'and',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: colors.textSecondary,
+                  ),
+            ),
+            TextButton(
+              onPressed: () =>
+                  _openLegalDocument(LegalDocumentType.privacyPolicy),
+              child: const Text('Privacy Policy'),
+            ),
+          ],
+        ),
+        Text(
+          'ParkiWell supports tracking and education; it does not replace medical advice.',
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: colors.textTertiary,
+                height: 1.35,
+              ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildProfileSetupStage(AppColors colors) {
     final hasCustomImage = _imagePath.isNotEmpty &&
         !_imagePath.contains('711128') &&
@@ -845,28 +1417,32 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
     return LayoutBuilder(
       builder: (context, constraints) => SingleChildScrollView(
+        padding: _stagePadding(context),
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         child: ConstrainedBox(
-          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          constraints: _stageMinHeight(context, constraints),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Row(
-                children: [
-                  _buildTopActionButton(
-                    colors: colors,
-                    icon: Icons.arrow_back_rounded,
-                    onTap: () {
-                      if (widget.onBack != null) {
-                        widget.onBack!();
-                      } else {
-                        setState(() => _stage = _EntryStage.auth);
-                      }
-                    },
-                  ),
-                ],
+              _buildJourneyHeader(
+                colors: colors,
+                step: 0,
+                onBack: () {
+                  if (widget.onBack != null) {
+                    widget.onBack!();
+                  } else {
+                    setState(() {
+                      _stage = _EntryStage.auth;
+                      _stageReverse = true;
+                    });
+                  }
+                },
               ),
               const SizedBox(height: 16),
+              if (_stageErrorMessage != null) ...[
+                _buildInlineAlert(colors, _stageErrorMessage!),
+                const SizedBox(height: 14),
+              ],
               Container(
                 padding: const EdgeInsets.all(22),
                 decoration: BoxDecoration(
@@ -902,7 +1478,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                               ),
                               const SizedBox(height: 6),
                               Text(
-                                'Add your name and a photo before choosing your therapy goals.',
+                                'Add your name. A profile photo is optional.',
                                 style: Theme.of(context)
                                     .textTheme
                                     .bodyMedium
@@ -956,7 +1532,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       controller: _firstNameController,
                       hintText: 'First name',
                       icon: Icons.person_outline_rounded,
-                      onChanged: (_) => setState(() {}),
+                      textInputAction: TextInputAction.next,
+                      errorText: _firstNameError,
+                      onChanged: (_) => setState(() {
+                        _firstNameError = null;
+                        _stageErrorMessage = null;
+                      }),
                     ),
                     const SizedBox(height: 14),
                     _buildFieldLabel('Last Name'),
@@ -964,7 +1545,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       controller: _lastNameController,
                       hintText: 'Last name',
                       icon: Icons.badge_outlined,
-                      onChanged: (_) => setState(() {}),
+                      textInputAction: TextInputAction.done,
+                      errorText: _lastNameError,
+                      onChanged: (_) => setState(() {
+                        _lastNameError = null;
+                        _stageErrorMessage = null;
+                      }),
+                      onSubmitted: (_) => _continueFromProfileSetup(),
                     ),
                     const SizedBox(height: 24),
                     SizedBox(
@@ -990,20 +1577,20 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   Widget _buildGoalsStage(AppColors colors) {
     return LayoutBuilder(
       builder: (context, constraints) => SingleChildScrollView(
+        padding: _stagePadding(context),
         child: ConstrainedBox(
-          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          constraints: _stageMinHeight(context, constraints),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Row(
-                children: [
-                  _buildTopActionButton(
-                    colors: colors,
-                    icon: Icons.arrow_back_rounded,
-                    onTap: () =>
-                        setState(() => _stage = _EntryStage.profileSetup),
-                  ),
-                ],
+              _buildJourneyHeader(
+                colors: colors,
+                step: 1,
+                onBack: () => setState(() {
+                  _stage = _EntryStage.profileSetup;
+                  _stageReverse = true;
+                  _stageErrorMessage = null;
+                }),
               ),
               const SizedBox(height: 16),
               Container(
@@ -1033,7 +1620,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Choose how many speech and physical exercises you want to do each week. You can change this later in Recovery.',
+                      'Choose a comfortable weekly target for speech and movement. Start small—you can change this anytime.',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                             color: colors.textSecondary,
                             height: 1.4,
@@ -1095,24 +1682,30 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Widget _buildAvatarPreview(AppColors colors, bool hasCustomImage) {
-    return GestureDetector(
-      onTap: _isLoading ? null : _pickProfileImage,
-      child: Container(
-        width: 94,
-        height: 94,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          border: Border.all(color: colors.border, width: 1.5),
-          color: colors.surfaceVariant,
-        ),
-        child: ClipOval(
-          child: hasCustomImage
-              ? Image.file(
-                  File(_imagePath),
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => _buildAvatarFallback(colors),
-                )
-              : _buildAvatarFallback(colors),
+    return Semantics(
+      button: true,
+      label: hasCustomImage
+          ? 'Change profile picture'
+          : 'Choose an optional profile picture',
+      child: GestureDetector(
+        onTap: _isLoading ? null : _pickProfileImage,
+        child: Container(
+          width: 94,
+          height: 94,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: colors.border, width: 1.5),
+            color: colors.surfaceVariant,
+          ),
+          child: ClipOval(
+            child: hasCustomImage
+                ? Image.file(
+                    File(_imagePath),
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => _buildAvatarFallback(colors),
+                  )
+                : _buildAvatarFallback(colors),
+          ),
         ),
       ),
     );
@@ -1155,64 +1748,83 @@ class _GoalSetupRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: colors.surfaceVariant.withValues(alpha: 0.72),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: colors.border.withValues(alpha: 0.72)),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: accent.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Icon(icon, color: accent, size: 21),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(icon, color: accent, size: 23),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      subtitle,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: colors.textSecondary,
+                            height: 1.35,
+                          ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 3),
-                Text(
-                  subtitle,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Weekly target',
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
                         color: colors.textSecondary,
+                        fontWeight: FontWeight.w700,
                       ),
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 10),
-          _GoalSetupButton(
-            colors: colors,
-            icon: Icons.remove_rounded,
-            onTap: onDecrease,
-          ),
-          SizedBox(
-            width: 42,
-            child: Text(
-              '$value',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
+              ),
+              _GoalSetupButton(
+                colors: colors,
+                icon: Icons.remove_rounded,
+                tooltip: 'Decrease $title weekly goal',
+                enabled: value > 0,
+                onTap: onDecrease,
+              ),
+              Semantics(
+                label: '$value $title per week',
+                child: SizedBox(
+                  width: 48,
+                  child: Text(
+                    '$value',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
                   ),
-            ),
-          ),
-          _GoalSetupButton(
-            colors: colors,
-            icon: Icons.add_rounded,
-            onTap: onIncrease,
+                ),
+              ),
+              _GoalSetupButton(
+                colors: colors,
+                icon: Icons.add_rounded,
+                tooltip: 'Increase $title weekly goal',
+                enabled: value < 99,
+                onTap: onIncrease,
+              ),
+            ],
           ),
         ],
       ),
@@ -1224,29 +1836,39 @@ class _GoalSetupButton extends StatelessWidget {
   final AppColors colors;
   final IconData icon;
   final VoidCallback onTap;
+  final String tooltip;
+  final bool enabled;
 
   const _GoalSetupButton({
     required this.colors,
     required this.icon,
     required this.onTap,
+    required this.tooltip,
+    required this.enabled,
   });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () {
-        HapticUtils.selectionClick();
-        onTap();
-      },
-      child: Container(
-        width: 34,
-        height: 34,
-        decoration: BoxDecoration(
-          color: colors.surface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: colors.border),
+    return SizedBox(
+      width: 48,
+      height: 48,
+      child: IconButton(
+        tooltip: tooltip,
+        onPressed: enabled
+            ? () {
+                HapticUtils.selectionClick();
+                onTap();
+              }
+            : null,
+        style: IconButton.styleFrom(
+          backgroundColor: colors.surface,
+          disabledBackgroundColor: colors.surfaceVariant,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+            side: BorderSide(color: colors.border),
+          ),
         ),
-        child: Icon(icon, size: 18, color: colors.textPrimary),
+        icon: Icon(icon, size: 20, color: colors.textPrimary),
       ),
     );
   }

@@ -31,7 +31,7 @@ class TutorialService extends ChangeNotifier {
   factory TutorialService() => _instance;
   TutorialService._internal();
 
-  static const String _completionKey = 'levio_main_tutorial_completed_v1';
+  static const String _completionKey = 'parkiwell_main_tutorial_completed_v1';
 
   List<TutorialStep> _steps = const <TutorialStep>[];
   int _currentStepIndex = -1;

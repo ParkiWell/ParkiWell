@@ -1,6 +1,6 @@
-# Contributing to Levio
+# Contributing to ParkiWell
 
-Thank you for your interest in contributing to Levio.
+Thank you for your interest in contributing to ParkiWell.
 
 ## Development Setup
 
@@ -16,12 +16,12 @@ Thank you for your interest in contributing to Levio.
 1. Fork the repository
 2. Clone your fork:
    ```bash
-   git clone https://github.com/YOUR_USERNAME/levio.git
-   cd levio
+   git clone https://github.com/YOUR_USERNAME/parkiwell.git
+   cd parkiwell
    ```
 3. Add the upstream remote:
    ```bash
-   git remote add upstream https://github.com/Jc-965/levio.git
+   git remote add upstream https://github.com/Jc-965/parkiwell.git
    ```
 4. Install dependencies:
    ```bash
@@ -33,7 +33,7 @@ Thank you for your interest in contributing to Levio.
      --dart-define=BACKEND_PROVIDER=supabase \
      --dart-define=SUPABASE_URL=https://YOUR_PROJECT.supabase.co \
      --dart-define=SUPABASE_ANON_KEY=YOUR_ANON_KEY \
-     --dart-define=SUPABASE_AUTH_REDIRECT_URL=com.levio.app://login-callback/
+     --dart-define=SUPABASE_AUTH_REDIRECT_URL=com.parkiwell.app://login-callback/
    ```
 
 ## Branch Strategy

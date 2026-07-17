@@ -138,10 +138,7 @@ class LineChartSample1State extends State<LineChartSample1>
   }
 
   String _buildLogSignature() {
-    if (singleton.log.isEmpty) return 'empty';
-    final last = singleton.log.last;
-    final lastToken = last.isNotEmpty ? last.first : '';
-    return '${singleton.log.length}|$lastToken';
+    return singleton.healthDataVersion.toString();
   }
 
   @override
@@ -382,6 +379,7 @@ class LineChartSample1State extends State<LineChartSample1>
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final insights = singleton.longitudinalInsights;
 
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
@@ -418,6 +416,58 @@ class LineChartSample1State extends State<LineChartSample1>
           ),
           const SizedBox(height: 24),
 
+          if (insights.hasMeaningfulData) ...[
+            ModernCard(
+              padding: const EdgeInsets.all(18),
+              borderRadius: 16,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.insights_outlined,
+                        color: colors.info,
+                        size: 24,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Health patterns',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                            Text(
+                              '${insights.eventCount} recorded events',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(color: colors.textTertiary),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    insights.summary,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: colors.textSecondary,
+                          height: 1.45,
+                        ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+
           // Symptom chart
           ModernCard(
             padding: const EdgeInsets.all(20),
@@ -430,17 +480,10 @@ class LineChartSample1State extends State<LineChartSample1>
                   children: [
                     Row(
                       children: [
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: colors.chartLine.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Icon(
-                            Icons.show_chart_rounded,
-                            color: colors.chartLine,
-                            size: 22,
-                          ),
+                        Icon(
+                          Icons.show_chart_rounded,
+                          color: colors.chartLine,
+                          size: 24,
                         ),
                         const SizedBox(width: 12),
                         Text(
@@ -452,46 +495,37 @@ class LineChartSample1State extends State<LineChartSample1>
                         ),
                       ],
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: colors.surfaceVariant,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<String>(
-                          value: chosenTime,
-                          isDense: true,
-                          icon: Icon(
-                            Icons.keyboard_arrow_down_rounded,
-                            color: colors.textSecondary,
-                            size: 20,
-                          ),
-                          style:
-                              Theme.of(context).textTheme.labelMedium?.copyWith(
-                                    color: colors.textPrimary,
-                                  ),
-                          dropdownColor: colors.surface,
-                          borderRadius: BorderRadius.circular(12),
-                          onChanged: (String? newValue) {
-                            if (newValue == null) return;
-                            HapticUtils.selectionClick();
-                            setState(() {
-                              chosenTime = newValue;
-                              _rebuildChartData();
-                            });
-                          },
-                          items:
-                              time.map<DropdownMenuItem<String>>((String item) {
-                            return DropdownMenuItem<String>(
-                              value: item,
-                              child: Text(item),
-                            );
-                          }).toList(),
+                    DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: chosenTime,
+                        isDense: true,
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        icon: Icon(
+                          Icons.keyboard_arrow_down_rounded,
+                          color: colors.textSecondary,
+                          size: 20,
                         ),
+                        style:
+                            Theme.of(context).textTheme.labelMedium?.copyWith(
+                                  color: colors.textPrimary,
+                                ),
+                        dropdownColor: colors.surface,
+                        borderRadius: BorderRadius.circular(12),
+                        onChanged: (String? newValue) {
+                          if (newValue == null) return;
+                          HapticUtils.selectionClick();
+                          setState(() {
+                            chosenTime = newValue;
+                            _rebuildChartData();
+                          });
+                        },
+                        items:
+                            time.map<DropdownMenuItem<String>>((String item) {
+                          return DropdownMenuItem<String>(
+                            value: item,
+                            child: Text(item),
+                          );
+                        }).toList(),
                       ),
                     ),
                   ],
@@ -549,17 +583,10 @@ class LineChartSample1State extends State<LineChartSample1>
               children: [
                 Row(
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: colors.chartBar.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(
-                        Icons.medication_rounded,
-                        color: colors.chartBar,
-                        size: 22,
-                      ),
+                    Icon(
+                      Icons.medication_outlined,
+                      color: colors.chartBar,
+                      size: 24,
                     ),
                     const SizedBox(width: 12),
                     Text(
@@ -620,14 +647,7 @@ class LineChartSample1State extends State<LineChartSample1>
       margin: const EdgeInsets.symmetric(vertical: 0),
       child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: color, size: 24),
-          ),
+          Icon(icon, color: color, size: 28),
           const SizedBox(width: 14),
           Expanded(
             child: Column(

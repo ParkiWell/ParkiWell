@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:levio/Manage/editLog.dart';
-import 'package:levio/Manage/editSchedule.dart';
-import 'package:levio/Manage/log.dart';
-import 'package:levio/Manage/schedule.dart';
-import 'package:levio/Recovery/exercise.dart';
-import 'package:levio/Recovery/exerciseVideo.dart';
-import 'package:levio/Recovery/games.dart';
-import 'package:levio/Recovery/speech.dart';
-import 'package:levio/Recovery/speechAudio.dart';
-import 'package:levio/settings.dart';
+import 'package:parkiwell/Manage/editLog.dart';
+import 'package:parkiwell/Manage/editSchedule.dart';
+import 'package:parkiwell/Manage/log.dart';
+import 'package:parkiwell/Manage/schedule.dart';
+import 'package:parkiwell/Recovery/exercise.dart';
+import 'package:parkiwell/Recovery/exerciseVideo.dart';
+import 'package:parkiwell/Recovery/games.dart';
+import 'package:parkiwell/Recovery/speech.dart';
+import 'package:parkiwell/Recovery/speechAudio.dart';
+import 'package:parkiwell/settings.dart';
 
 final Map<String, WidgetBuilder> _routeBuilders = {
   '/editLogScreen': (context) => const EditLogScreen(),

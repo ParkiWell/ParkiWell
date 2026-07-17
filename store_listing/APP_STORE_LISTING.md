@@ -3,7 +3,7 @@
 ## App Information
 
 ### App Name
-**Levio - Parkinson's Health Manager**
+**ParkiWell - Parkinson's Health Manager**
 
 ### Subtitle (iOS) / Short Description (Android)
 Track symptoms, medications & therapy exercises
@@ -28,13 +28,13 @@ Manage Parkinson's: track symptoms, medications & access therapy exercises.
 
 ### Full Description
 
-Levio is your personal companion for managing Parkinson's disease with care and precision. Designed with simplicity and accessibility in mind, Levio helps you take control of your health journey.
+ParkiWell is your personal companion for managing Parkinson's disease with care and precision. Designed with simplicity and accessibility in mind, ParkiWell helps you take control of your health journey.
 
 **SYMPTOM TRACKING**
 Log your daily symptoms including tremors, stiffness, balance issues, and fatigue. Our intuitive interface makes it easy to record how you're feeling each day. Track patterns over time with beautiful charts and visualizations that help you understand your condition better.
 
 **MEDICATION MANAGEMENT**
-Never miss a dose with Levio's medication tracking. Add your medications, set dosage amounts, and track when you take them. Review your medication history to share with your healthcare provider.
+Never miss a dose with ParkiWell's medication tracking. Add your medications, set dosage amounts, and track when you take them. Review your medication history to share with your healthcare provider.
 
 **SPEECH THERAPY**
 Access professionally-designed audio exercises to improve speech clarity, volume, and articulation. Practice at your own pace with exercises including:
@@ -60,9 +60,9 @@ See your health journey with clear, easy-to-read charts. Identify patterns in yo
 Your health data is yours. We use secure cloud storage and never share your personal information with third parties or advertisers.
 
 **BEAUTIFUL DESIGN**
-Levio features a clean, modern interface with both light and dark modes. Large text options and intuitive navigation make the app accessible for everyone.
+ParkiWell features a clean, modern interface with both light and dark modes. Large text options and intuitive navigation make the app accessible for everyone.
 
-Take control of your Parkinson's journey with Levio today.
+Take control of your Parkinson's journey with ParkiWell today.
 
 ---
 
@@ -140,16 +140,16 @@ Same as iPhone, adapted for larger screen
 ## Support Information
 
 ### Support URL
-https://levio.app/support
+https://parkiwell.app/support
 
 ### Marketing URL
-https://levio.app
+https://parkiwell.app
 
 ### Privacy Policy URL
-https://levio.app/privacy
+https://parkiwell.app/privacy
 
 ### Terms of Service URL (Optional)
-https://levio.app/terms
+https://parkiwell.app/terms
 
 ---
 
@@ -164,7 +164,7 @@ https://levio.app/terms
 - [ ] All content is appropriate for intended audience
 
 ### Google Play Policy Compliance
-- [ ] Target API level meets requirements (API 34+)
+- [ ] Target API level meets requirements (API 36)
 - [ ] Privacy policy is accessible and complete
 - [ ] Permissions are minimal and justified
 - [ ] No deceptive practices
@@ -178,11 +178,13 @@ https://levio.app/terms
 ### Data Collection
 | Data Type | Collected | Shared | Required | Purpose |
 |-----------|-----------|--------|----------|---------|
-| Name | Yes | No | No | App functionality |
-| Health data | Yes | No | Yes | Core app features |
-| Photos | Yes | No | No | Profile picture |
-| App interactions | Yes | No | Yes | Analytics, improvement |
-| Crash logs | Yes | No | Yes | Stability improvement |
+| Name | Yes | No | Yes | Account and app functionality |
+| Email address | Yes | No | Yes for synced accounts | Authentication and sync |
+| Health data | Yes | No | Yes | Core tracking features |
+| Photos | Yes | No | No | Optional profile picture |
+| User content | Yes | No | No | Community posts and comments |
+| App interactions | No | No | No | Not collected for advertising or telemetry |
+| Crash logs | No | No | No | No remote crash-reporting service is configured |
 
 ### Security Practices
 - Data encrypted in transit: **Yes**

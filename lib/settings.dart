@@ -163,7 +163,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       await SharePlus.instance.share(
         ShareParams(
           text: payload,
-          subject: 'Levio backup',
+          subject: 'ParkiWell backup',
         ),
       );
     } catch (_) {
@@ -509,7 +509,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 child: Column(
                   children: [
                     Text(
-                      'Levio',
+                      'ParkiWell',
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
                             fontWeight: FontWeight.w600,
                           ),

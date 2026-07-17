@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title description">
+  <title id="title">ParkiWell mark</title>
+  <desc id="description">A four-loop monoline rosette representing steady movement, care, and progress.</desc>
+  <g
+    fill="none"
+    stroke="#173B48"
+    stroke-width="24"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <path d="M232 256 C171 220 158 151 200 105 C231 71 281 71 312 105 C354 151 341 220 280 256 Q256 228 232 256 Z" />
+    <path d="M232 256 C171 220 158 151 200 105 C231 71 281 71 312 105 C354 151 341 220 280 256 Q256 228 232 256 Z" transform="rotate(90 256 256)" />
+    <path d="M232 256 C171 220 158 151 200 105 C231 71 281 71 312 105 C354 151 341 220 280 256 Q256 228 232 256 Z" transform="rotate(180 256 256)" />
+    <path d="M232 256 C171 220 158 151 200 105 C231 71 281 71 312 105 C354 151 341 220 280 256 Q256 228 232 256 Z" transform="rotate(270 256 256)" />
+  </g>
+</svg>

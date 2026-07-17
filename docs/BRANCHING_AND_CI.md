@@ -1,6 +1,6 @@
 # Branching and CI/CD
 
-Levio uses long-lived environment branches plus short-lived feature branches.
+ParkiWell uses long-lived environment branches plus short-lived feature branches.
 
 ## Branches
 
@@ -41,4 +41,4 @@ Configure GitHub environment variables/secrets per environment:
 - Variable: `BACKEND_PROVIDER` set to `supabase` when cloud sync should be enabled.
 - Secret: `SUPABASE_URL`.
 - Secret: `SUPABASE_ANON_KEY`.
-- Variable: `SUPABASE_AUTH_REDIRECT_URL` if different from `com.levio.app://login-callback/`.
+- Variable: `SUPABASE_AUTH_REDIRECT_URL` if different from `com.parkiwell.app://login-callback/`.

@@ -17,17 +17,10 @@ class GamesScreen extends StatelessWidget {
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: colors.surfaceVariant,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(
-              Icons.arrow_back_rounded,
-              color: colors.textPrimary,
-              size: 20,
-            ),
+          icon: Icon(
+            Icons.arrow_back_rounded,
+            color: colors.textPrimary,
+            size: 22,
           ),
           onPressed: () {
             HapticUtils.lightImpact();
@@ -46,17 +39,10 @@ class GamesScreen extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(32),
-                  decoration: BoxDecoration(
-                    color: colors.warning.withValues(alpha: 0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.sports_esports_rounded,
-                    size: 64,
-                    color: colors.warning,
-                  ),
+                Icon(
+                  Icons.sports_esports_outlined,
+                  size: 56,
+                  color: colors.warning,
                 ),
                 const SizedBox(height: 24),
                 Text(
@@ -129,14 +115,7 @@ class _GamePreviewItem extends StatelessWidget {
 
     return Row(
       children: [
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Icon(icon, color: color, size: 24),
-        ),
+        Icon(icon, color: color, size: 24),
         const SizedBox(width: 12),
         Expanded(
           child: Column(

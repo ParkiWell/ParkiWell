@@ -1,12 +1,13 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:levio/singleton.dart';
+import 'package:parkiwell/singleton.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import '../theme/app_theme.dart';
 import '../utils/haptic_utils.dart';
-import '../widgets/modern_button.dart';
+import '../widgets/liquid_glass.dart';
 import '../widgets/modern_card.dart';
-import '../widgets/session_count_button.dart';
+import '../widgets/session_completion_bar.dart';
 
 class SpeechAudio extends StatefulWidget {
   const SpeechAudio({super.key});
@@ -28,7 +29,7 @@ class _SpeechAudioState extends State<SpeechAudio> {
   void initState() {
     super.initState();
     _videoId = singleton.normalizeYouTubeVideoId(singleton.currentURL);
-    if (_videoId != null) {
+    if (_videoId != null && !kIsWeb) {
       _webViewController = WebViewController()
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
         ..setNavigationDelegate(
@@ -48,61 +49,33 @@ class _SpeechAudioState extends State<SpeechAudio> {
           ),
         )
         ..loadRequest(Uri.parse('https://m.youtube.com/watch?v=$_videoId'));
+    } else {
+      _isVideoLoading = false;
     }
   }
 
   @override
   void dispose() => super.dispose();
 
-  void _showLoggedSnack(String title, int count) {
-    final colors = context.colors;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(
-            '$title logged. Completed $count time${count == 1 ? '' : 's'}.',
-          ),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: colors.success,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      );
-  }
-
-  void _logSessionAndReturn() {
+  Future<int> _recordSession(DateTime completedAt) async {
     final videoId = _videoId ?? singleton.currentURL;
     final normalized = singleton.normalizeYouTubeVideoId(videoId);
     if (normalized == null) {
-      HapticUtils.error();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('This speech session link appears invalid.'),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: context.colors.error,
-        ),
-      );
-      return;
+      throw StateError('Invalid speech session link');
     }
-
-    HapticUtils.success();
-    final count = singleton.recordSpeechExerciseSession(normalized);
-    final title = singleton.speeches[normalized]?.first ?? 'Speech session';
-    _showLoggedSnack(title, count);
-
-    if (Navigator.of(context).canPop()) {
-      Navigator.of(context).pop(true);
-    } else {
-      Navigator.of(context).pushReplacementNamed('/speechScreen');
-    }
+    return singleton.recordSpeechExerciseSession(
+      normalized,
+      completedAt: completedAt,
+    );
   }
 
   Future<void> _openInAppBrowser() async {
     if (_videoId == null) return;
     final uri = Uri.parse(_youtubeUrl);
-    await launchUrl(uri, mode: LaunchMode.inAppBrowserView);
+    await launchUrl(
+      uri,
+      mode: kIsWeb ? LaunchMode.platformDefault : LaunchMode.inAppBrowserView,
+    );
   }
 
   Future<void> _openInYouTube() async {
@@ -166,18 +139,8 @@ class _SpeechAudioState extends State<SpeechAudio> {
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: IconButton(
-          icon: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: colors.surfaceVariant,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(
-              Icons.arrow_back_rounded,
-              color: colors.textPrimary,
-              size: 20,
-            ),
-          ),
+          tooltip: 'Back',
+          icon: const Icon(Icons.arrow_back_rounded),
           onPressed: () {
             HapticUtils.lightImpact();
             if (Navigator.of(context).canPop()) {
@@ -204,11 +167,10 @@ class _SpeechAudioState extends State<SpeechAudio> {
           const SizedBox(width: 4),
         ],
       ),
-      body: Container(
-        color: colors.background,
+      body: LiquidBackground(
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -254,75 +216,70 @@ class _SpeechAudioState extends State<SpeechAudio> {
                 ),
               ),
               const SizedBox(height: 12),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: colors.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.verified_rounded,
-                      size: 14,
-                      color: colors.primary,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      'Official Speech Session',
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                            color: colors.primary,
-                            fontWeight: FontWeight.w700,
-                          ),
-                    ),
-                  ],
-                ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.graphic_eq_rounded,
+                    size: 18,
+                    color: colors.primary,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Guided speech session',
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                          color: colors.textSecondary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                  ),
+                ],
               ),
               const SizedBox(height: 10),
               (_webViewController != null)
-                  ? ClipRRect(
-                      borderRadius: BorderRadius.circular(16),
-                      child: Stack(
-                        children: [
-                          AspectRatio(
-                            aspectRatio: 16 / 9,
-                            child:
-                                WebViewWidget(controller: _webViewController!),
-                          ),
-                          if (_isVideoLoading)
-                            Positioned.fill(
-                              child: ColoredBox(
-                                color: colors.surface.withValues(alpha: 0.92),
-                                child: Center(
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      SizedBox(
-                                        width: 22,
-                                        height: 22,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2.2,
-                                          color: colors.primary,
+                  ? RepaintBoundary(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: Stack(
+                          children: [
+                            AspectRatio(
+                              aspectRatio: 16 / 9,
+                              child: WebViewWidget(
+                                controller: _webViewController!,
+                              ),
+                            ),
+                            if (_isVideoLoading)
+                              Positioned.fill(
+                                child: ColoredBox(
+                                  color: colors.surface.withValues(alpha: 0.92),
+                                  child: Center(
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        SizedBox(
+                                          width: 22,
+                                          height: 22,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2.2,
+                                            color: colors.primary,
+                                          ),
                                         ),
-                                      ),
-                                      const SizedBox(height: 10),
-                                      Text(
-                                        'Loading video...',
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodySmall
-                                            ?.copyWith(
-                                              color: colors.textSecondary,
-                                            ),
-                                      ),
-                                    ],
+                                        const SizedBox(height: 10),
+                                        Text(
+                                          'Loading video...',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall
+                                              ?.copyWith(
+                                                color: colors.textSecondary,
+                                              ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
-                        ],
+                          ],
+                        ),
                       ),
                     )
                   : Container(
@@ -337,7 +294,9 @@ class _SpeechAudioState extends State<SpeechAudio> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Unable to load video in-app',
+                            kIsWeb
+                                ? 'Continue in YouTube'
+                                : 'Unable to load video in-app',
                             style: Theme.of(
                               context,
                             ).textTheme.titleSmall?.copyWith(
@@ -346,7 +305,9 @@ class _SpeechAudioState extends State<SpeechAudio> {
                           ),
                           const SizedBox(height: 6),
                           Text(
-                            'Open this speech session directly in YouTube.',
+                            kIsWeb
+                                ? 'Guided videos open in YouTube on the web. Your completion control stays here when you return.'
+                                : 'Open this speech session directly in YouTube.',
                             style: Theme.of(
                               context,
                             ).textTheme.bodySmall?.copyWith(
@@ -354,86 +315,60 @@ class _SpeechAudioState extends State<SpeechAudio> {
                                 ),
                           ),
                           const SizedBox(height: 12),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: FilledButton.icon(
-                                  onPressed: _openInAppBrowser,
-                                  icon:
-                                      const Icon(Icons.ondemand_video_rounded),
-                                  label: const Text('Play in App'),
-                                ),
+                          if (kIsWeb)
+                            SizedBox(
+                              width: double.infinity,
+                              child: FilledButton.icon(
+                                onPressed: _openInYouTube,
+                                icon: const Icon(Icons.open_in_new_rounded),
+                                label: const Text('Play video'),
                               ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: OutlinedButton.icon(
-                                  onPressed: _openInYouTube,
-                                  icon: const Icon(Icons.open_in_new_rounded),
-                                  label: const Text('Open YouTube'),
+                            )
+                          else
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: FilledButton.icon(
+                                    onPressed: _openInAppBrowser,
+                                    icon: const Icon(
+                                      Icons.ondemand_video_rounded,
+                                    ),
+                                    label: const Text('Play in App'),
+                                  ),
                                 ),
-                              ),
-                            ],
-                          ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed: _openInYouTube,
+                                    icon: const Icon(Icons.open_in_new_rounded),
+                                    label: const Text('Open YouTube'),
+                                  ),
+                                ),
+                              ],
+                            ),
                         ],
                       ),
                     ),
-              const SizedBox(height: 16),
-              ModernCard(
+              const SizedBox(height: 18),
+              GlassSurface(
                 padding: const EdgeInsets.all(16),
-                margin: EdgeInsets.zero,
-                child: Column(
+                child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.check_circle_outline_rounded,
-                          size: 19,
-                          color: colors.primary,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Finished this speech session?',
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleSmall
-                                ?.copyWith(fontWeight: FontWeight.w800),
-                          ),
-                        ),
-                      ],
+                    Icon(
+                      Icons.tips_and_updates_outlined,
+                      size: 20,
+                      color: colors.primary,
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Log it once when you complete the video. You will return to the page you came from.',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: colors.textSecondary,
-                            height: 1.35,
-                          ),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Align(
-                            alignment: Alignment.centerLeft,
-                            child: SessionCountChip(
-                              count: sessionCount,
-                              accent: colors.primary,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Pause and repeat sections as needed. The completion control stays available below when you finish.',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: colors.textSecondary,
+                              height: 1.45,
                             ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        ModernButton(
-                          text: 'Log session',
-                          icon: Icons.add_rounded,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
-                          onPressed: _logSessionAndReturn,
-                        ),
-                      ],
+                      ),
                     ),
                   ],
                 ),
@@ -441,6 +376,15 @@ class _SpeechAudioState extends State<SpeechAudio> {
             ],
           ),
         ),
+      ),
+      bottomNavigationBar: SessionCompletionBar(
+        sessionCount: sessionCount,
+        title: speechData[0],
+        typeLabel: 'Speech',
+        duration: speechData.length > 2 ? speechData[2] : '',
+        icon: Icons.graphic_eq_rounded,
+        accent: colors.primary,
+        onLog: _recordSession,
       ),
     );
   }

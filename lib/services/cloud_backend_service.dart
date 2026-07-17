@@ -1,6 +1,10 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
+import 'package:crypto/crypto.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../config/backend_config.dart';
@@ -36,6 +40,9 @@ class CloudBackendService {
 
   final StreamController<CloudAuthProfile> _verifiedSignIns =
       StreamController<CloudAuthProfile>.broadcast();
+  final StreamController<void> _passwordRecoveryEvents =
+      StreamController<void>.broadcast();
+  bool _passwordRecoveryPending = false;
   // Lives for the whole app session alongside this singleton.
   // ignore: cancel_subscriptions
   StreamSubscription<AuthState>? _authStateSubscription;
@@ -43,10 +50,17 @@ class CloudBackendService {
   /// Emits whenever a non-anonymous session is established outside an
   /// explicit sign-in call (e.g. the email verification deep link).
   Stream<CloudAuthProfile> get verifiedSignIns => _verifiedSignIns.stream;
+  Stream<void> get passwordRecoveryEvents => _passwordRecoveryEvents.stream;
+  bool get isPasswordRecoveryPending => _passwordRecoveryPending;
 
   void _ensureAuthStateListener() {
     if (_authStateSubscription != null || _client == null) return;
     _authStateSubscription = _client!.auth.onAuthStateChange.listen((event) {
+      if (event.event == AuthChangeEvent.passwordRecovery) {
+        _passwordRecoveryPending = true;
+        _passwordRecoveryEvents.add(null);
+        return;
+      }
       if (event.event != AuthChangeEvent.signedIn) return;
       final user = event.session?.user;
       if (user == null || user.isAnonymous) return;
@@ -322,6 +336,93 @@ class CloudBackendService {
     }
   }
 
+  /// Cryptographically random nonce for the Apple ID token exchange; the
+  /// SHA-256 digest goes to Apple and the raw value to Supabase so the token
+  /// can only be redeemed by this sign-in attempt.
+  String _generateRawNonce([int length = 32]) {
+    const charset =
+        '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-._';
+    final random = Random.secure();
+    return List.generate(
+      length,
+      (_) => charset[random.nextInt(charset.length)],
+    ).join();
+  }
+
+  Future<CloudAuthProfile?> signInWithApple() async {
+    if (!isConfigured) {
+      _lastInitializationError =
+          'Cloud backend is not configured for Apple sign-in.';
+      return null;
+    }
+
+    if (_client == null) {
+      await initialize();
+    }
+
+    if (_client == null) return null;
+
+    try {
+      final rawNonce = _generateRawNonce();
+      final hashedNonce = sha256.convert(utf8.encode(rawNonce)).toString();
+
+      final credential = await SignInWithApple.getAppleIDCredential(
+        scopes: [
+          AppleIDAuthorizationScopes.email,
+          AppleIDAuthorizationScopes.fullName,
+        ],
+        nonce: hashedNonce,
+      );
+
+      final idToken = credential.identityToken;
+      if (idToken == null) {
+        throw const AuthException('Apple did not return an identity token.');
+      }
+
+      final response = await _client!.auth.signInWithIdToken(
+        provider: OAuthProvider.apple,
+        idToken: idToken,
+        nonce: rawNonce,
+      );
+
+      final user = response.user;
+      if (user == null) return null;
+
+      var profile = _profileFromUser(user);
+
+      // Apple shares the user's name only on the very first authorization,
+      // and it never appears in the token metadata — capture it now.
+      final appleName = [
+        credential.givenName?.trim() ?? '',
+        credential.familyName?.trim() ?? '',
+      ].where((part) => part.isNotEmpty).join(' ');
+      if ((profile.fullName == null || profile.fullName!.isEmpty) &&
+          appleName.isNotEmpty) {
+        profile = CloudAuthProfile(
+          userId: profile.userId,
+          email: profile.email,
+          fullName: appleName,
+          avatarUrl: profile.avatarUrl,
+        );
+      }
+
+      _cloudUserId = profile.userId;
+      _enabled = true;
+      _lastInitializationError = null;
+      return profile;
+    } on SignInWithAppleAuthorizationException catch (e) {
+      // The user closing the sheet is not an error.
+      if (e.code == AuthorizationErrorCode.canceled) return null;
+      _lastInitializationError = e.toString();
+      _logger.error('Apple sign-in failed', e, StackTrace.current);
+      return null;
+    } catch (e, stackTrace) {
+      _lastInitializationError = e.toString();
+      _logger.error('Apple sign-in failed', e, stackTrace);
+      return null;
+    }
+  }
+
   Future<CloudAuthProfile?> signUpWithEmailPassword({
     required String email,
     required String password,
@@ -437,6 +538,56 @@ class CloudBackendService {
     }
   }
 
+  Future<bool> requestPasswordReset(String email) async {
+    if (!isConfigured) {
+      _lastInitializationError =
+          'Cloud backend is not configured for password recovery.';
+      return false;
+    }
+    if (_client == null) {
+      await initialize();
+    }
+    if (_client == null) return false;
+
+    try {
+      await _client!.auth.resetPasswordForEmail(
+        email.trim(),
+        redirectTo: BackendConfig.supabaseAuthRedirectUrl,
+      );
+      _lastInitializationError = null;
+      return true;
+    } catch (e, stackTrace) {
+      _lastInitializationError = e.toString();
+      _logger.error('Password reset request failed', e, stackTrace);
+      return false;
+    }
+  }
+
+  Future<bool> updatePassword(String password) async {
+    if (_client == null || _client!.auth.currentSession == null) {
+      _lastInitializationError =
+          'The password recovery link has expired. Request a new link.';
+      return false;
+    }
+
+    try {
+      final response = await _client!.auth.updateUser(
+        UserAttributes(password: password),
+      );
+      if (response.user == null) {
+        _lastInitializationError = 'The password could not be updated.';
+        return false;
+      }
+      _passwordRecoveryPending = false;
+      _lastInitializationError = null;
+      return true;
+    } catch (e, stackTrace) {
+      _lastInitializationError = e.toString();
+      _logger.error('Password update failed', e, stackTrace);
+      return false;
+    }
+  }
+
   Future<bool> signOut() async {
     if (_client == null) return false;
 
@@ -512,6 +663,9 @@ class CloudBackendService {
       await _deleteByUserIfExists('community_post_likes', userId);
       await _deleteByUserIfExists('community_comments', userId);
       await _deleteByUserIfExists('community_posts', userId);
+      await _deleteByUserIfExists('sync_tombstones', userId);
+      await _deleteByUserIfExists('medication_events', userId);
+      await _deleteByUserIfExists('recovery_sessions', userId);
       await _deleteByUserIfExists('logs', userId);
       await _deleteByUserIfExists('schedules', userId);
       await _client!.from('users').delete().eq('id', userId);
@@ -587,6 +741,80 @@ class CloudBackendService {
     } catch (e, stackTrace) {
       _logger.error('Cloud get schedules failed', e, stackTrace);
       return <Map<String, dynamic>>[];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getRecoverySessions(String userId) async {
+    if (!isEnabled) return <Map<String, dynamic>>[];
+
+    try {
+      final effectiveUserId = _effectiveUserId(userId);
+      if (effectiveUserId == null) return <Map<String, dynamic>>[];
+
+      final result = await _withRetry<List<dynamic>>(
+        'get recovery sessions',
+        () async {
+          return _client!
+              .from('recovery_sessions')
+              .select()
+              .eq('user_id', effectiveUserId)
+              .order('completed_at', ascending: false);
+        },
+      );
+      return List<Map<String, dynamic>>.from(result);
+    } catch (e, stackTrace) {
+      _logger.error('Cloud get recovery sessions failed', e, stackTrace);
+      return <Map<String, dynamic>>[];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getMedicationEvents(String userId) async {
+    if (!isEnabled) return <Map<String, dynamic>>[];
+
+    try {
+      final effectiveUserId = _effectiveUserId(userId);
+      if (effectiveUserId == null) return <Map<String, dynamic>>[];
+
+      final result = await _withRetry<List<dynamic>>(
+        'get medication events',
+        () async {
+          return _client!
+              .from('medication_events')
+              .select()
+              .eq('user_id', effectiveUserId)
+              .order('scheduled_at', ascending: false);
+        },
+      );
+      return List<Map<String, dynamic>>.from(result);
+    } catch (e, stackTrace) {
+      _logger.error('Cloud get medication events failed', e, stackTrace);
+      return <Map<String, dynamic>>[];
+    }
+  }
+
+  Future<Set<String>> applyHealthMutations(
+    List<Map<String, dynamic>> mutations,
+  ) async {
+    if (!isEnabled || mutations.isEmpty) return <String>{};
+
+    try {
+      final result = await _withRetry<dynamic>(
+        'apply health mutation batch',
+        () => _client!.rpc(
+          'apply_health_mutations',
+          params: <String, dynamic>{'p_mutations': mutations},
+        ),
+      );
+      if (result is List) {
+        return result
+            .map((value) => value.toString())
+            .where((value) => value.isNotEmpty)
+            .toSet();
+      }
+      return <String>{};
+    } catch (e, stackTrace) {
+      _logger.error('Cloud mutation batch failed', e, stackTrace);
+      return <String>{};
     }
   }
 
@@ -680,6 +908,60 @@ class CloudBackendService {
       return true;
     } catch (e, stackTrace) {
       _logger.error('Cloud save schedule failed', e, stackTrace);
+      return false;
+    }
+  }
+
+  Future<bool> saveRecoverySession({
+    required String id,
+    required String userId,
+    required String type,
+    required String videoId,
+    required String title,
+    required String completedAt,
+  }) async {
+    if (!isEnabled) return false;
+
+    try {
+      final effectiveUserId = _effectiveUserId(userId);
+      if (effectiveUserId == null) return false;
+
+      await _withRetry<void>(
+        'save recovery session',
+        () async {
+          await _client!.from('recovery_sessions').upsert(
+            <String, dynamic>{
+              'id': id,
+              'user_id': effectiveUserId,
+              'type': type,
+              'video_id': videoId,
+              'title': title,
+              'completed_at': completedAt,
+              'updated_at': DateTime.now().toIso8601String(),
+            },
+            onConflict: 'id',
+          );
+        },
+      );
+      return true;
+    } catch (e, stackTrace) {
+      _logger.error('Cloud save recovery session failed', e, stackTrace);
+      return false;
+    }
+  }
+
+  Future<bool> deleteRecoverySession(String id) async {
+    if (!isEnabled) return false;
+    try {
+      await _withRetry<void>(
+        'delete recovery session',
+        () async {
+          await _client!.from('recovery_sessions').delete().eq('id', id);
+        },
+      );
+      return true;
+    } catch (e, stackTrace) {
+      _logger.error('Cloud delete recovery session failed', e, stackTrace);
       return false;
     }
   }

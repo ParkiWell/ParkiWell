@@ -3,9 +3,12 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
-import 'package:levio/services/app_logger.dart';
-import 'package:levio/services/cloud_backend_service.dart';
-import 'package:levio/services/content_filter.dart';
+import 'package:parkiwell/services/app_logger.dart';
+import 'package:parkiwell/services/cloud_backend_service.dart';
+import 'package:parkiwell/services/content_filter.dart';
+import 'package:parkiwell/services/health_sync_coordinator.dart';
+import 'package:parkiwell/services/longitudinal_analytics.dart';
+import 'package:parkiwell/services/offline_sync_engine.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import 'theme/app_theme.dart';
@@ -24,11 +27,16 @@ class Singleton extends ChangeNotifier {
   final AppLogger _logger = AppLogger();
   final Uuid _uuid = const Uuid();
   final Connectivity _connectivity = Connectivity();
+  final HealthSyncCoordinator _healthSyncCoordinator =
+      const HealthSyncCoordinator();
+  final LongitudinalAnalytics _longitudinalAnalytics =
+      const LongitudinalAnalytics();
+  late final OfflineSyncEngine _offlineSyncEngine;
   StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
 
-  static const String _localCacheKey = 'levio_local_cache_v1';
-  static const String _syncStatusKey = 'levio_last_sync_status_v1';
-  static const String _syncTimestampKey = 'levio_last_sync_time_v1';
+  static const String _localCacheKey = 'parkiwell_local_cache_v1';
+  static const String _syncStatusKey = 'parkiwell_last_sync_status_v1';
+  static const String _syncTimestampKey = 'parkiwell_last_sync_time_v1';
 
   factory Singleton() => _instance;
 
@@ -38,7 +46,11 @@ class Singleton extends ChangeNotifier {
     });
   }
 
-  Singleton._internal();
+  Singleton._internal() {
+    _offlineSyncEngine = OfflineSyncEngine(
+      SharedPreferencesMutationJournalStore(_prefs),
+    );
+  }
 
   // App state
   bool _initialized = false;
@@ -52,6 +64,10 @@ class Singleton extends ChangeNotifier {
   int page = 0;
   List<List<String>> log = [];
   List<List<String>> schedule = [];
+  final List<Map<String, dynamic>> medicationEvents = [];
+  LongitudinalAnalyticsResult? _analyticsCache;
+  int _healthDataVersion = 0;
+  int _lastMutationMicros = 0;
 
   // Speech therapy exercises for Parkinson's (official YouTube channels)
   Map<String, List<String>> speeches = {
@@ -232,12 +248,27 @@ class Singleton extends ChangeNotifier {
     if (_initialized) return;
 
     _logger.init(isProduction: isProduction);
+    await _offlineSyncEngine.initialize();
+    for (final mutation in _offlineSyncEngine.pendingMutations) {
+      _observeMutationTimestamp(mutation.clientUpdatedAt);
+    }
     await _readSyncMetadata();
     await _hydrateFromLocalCache();
+    _applyPendingMutationsToLocalState();
+    if (_offlineSyncEngine.pendingCount > 0) {
+      await _persistLocalCache();
+    }
     await _initializeConnectivityMonitoring();
     await _cloud.initialize();
     if (_cloud.isEnabled) {
-      await _markSyncSuccess('Cloud connected');
+      await _replayPendingMutations();
+      if (_offlineSyncEngine.pendingCount == 0) {
+        await _markSyncSuccess('Cloud connected');
+      } else {
+        await _markSyncPending(
+          '${_offlineSyncEngine.pendingCount} changes pending',
+        );
+      }
     } else if (_hasHydratedLocalCache) {
       await _markSyncPending('Cloud unavailable - using local cache');
     } else {
@@ -425,39 +456,84 @@ class Singleton extends ChangeNotifier {
   }) {
     weeklySpeechExerciseGoal = weeklySpeech.clamp(0, 99).toInt();
     weeklyPhysicalExerciseGoal = weeklyPhysical.clamp(0, 99).toInt();
+    _invalidateAnalytics();
     _persistLocalCache();
     notifyListenersSafe();
   }
 
-  int recordPhysicalExerciseSession(String videoId) {
-    return _recordRecoverySession(recoveryTypePhysical, videoId);
+  Future<int> recordPhysicalExerciseSession(
+    String videoId, {
+    DateTime? completedAt,
+  }) {
+    return _recordRecoverySession(
+      recoveryTypePhysical,
+      videoId,
+      completedAt: completedAt,
+    );
   }
 
-  int recordSpeechExerciseSession(String videoId) {
-    return _recordRecoverySession(recoveryTypeSpeech, videoId);
+  Future<int> recordSpeechExerciseSession(
+    String videoId, {
+    DateTime? completedAt,
+  }) {
+    return _recordRecoverySession(
+      recoveryTypeSpeech,
+      videoId,
+      completedAt: completedAt,
+    );
   }
 
-  int _recordRecoverySession(String type, String videoId) {
+  Future<int> _recordRecoverySession(
+    String type,
+    String videoId, {
+    DateTime? completedAt,
+  }) async {
     final normalized = normalizeYouTubeVideoId(videoId);
     if (normalized == null) return 0;
+
+    final completionTime = (completedAt ?? DateTime.now()).toLocal();
+    if (completionTime
+        .isAfter(DateTime.now().add(const Duration(minutes: 1)))) {
+      return 0;
+    }
 
     final title = type == recoveryTypeSpeech
         ? speeches[normalized]?.first ?? 'Speech exercise'
         : exercises[normalized]?.first ?? 'Physical exercise';
-    recoverySessions.add(<String, dynamic>{
+    final session = <String, dynamic>{
       'id': _uuid.v4(),
       'type': type,
       'video_id': normalized,
       'title': title,
-      'completed_at': DateTime.now().toIso8601String(),
-    });
+      'completed_at': completionTime.toIso8601String(),
+    };
+    recoverySessions.add(session);
     exerNum = totalRecoverySessions;
-    _persistLocalCache();
+    _invalidateAnalytics();
     notifyListenersSafe();
-    return recoverySessionCountForVideo(type, normalized);
+
+    try {
+      await _queueHealthMutation(
+        entityType: SyncEntityType.recoverySession,
+        entityId: session['id']!.toString(),
+        operation: SyncMutationOperation.upsert,
+        payload: session,
+      );
+      await _persistLocalCache();
+      unawaited(syncPendingMutations());
+      return recoverySessionCountForVideo(type, normalized);
+    } catch (error) {
+      recoverySessions.removeWhere(
+        (entry) => entry['id']?.toString() == session['id']?.toString(),
+      );
+      exerNum = totalRecoverySessions;
+      _invalidateAnalytics();
+      notifyListenersSafe();
+      rethrow;
+    }
   }
 
-  bool deleteRecoverySessionById(String id) {
+  Future<bool> deleteRecoverySessionById(String id) async {
     final trimmedId = id.trim();
     if (trimmedId.isEmpty) return false;
 
@@ -466,9 +542,16 @@ class Singleton extends ChangeNotifier {
     );
     if (index == -1) return false;
 
+    await _queueHealthMutation(
+      entityType: SyncEntityType.recoverySession,
+      entityId: trimmedId,
+      operation: SyncMutationOperation.delete,
+    );
     recoverySessions.removeAt(index);
     exerNum = totalRecoverySessions;
-    _persistLocalCache();
+    _invalidateAnalytics();
+    await _persistLocalCache();
+    await syncPendingMutations();
     notifyListenersSafe();
     return true;
   }
@@ -766,8 +849,12 @@ class Singleton extends ChangeNotifier {
     final primaryResult =
         results.isNotEmpty ? results.first : ConnectivityResult.none;
     if (_isOnline == hasConnection && _connectionType == primaryResult) return;
+    final wasOnline = _isOnline;
     _isOnline = hasConnection;
     _connectionType = primaryResult;
+    if (!wasOnline && hasConnection && _initialized && _cloud.isEnabled) {
+      unawaited(syncPendingMutations());
+    }
     notifyListenersSafe();
   }
 
@@ -935,6 +1022,9 @@ class Singleton extends ChangeNotifier {
           'days': schedule[index].length > 2 ? schedule[index][2] : '',
         },
       ),
+      'medication_events': medicationEvents
+          .map((event) => Map<String, dynamic>.from(event))
+          .toList(),
       'community_posts': List<Map<String, dynamic>>.from(
         communityPosts.map((post) => Map<String, dynamic>.from(post)),
       ),
@@ -1046,6 +1136,14 @@ class Singleton extends ChangeNotifier {
                 Map<String, dynamic>.from(entry)['id']?.toString() ?? ''),
       );
 
+    medicationEvents
+      ..clear()
+      ..addAll(
+        (snapshot['medication_events'] as List<dynamic>? ?? const <dynamic>[])
+            .whereType<Map>()
+            .map((event) => Map<String, dynamic>.from(event)),
+      );
+
     communityPosts
       ..clear()
       ..addAll(
@@ -1078,6 +1176,7 @@ class Singleton extends ChangeNotifier {
 
     postNum = communityPosts.length;
     calcMeds();
+    _invalidateAnalytics();
   }
 
   Future<void> _hydrateFromLocalCache() async {
@@ -1106,9 +1205,282 @@ class Singleton extends ChangeNotifier {
     }
   }
 
+  int get pendingMutationCount => _offlineSyncEngine.pendingCount;
+  int get healthDataVersion => _healthDataVersion;
+
+  LongitudinalAnalyticsResult get longitudinalInsights {
+    return _analyticsCache ??= _longitudinalAnalytics.analyze(
+      symptoms: _symptomObservations(),
+      medicationEvents: _medicationAdherenceEvents(),
+      therapySessions: _therapyObservations(),
+      weeklyTherapyGoal: weeklySpeechExerciseGoal + weeklyPhysicalExerciseGoal,
+    );
+  }
+
+  void _invalidateAnalytics() {
+    _analyticsCache = null;
+    _healthDataVersion += 1;
+  }
+
+  Iterable<SymptomObservation> _symptomObservations() sync* {
+    for (final entry in log) {
+      if (entry.length < 3) continue;
+      final occurredAt = _parseLogTimestamp(entry[0]);
+      if (occurredAt == null) continue;
+      yield SymptomObservation(
+        occurredAt: occurredAt,
+        severity: _severityScore(entry[2]),
+        symptom: entry[1],
+      );
+    }
+  }
+
+  Iterable<MedicationAdherenceEvent> _medicationAdherenceEvents() sync* {
+    for (final event in medicationEvents) {
+      final scheduledAt = DateTime.tryParse(
+        event['scheduled_at']?.toString() ?? '',
+      );
+      if (scheduledAt == null) continue;
+      final takenAt = DateTime.tryParse(event['taken_at']?.toString() ?? '');
+      yield MedicationAdherenceEvent(
+        medicationName: event['medication_name']?.toString() ?? 'Medication',
+        scheduledAt: scheduledAt,
+        takenAt: event['status'] == 'taken' ? takenAt : null,
+      );
+    }
+  }
+
+  Iterable<TherapyObservation> _therapyObservations() sync* {
+    for (final session in recoverySessions) {
+      final completedAt = _parseRecoverySessionDate(session['completed_at']);
+      if (completedAt == null) continue;
+      yield TherapyObservation(
+        completedAt: completedAt,
+        therapyType: session['type']?.toString() ?? 'therapy',
+      );
+    }
+  }
+
+  double _severityScore(String severity) {
+    switch (severity.trim().toLowerCase()) {
+      case 'very mild':
+        return 1;
+      case 'mild':
+        return 2;
+      case 'moderate':
+        return 3;
+      case 'severe':
+        return 4;
+      case 'very severe':
+        return 5;
+      default:
+        return double.tryParse(severity) ?? 0;
+    }
+  }
+
+  DateTime _nextMutationTimestamp() {
+    final nowMicros = DateTime.now().toUtc().microsecondsSinceEpoch;
+    _lastMutationMicros = max(nowMicros, _lastMutationMicros + 1);
+    return DateTime.fromMicrosecondsSinceEpoch(
+      _lastMutationMicros,
+      isUtc: true,
+    );
+  }
+
+  void _observeMutationTimestamp(DateTime timestamp) {
+    _lastMutationMicros = max(
+      _lastMutationMicros,
+      timestamp.toUtc().microsecondsSinceEpoch,
+    );
+  }
+
+  void _observeCloudVersions(Iterable<Map<String, dynamic>> records) {
+    for (final record in records) {
+      final timestamp = DateTime.tryParse(
+        record['client_updated_at']?.toString() ?? '',
+      );
+      if (timestamp != null) _observeMutationTimestamp(timestamp);
+    }
+  }
+
+  Future<void> _queueHealthMutation({
+    required SyncEntityType entityType,
+    required String entityId,
+    required SyncMutationOperation operation,
+    Map<String, dynamic> payload = const <String, dynamic>{},
+  }) async {
+    await _offlineSyncEngine.enqueue(
+      mutationId: _uuid.v4(),
+      entityType: entityType,
+      entityId: entityId,
+      operation: operation,
+      payload: payload,
+      clientUpdatedAt: _nextMutationTimestamp(),
+    );
+  }
+
+  Future<int> _replayPendingMutations() async {
+    if (!_cloud.isEnabled || _offlineSyncEngine.pendingCount == 0) return 0;
+
+    final uid = await _resolveUserId();
+    if (uid == null || !await _ensureCloudUserRecord(uid)) {
+      await _markSyncPending(
+        '${_offlineSyncEngine.pendingCount} changes pending',
+      );
+      return 0;
+    }
+
+    final acknowledged = await _offlineSyncEngine.replay(
+      (mutations) => _cloud.applyHealthMutations(
+        mutations.map((mutation) => mutation.toRpcJson()).toList(),
+      ),
+    );
+    if (_offlineSyncEngine.pendingCount == 0) {
+      await _markSyncSuccess('All changes synced');
+    } else {
+      await _markSyncPending(
+        '${_offlineSyncEngine.pendingCount} changes pending',
+      );
+    }
+    return acknowledged;
+  }
+
+  Future<bool> syncPendingMutations() async {
+    if (_offlineSyncEngine.pendingCount == 0) return true;
+    if (!_cloud.isEnabled) {
+      await _markSyncPending(
+        '${_offlineSyncEngine.pendingCount} changes pending',
+      );
+      return false;
+    }
+
+    await _replayPendingMutations();
+    notifyListenersSafe();
+    return _offlineSyncEngine.pendingCount == 0;
+  }
+
+  void _applyPendingMutationsToLocalState() {
+    for (final mutation in _offlineSyncEngine.pendingMutations) {
+      switch (mutation.entityType) {
+        case SyncEntityType.log:
+          _applyPendingLogMutation(mutation);
+        case SyncEntityType.schedule:
+          _applyPendingScheduleMutation(mutation);
+        case SyncEntityType.recoverySession:
+          _applyPendingRecoveryMutation(mutation);
+        case SyncEntityType.medicationEvent:
+          _applyPendingMedicationMutation(mutation);
+      }
+    }
+
+    if (log.length > 1) {
+      final order = List<int>.generate(log.length, (index) => index)
+        ..sort((a, b) {
+          final dateA = _parseLogTimestamp(log[a][0]);
+          final dateB = _parseLogTimestamp(log[b][0]);
+          if (dateA == null && dateB == null) return a.compareTo(b);
+          if (dateA == null) return 1;
+          if (dateB == null) return -1;
+          return dateB.compareTo(dateA);
+        });
+      sortLog(order);
+    }
+    exerNum = totalRecoverySessions;
+    calcMeds();
+    _invalidateAnalytics();
+  }
+
+  void _applyPendingLogMutation(SyncMutation mutation) {
+    final index = logIDs.indexOf(mutation.entityId);
+    if (mutation.operation == SyncMutationOperation.delete) {
+      if (index >= 0) {
+        log.removeAt(index);
+        logIDs.removeAt(index);
+      }
+      return;
+    }
+
+    final entry = <String>[
+      mutation.payload['time']?.toString() ?? '',
+      mutation.payload['symptom']?.toString() ?? '',
+      mutation.payload['severity']?.toString() ?? '',
+    ];
+    if (index >= 0) {
+      log[index] = entry;
+    } else {
+      log.add(entry);
+      logIDs.add(mutation.entityId);
+    }
+  }
+
+  void _applyPendingScheduleMutation(SyncMutation mutation) {
+    final index = scheduleIDs.indexOf(mutation.entityId);
+    if (mutation.operation == SyncMutationOperation.delete) {
+      if (index >= 0) {
+        schedule.removeAt(index);
+        scheduleIDs.removeAt(index);
+      }
+      return;
+    }
+
+    final entry = <String>[
+      mutation.payload['name']?.toString() ?? '',
+      mutation.payload['details']?.toString() ?? '',
+      mutation.payload['days']?.toString() ?? '',
+    ];
+    if (index >= 0) {
+      schedule[index] = entry;
+    } else {
+      schedule.add(entry);
+      scheduleIDs.add(mutation.entityId);
+    }
+  }
+
+  void _applyPendingRecoveryMutation(SyncMutation mutation) {
+    final index = recoverySessions.indexWhere(
+      (session) => session['id']?.toString() == mutation.entityId,
+    );
+    if (mutation.operation == SyncMutationOperation.delete) {
+      if (index >= 0) recoverySessions.removeAt(index);
+      return;
+    }
+
+    final normalized = _normalizedRecoverySession(<String, dynamic>{
+      ...mutation.payload,
+      'id': mutation.entityId,
+    });
+    if (normalized == null) return;
+    if (index >= 0) {
+      recoverySessions[index] = normalized;
+    } else {
+      recoverySessions.add(normalized);
+    }
+  }
+
+  void _applyPendingMedicationMutation(SyncMutation mutation) {
+    final index = medicationEvents.indexWhere(
+      (event) => event['id']?.toString() == mutation.entityId,
+    );
+    if (mutation.operation == SyncMutationOperation.delete) {
+      if (index >= 0) medicationEvents.removeAt(index);
+      return;
+    }
+
+    final event = <String, dynamic>{
+      ...mutation.payload,
+      'id': mutation.entityId,
+      'client_updated_at': mutation.clientUpdatedAt.toIso8601String(),
+    };
+    if (index >= 0) {
+      medicationEvents[index] = event;
+    } else {
+      medicationEvents.add(event);
+    }
+  }
+
   String _normalizedDisplayName(String value) {
     final trimmed = value.trim();
-    return trimmed.isEmpty ? 'Levio Member' : trimmed;
+    return trimmed.isEmpty ? 'ParkiWell Member' : trimmed;
   }
 
   String _effectiveProfileImage(String? candidate) {
@@ -1141,7 +1513,15 @@ class Singleton extends ChangeNotifier {
         return false;
       }
 
-      final userData = await _cloud.getUser(uid);
+      await _replayPendingMutations();
+      final snapshot = await _healthSyncCoordinator.loadParallel(
+        user: () => _cloud.getUser(uid),
+        logs: () => _cloud.getLogs(uid),
+        schedules: () => _cloud.getSchedules(uid),
+        recoverySessions: () => _cloud.getRecoverySessions(uid),
+        medicationEvents: () => _cloud.getMedicationEvents(uid),
+      );
+      final userData = snapshot.user;
       if (userData == null) {
         _logger.debug('User not found in cloud database');
         await _markSyncFailure('Cloud user profile not found');
@@ -1157,10 +1537,14 @@ class Singleton extends ChangeNotifier {
       age = (userData['age'] as num?)?.toInt() ?? 0;
       image = userImage.isEmpty ? 'images/711128.png' : userImage;
 
-      final cloudLogs = await _cloud.getLogs(uid);
+      _observeCloudVersions(snapshot.logs);
+      _observeCloudVersions(snapshot.schedules);
+      _observeCloudVersions(snapshot.recoverySessions);
+      _observeCloudVersions(snapshot.medicationEvents);
+
       log.clear();
       logIDs.clear();
-      for (final logEntry in cloudLogs) {
+      for (final logEntry in snapshot.logs) {
         final parsedData = _decodeDataField(logEntry['data']);
         log.add(<String>[
           (logEntry['event_time'] ?? parsedData['time'] ?? '').toString(),
@@ -1175,10 +1559,9 @@ class Singleton extends ChangeNotifier {
       }
       sortTime();
 
-      final cloudSchedules = await _cloud.getSchedules(uid);
       schedule.clear();
       scheduleIDs.clear();
-      for (final scheduleEntry in cloudSchedules) {
+      for (final scheduleEntry in snapshot.schedules) {
         final parsedData = _decodeDataField(scheduleEntry['data']);
         schedule.add(<String>[
           (parsedData['name'] ?? scheduleEntry['title'] ?? '').toString(),
@@ -1188,9 +1571,34 @@ class Singleton extends ChangeNotifier {
         scheduleIDs.add((scheduleEntry['id'] ?? '').toString());
       }
 
+      recoverySessions
+        ..clear()
+        ..addAll(
+          snapshot.recoverySessions
+              .map(_normalizedRecoverySession)
+              .whereType<Map<String, dynamic>>(),
+        );
+      exerNum = totalRecoverySessions;
+
+      medicationEvents
+        ..clear()
+        ..addAll(
+          snapshot.medicationEvents.map(
+            (event) => Map<String, dynamic>.from(event),
+          ),
+        );
+
+      _applyPendingMutationsToLocalState();
       calcMeds();
+      _invalidateAnalytics();
       await _persistLocalCache();
-      await _markSyncSuccess('Synced successfully');
+      if (_offlineSyncEngine.pendingCount == 0) {
+        await _markSyncSuccess('Synced successfully');
+      } else {
+        await _markSyncPending(
+          '${_offlineSyncEngine.pendingCount} changes pending',
+        );
+      }
       notifyListenersSafe();
       _logger.info('User data loaded from cloud successfully');
       return true;
@@ -1203,6 +1611,10 @@ class Singleton extends ChangeNotifier {
 
   Future<CloudAuthProfile?> signInWithGoogle() async {
     return _cloud.signInWithGoogle();
+  }
+
+  Future<CloudAuthProfile?> signInWithApple() async {
+    return _cloud.signInWithApple();
   }
 
   Future<CloudAuthProfile?> signUpWithEmailPassword({
@@ -1224,9 +1636,19 @@ class Singleton extends ChangeNotifier {
   }
 
   Stream<CloudAuthProfile> get cloudVerifiedSignIns => _cloud.verifiedSignIns;
+  Stream<void> get passwordRecoveryEvents => _cloud.passwordRecoveryEvents;
+  bool get isPasswordRecoveryPending => _cloud.isPasswordRecoveryPending;
 
   Future<bool> resendEmailVerification(String email) async {
     return _cloud.resendEmailVerification(email);
+  }
+
+  Future<bool> requestPasswordReset(String email) async {
+    return _cloud.requestPasswordReset(email);
+  }
+
+  Future<bool> updatePassword(String password) async {
+    return _cloud.updatePassword(password);
   }
 
   Future<bool> syncNow({bool includeCommunity = true}) async {
@@ -1248,8 +1670,10 @@ class Singleton extends ChangeNotifier {
       }
 
       if (includeCommunity) {
-        await loadCommunityPosts(limit: 100);
-        await loadJoinedCommunityGroups();
+        await Future.wait<dynamic>(<Future<dynamic>>[
+          loadCommunityPosts(limit: 100),
+          loadJoinedCommunityGroups(),
+        ]);
       }
 
       await _persistLocalCache();
@@ -1455,31 +1879,19 @@ class Singleton extends ChangeNotifier {
         'severity': severity,
       };
 
-      var synced = false;
-      if (_cloud.isEnabled) {
-        final uid = await _resolveUserId();
-        if (uid != null && await _ensureCloudUserRecord(uid)) {
-          synced = await _cloud.saveLog(
-            id: logId,
-            userId: uid,
-            title: symptom,
-            data: jsonEncode(payload),
-            time: time,
-            symptom: symptom,
-            severity: severity,
-          );
-        }
-      }
+      await _queueHealthMutation(
+        entityType: SyncEntityType.log,
+        entityId: logId,
+        operation: SyncMutationOperation.upsert,
+        payload: payload,
+      );
 
       log.add(<String>[time, symptom, severity]);
       logIDs.add(logId);
       sortTime();
+      _invalidateAnalytics();
       await _persistLocalCache();
-      if (synced) {
-        await _markSyncSuccess('Log synced');
-      } else {
-        await _markSyncPending('Saved locally - log pending sync');
-      }
+      await syncPendingMutations();
       notifyListenersSafe();
       return true;
     } catch (e, stackTrace) {
@@ -1497,36 +1909,24 @@ class Singleton extends ChangeNotifier {
       final logId = logIDs[index];
       if (logId.isEmpty) return false;
 
-      var synced = false;
       final payload = <String, dynamic>{
         'time': time,
         'symptom': symptom,
         'severity': severity,
       };
 
-      if (_cloud.isEnabled) {
-        final uid = await _resolveUserId();
-        if (uid != null) {
-          synced = await _cloud.saveLog(
-            id: logId,
-            userId: uid,
-            title: symptom,
-            data: jsonEncode(payload),
-            time: time,
-            symptom: symptom,
-            severity: severity,
-          );
-        }
-      }
+      await _queueHealthMutation(
+        entityType: SyncEntityType.log,
+        entityId: logId,
+        operation: SyncMutationOperation.upsert,
+        payload: payload,
+      );
 
       log[index] = <String>[time, symptom, severity];
       sortTime();
+      _invalidateAnalytics();
       await _persistLocalCache();
-      if (synced) {
-        await _markSyncSuccess('Log update synced');
-      } else {
-        await _markSyncPending('Saved locally - log update pending sync');
-      }
+      await syncPendingMutations();
       notifyListenersSafe();
       return true;
     } catch (e, stackTrace) {
@@ -1543,19 +1943,17 @@ class Singleton extends ChangeNotifier {
       final logId = logIDs[index];
       if (logId.isEmpty) return false;
 
-      var synced = false;
-      if (_cloud.isEnabled) {
-        synced = await _cloud.deleteLog(logId);
-      }
+      await _queueHealthMutation(
+        entityType: SyncEntityType.log,
+        entityId: logId,
+        operation: SyncMutationOperation.delete,
+      );
 
       log.removeAt(index);
       logIDs.removeAt(index);
+      _invalidateAnalytics();
       await _persistLocalCache();
-      if (synced) {
-        await _markSyncSuccess('Log deletion synced');
-      } else {
-        await _markSyncPending('Saved locally - log deletion pending sync');
-      }
+      await syncPendingMutations();
       notifyListenersSafe();
       return true;
     } catch (e, stackTrace) {
@@ -1574,30 +1972,18 @@ class Singleton extends ChangeNotifier {
         'days': days,
       };
 
-      var synced = false;
-      if (_cloud.isEnabled) {
-        final uid = await _resolveUserId();
-        if (uid != null && await _ensureCloudUserRecord(uid)) {
-          synced = await _cloud.saveSchedule(
-            id: scheduleId,
-            userId: uid,
-            title: medName,
-            data: jsonEncode(payload),
-            days: days,
-            details: details,
-          );
-        }
-      }
+      await _queueHealthMutation(
+        entityType: SyncEntityType.schedule,
+        entityId: scheduleId,
+        operation: SyncMutationOperation.upsert,
+        payload: payload,
+      );
 
       schedule.add(<String>[medName, details, days]);
       scheduleIDs.add(scheduleId);
       calcMeds();
       await _persistLocalCache();
-      if (synced) {
-        await _markSyncSuccess('Schedule synced');
-      } else {
-        await _markSyncPending('Saved locally - schedule pending sync');
-      }
+      await syncPendingMutations();
       notifyListenersSafe();
       return true;
     } catch (e, stackTrace) {
@@ -1621,29 +2007,17 @@ class Singleton extends ChangeNotifier {
         'days': days,
       };
 
-      var synced = false;
-      if (_cloud.isEnabled) {
-        final uid = await _resolveUserId();
-        if (uid != null) {
-          synced = await _cloud.saveSchedule(
-            id: scheduleId,
-            userId: uid,
-            title: medName,
-            data: jsonEncode(payload),
-            days: days,
-            details: details,
-          );
-        }
-      }
+      await _queueHealthMutation(
+        entityType: SyncEntityType.schedule,
+        entityId: scheduleId,
+        operation: SyncMutationOperation.upsert,
+        payload: payload,
+      );
 
       schedule[index] = <String>[medName, details, days];
       calcMeds();
       await _persistLocalCache();
-      if (synced) {
-        await _markSyncSuccess('Schedule update synced');
-      } else {
-        await _markSyncPending('Saved locally - schedule update pending sync');
-      }
+      await syncPendingMutations();
       notifyListenersSafe();
       return true;
     } catch (e, stackTrace) {
@@ -1660,27 +2034,68 @@ class Singleton extends ChangeNotifier {
       final scheduleId = scheduleIDs[index];
       if (scheduleId.isEmpty) return false;
 
-      var synced = false;
-      if (_cloud.isEnabled) {
-        synced = await _cloud.deleteSchedule(scheduleId);
-      }
+      await _queueHealthMutation(
+        entityType: SyncEntityType.schedule,
+        entityId: scheduleId,
+        operation: SyncMutationOperation.delete,
+      );
 
       schedule.removeAt(index);
       scheduleIDs.removeAt(index);
       calcMeds();
       await _persistLocalCache();
-      if (synced) {
-        await _markSyncSuccess('Schedule deletion synced');
-      } else {
-        await _markSyncPending(
-            'Saved locally - schedule deletion pending sync');
-      }
+      await syncPendingMutations();
       notifyListenersSafe();
       return true;
     } catch (e, stackTrace) {
       _logger.error('Error deleting schedule', e, stackTrace);
       return false;
     }
+  }
+
+  Future<bool> recordMedicationTaken(
+    int scheduleIndex, {
+    DateTime? takenAt,
+    DateTime? scheduledAt,
+  }) async {
+    try {
+      if (scheduleIndex < 0 || scheduleIndex >= schedule.length) return false;
+      final now = (takenAt ?? DateTime.now()).toUtc();
+      final eventId = _uuid.v4();
+      final scheduleId =
+          scheduleIndex < scheduleIDs.length ? scheduleIDs[scheduleIndex] : '';
+      final event = <String, dynamic>{
+        'id': eventId,
+        'schedule_id': scheduleId,
+        'medication_name': schedule[scheduleIndex][0],
+        'scheduled_at': (scheduledAt ?? now).toUtc().toIso8601String(),
+        'taken_at': now.toIso8601String(),
+        'status': 'taken',
+      };
+
+      await _queueHealthMutation(
+        entityType: SyncEntityType.medicationEvent,
+        entityId: eventId,
+        operation: SyncMutationOperation.upsert,
+        payload: event,
+      );
+      medicationEvents.add(event);
+      _invalidateAnalytics();
+      await _persistLocalCache();
+      await syncPendingMutations();
+      notifyListenersSafe();
+      return true;
+    } catch (e, stackTrace) {
+      _logger.error('Error recording medication event', e, stackTrace);
+      return false;
+    }
+  }
+
+  int medicationDosesTakenForSchedule(String scheduleId) {
+    return medicationEvents.where((event) {
+      return event['schedule_id']?.toString() == scheduleId &&
+          event['status'] == 'taken';
+    }).length;
   }
 
   /// Delete entire account and all associated data
@@ -1696,6 +2111,7 @@ class Singleton extends ChangeNotifier {
       logIDs.clear();
       schedule.clear();
       scheduleIDs.clear();
+      medicationEvents.clear();
       communityPosts.clear();
       communityComments.clear();
       joinedCommunityGroups.clear();
@@ -1711,10 +2127,12 @@ class Singleton extends ChangeNotifier {
       age = 0;
 
       final prefs = await SharedPreferences.getInstance();
+      await _offlineSyncEngine.clear();
       await prefs.clear();
       _lastSyncAt = null;
       _lastSyncStatus = 'Not synced yet';
       _hasHydratedLocalCache = false;
+      _invalidateAnalytics();
 
       notifyListenersSafe();
       _logger.info('Account deleted successfully');
@@ -1734,6 +2152,7 @@ class Singleton extends ChangeNotifier {
       logIDs.clear();
       schedule.clear();
       scheduleIDs.clear();
+      medicationEvents.clear();
       communityPosts.clear();
       communityComments.clear();
       joinedCommunityGroups.clear();
@@ -1751,6 +2170,7 @@ class Singleton extends ChangeNotifier {
       _lastCommunityError = null;
 
       final prefs = await SharedPreferences.getInstance();
+      await _offlineSyncEngine.clear();
       await prefs.remove('userID');
       await prefs.remove('community_alias');
       await prefs.remove(_localCacheKey);
@@ -1759,6 +2179,7 @@ class Singleton extends ChangeNotifier {
       _lastSyncAt = null;
       _lastSyncStatus = 'Not synced yet';
       _hasHydratedLocalCache = false;
+      _invalidateAnalytics();
 
       notifyListenersSafe();
       return cloudSignedOut;
@@ -1805,14 +2226,15 @@ class Singleton extends ChangeNotifier {
       Set<String> likedPostIds = <String>{};
       Map<String, int> commentCounts = <String, int>{};
 
-      if (uid != null && postIds.isNotEmpty) {
-        likedPostIds = await _cloud.getLikedPostIds(
-          userId: uid,
-          postIds: postIds,
-        );
-      }
       if (postIds.isNotEmpty) {
-        commentCounts = await _cloud.getCommunityCommentCounts(postIds);
+        final metadata = await Future.wait<dynamic>(<Future<dynamic>>[
+          uid == null
+              ? Future<Set<String>>.value(<String>{})
+              : _cloud.getLikedPostIds(userId: uid, postIds: postIds),
+          _cloud.getCommunityCommentCounts(postIds),
+        ]);
+        likedPostIds = Set<String>.from(metadata[0] as Set);
+        commentCounts = Map<String, int>.from(metadata[1] as Map);
       }
 
       final normalizedPosts = cloudPosts.map((post) {
