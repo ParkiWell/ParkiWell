@@ -34,7 +34,7 @@ dependencies:
   # Core utilities
   cupertino_icons: ^1.0.2
   shared_preferences: ^2.2.2
-  uuid: ^4.0.0
+  uuid: ^4.6.0
   
   # Cloud Backend
   supabase_flutter: ^2.14.2
