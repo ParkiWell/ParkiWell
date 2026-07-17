@@ -11,7 +11,7 @@ and replace the bracketed placeholders with real values. -->
 ## 1. Agreement to These Terms
 
 These Terms of Service ("Terms") are a binding agreement between you and
-[COMPANY / OWNER LEGAL NAME] ("ParkiWell," "we," "us") governing your use of
+Jesse Chen, the developer of ParkiWell ("ParkiWell," "we," "us"), governing your use of
 the ParkiWell mobile and web applications and related services (together, the
 "Service"). By creating an account, completing setup, or otherwise using
 the Service, you agree to these Terms and to the [Privacy Policy](PRIVACY_POLICY.md).
@@ -59,7 +59,7 @@ information in community areas without their permission.
 - Some features (cloud sync, community) require an account with a
   verified email address, created with a password or Google sign-in.
 - Keep your credentials confidential. You are responsible for activity
-  under your account. Tell us promptly at [SUPPORT CONTACT EMAIL] if you
+  under your account. Tell us promptly at jcscen@gmail.com if you
   suspect unauthorized access.
 - Provide accurate account information and keep it up to date.
 - You can use the core of the Service without an account; in that case
@@ -209,14 +209,14 @@ our own breach of these Terms.
 
 ## 17. Governing Law and Disputes
 
-These Terms are governed by the laws of [GOVERNING JURISDICTION], without
-regard to conflict-of-law rules. Disputes will be resolved in the courts
-of [VENUE], and each party consents to their jurisdiction, except that
+These Terms are governed by the laws of the United States, without
+regard to conflict-of-law rules. Disputes will be resolved in the
+competent state or federal courts of the United States, and each party
+consents to their jurisdiction, except that
 either party may seek injunctive relief for intellectual-property or
 security violations in any competent court, and you may have mandatory
 rights to bring claims in your local courts under consumer-protection
-law. [OPTIONAL: INSERT ARBITRATION / CLASS-ACTION PROVISIONS AFTER
-COUNSEL REVIEW.]
+law.
 
 ## 18. App Store Terms
 

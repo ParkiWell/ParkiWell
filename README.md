@@ -1,118 +1,84 @@
+<div align="center">
+
+<img src="images/parkiwell_mark.svg" alt="" width="72">
+
 # ParkiWell
 
-ParkiWell is a Parkinson's care companion app for symptom tracking, medication scheduling, guided recovery exercises, and community support.
+**A calmer way to manage Parkinson's care.**
 
-## Core Features
+Track symptoms, keep medication routines, and practice guided speech and
+movement, all in one supportive place that works even when you're offline.
 
-- Local-first symptom, medication, and therapy records with durable offline replay
-- Deterministic conflict resolution and batched, idempotent Supabase synchronization
-- On-device longitudinal analytics across medication timing, therapy adherence, and symptom severity
-- Recovery hub (speech + physical exercise videos)
-- Community feed with posts, comments, likes, and sharing
-- Group membership and resource links in Community
-- Light/dark mode with animated splash and onboarding
-- Supabase authentication, PostgreSQL row-level security, and cross-device persistence
+[**parkiwell.com**](https://parkiwell.com) · Coming soon to the App Store and Google Play
 
-## Tech Stack
+</div>
 
-- Flutter 3.44.0
-- Supabase (`supabase_flutter`) for auth + database
-- Charts (`fl_chart`)
-- Media (`youtube_player_iframe`, `video_player`)
+---
 
-## Getting Started
+<p align="center">
+  <img src="marketing/appstore/02-home.png" alt="Home dashboard: your whole day at a glance" width="24%">
+  <img src="marketing/appstore/04-recovery.png" alt="Recovery: practice with a plan" width="24%">
+  <img src="marketing/appstore/03-manage.png" alt="Manage: log symptoms in seconds" width="24%">
+  <img src="marketing/appstore/05-dark-mode.png" alt="Full dark mode: gentle by design" width="24%">
+</p>
 
-ParkiWell keeps health-record changes locally until Supabase acknowledges them, so
-connectivity drops do not block logging or lose pending work. Supabase remains
-the authenticated backend for cross-device persistence and community data.
+## Why ParkiWell
 
-### 1. Environment Setup
+Living with Parkinson's means keeping track of a lot: how symptoms change
+through the day, which dose was taken when, whether this week's speech and
+movement practice happened. ParkiWell keeps all of it in one clear, calm
+place, designed for real hands and real days.
 
-```bash
-cp .env.example .env.local
-# Fill in your Supabase project URL and anon key in .env.local
-```
+### See your day clearly
 
-### 2. Run Locally
+Log a symptom in seconds with severity from *Very Mild* to *Very Severe*,
+keep medication schedules with dose details in one timeline, and build a
+logging streak that shows your consistency.
 
-```bash
-flutter pub get
-./scripts/run-backend.sh
-```
+### Practice with a plan
 
-Or pass defines directly:
+Set an approachable weekly goal for speech and movement sessions, follow
+guided videos from trusted Parkinson's programs, and keep a history of
+everything you complete. You can even record a short practice clip to check
+your form, and it never leaves your device.
 
-```bash
-flutter run \
-  --dart-define=BACKEND_PROVIDER=supabase \
-  --dart-define=SUPABASE_URL=https://YOUR_PROJECT.supabase.co \
-  --dart-define=SUPABASE_ANON_KEY=YOUR_ANON_KEY \
-  --dart-define=SUPABASE_AUTH_REDIRECT_URL=com.parkiwell.app://login-callback/
-```
+### Notice patterns over time
 
-### 3. Supabase Setup
+Simple charts and on-device insights connect the dots across weeks and
+months, like how logged severity compares on therapy days, without
+sending your data anywhere for analysis.
 
-1. Create a Supabase project at [supabase.com](https://supabase.com)
-2. Run the schema in `supabase/schema.sql` via the SQL editor
-3. Optional: run `supabase/seed.sql` to populate demo symptoms, medications, recovery exercise sessions, posts, comments, likes, and group memberships
-4. Enable **Anonymous Sign-In** and **Google OAuth** in Authentication > Providers
-5. Set the Google OAuth redirect URL to `com.parkiwell.app://login-callback/`
+### You're not doing this alone
 
-Full backend setup: `docs/BACKEND_SETUP.md`
+An optional community space for posts, comments, and encouragement from
+people who understand.
 
-## CI/CD and Branches
+## Built for trust
 
-Primary branches:
-- `main` (production)
-- `staging` (pre-production verification)
-- `develop` (integration)
+- **Works offline.** Your records live on your device first and stay
+  available with no connection; changes sync safely when you're back online.
+- **Private by design.** No ads, no tracking, no analytics SDKs, no selling
+  data. Cloud sync is optional and protected by row-level security.
+- **Gentle by design.** Calm colors, large touch targets, reduced-motion
+  support, VoiceOver/TalkBack labels, and full dark mode.
+- **Delete anytime.** Remove your account and synced records from inside
+  the app.
 
-Workflows:
-- PR checks: analyze, format, tests, debug builds
-- Staging build pipeline (push to `staging`)
-- Production build and release pipeline (tag `v*`)
+Read the full [Privacy Policy](https://parkiwell.com/privacy) and
+[Terms of Service](https://parkiwell.com/terms), or visit
+[Support](https://parkiwell.com/support).
 
-### Required GitHub Secrets
+## Medical disclaimer
 
-**Android (production):**
-- `ANDROID_KEYSTORE_BASE64` -- base64-encoded `.jks` keystore
-- `ANDROID_STORE_PASSWORD`, `ANDROID_KEY_PASSWORD`, `ANDROID_KEY_ALIAS`
+ParkiWell is an organizational and educational tool. It is **not** a medical
+device and does not provide medical advice, diagnosis, or treatment. Always
+consult your care team about your health.
 
-**iOS (production):**
-- `APPLE_CERTIFICATE_BASE64` -- base64-encoded `.p12` signing certificate
-- `APPLE_CERTIFICATE_PASSWORD`
-- `APPLE_PROVISIONING_PROFILE_BASE64` -- base64-encoded `.mobileprovision`
-- `APPLE_TEAM_ID` -- Apple Developer Team ID
-- `APPLE_PROVISIONING_PROFILE_NAME` -- name of provisioning profile
-- `KEYCHAIN_PASSWORD` -- temporary keychain password for CI
+## For developers
 
-Environment/release setup: `docs/SETUP.md`
-
-## Quality Checks
-
-Run before pushing:
-
-```bash
-bash scripts/check-public-repo.sh
-dart format --set-exit-if-changed lib test
-flutter analyze --fatal-infos
-flutter test
-```
-
-Release checklist: `docs/RELEASE_READINESS.md`
-
-## Content Attribution
-
-Therapy video sources and usage notes:
-- `docs/CONTENT_SOURCES.md`
-
-## Privacy and License
-
-- Privacy policy: `PRIVACY_POLICY.md`
-- Terms of service: `TERMS_OF_SERVICE.md`
-- License: `LICENSE`
-
-## Medical Disclaimer
-
-ParkiWell is for education and self-tracking only.  
-It is not a medical device and does not provide medical diagnosis or treatment.
+ParkiWell is a Flutter app backed by Supabase (auth + PostgreSQL with
+row-level security) with an offline-first sync engine. If you'd like to run
+it locally or contribute, start with the
+[contribution guide](CONTRIBUTING.md), which covers environment setup, the
+backend, quality checks, and CI. Therapy video sources and attributions are
+listed in [docs/CONTENT_SOURCES.md](docs/CONTENT_SOURCES.md).

@@ -5,8 +5,7 @@
 
 <!-- MAINTAINER NOTE (not rendered on GitHub): This document is a product
 draft. Before public launch, have qualified counsel review it for every
-launch jurisdiction, and replace the bracketed placeholders (controller
-identity, contact email, mailing address) with real values. -->
+launch jurisdiction. -->
 
 ## 1. Introduction
 
@@ -20,8 +19,8 @@ This Privacy Policy explains what information ParkiWell handles, why, where it
 is stored, who can access it, and the choices and rights you have. It
 applies to the ParkiWell mobile and web applications.
 
-**Data controller:** [COMPANY / OWNER LEGAL NAME], [MAILING ADDRESS].
-For privacy requests, contact **[PRIVACY CONTACT EMAIL]**.
+**Data controller:** Jesse Chen, the developer of ParkiWell.
+For privacy requests, contact **jcscen@gmail.com**.
 
 Because ParkiWell handles health-related information you choose to record, we
 hold ourselves to the practices described here regardless of whether a
@@ -226,7 +225,7 @@ You have the right to access, rectify, and erase your personal data; to
 restrict or object to processing; to data portability; to withdraw
 consent at any time without affecting prior processing; and to lodge a
 complaint with your supervisory authority. Contact us at
-**[PRIVACY CONTACT EMAIL]** to exercise rights not already available
+**jcscen@gmail.com** to exercise rights not already available
 in-app. We respond within one month.
 
 ### 10.3 Rights for California users (CCPA/CPRA)
@@ -237,7 +236,7 @@ inaccurate information; and to non-discrimination for exercising these
 rights. We do not "sell" or "share" personal information as those terms
 are defined in the CCPA/CPRA, and we do not use or disclose sensitive
 personal information for purposes other than providing the service you
-request. Submit requests to **[PRIVACY CONTACT EMAIL]**; we will verify
+request. Submit requests to **jcscen@gmail.com**; we will verify
 your request using your account email.
 
 ### 10.4 Other US state privacy laws
@@ -251,7 +250,7 @@ involved in the original decision.
 ## 11. International Data Transfers
 
 Synced data is hosted in the region of our database provider
-([HOSTING REGION — e.g., United States]). If you use ParkiWell from another
+(the United States). If you use ParkiWell from another
 region, your synced data is transferred to and processed in that hosting
 region. Where required, transfers from the EEA/UK rely on adequacy
 decisions or standard contractual clauses maintained by our processors.
@@ -281,7 +280,7 @@ ParkiWell is not directed to children and is not intended for anyone under
 the age of 13 (or the higher minimum age required in your jurisdiction,
 such as 16 in parts of the EEA). We do not knowingly collect personal
 data from children. If you believe a child has provided personal data,
-contact **[PRIVACY CONTACT EMAIL]** and we will delete it.
+contact **jcscen@gmail.com** and we will delete it.
 
 ## 14. Health Information Notice
 

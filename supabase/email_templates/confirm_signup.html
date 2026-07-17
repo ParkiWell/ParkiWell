@@ -1,57 +1,92 @@
-<!-- ParkiWell · Confirm signup email template
-     Paste into: Supabase Dashboard → Authentication → Emails → "Confirm signup"
-     Suggested subject: Confirm your ParkiWell account -->
 <html>
-  <body style="margin:0;padding:0;background-color:#F3F7FF;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F3F7FF;padding:32px 16px;">
+  <head>
+    <meta name="color-scheme" content="light dark">
+    <meta name="supported-color-schemes" content="light dark">
+    <style>
+      :root { color-scheme: light dark; supported-color-schemes: light dark; }
+      @media (prefers-color-scheme: dark) {
+        .em-page   { background: #0D1420 !important; background-color: #0D1420 !important; }
+        .em-card   { background-color: #16202F !important; border-color: #26344B !important; }
+        .em-h1     { color: #EDF2FB !important; }
+        .em-body   { color: #B9C6DD !important; }
+        .em-muted, .em-muted-link { color: #8CA0C0 !important; }
+        .em-footband { background-color: #111A28 !important; border-color: #26344B !important; }
+        .em-foot   { color: #7C8DAB !important; }
+        .em-foot a { color: #7C8DAB !important; }
+      }
+    </style>
+  </head>
+  <body class="em-page" style="margin:0;padding:0;background-color:#E9F0FB;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+    <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">
+      One tap to finish setting up your ParkiWell account.
+    </div>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#E9F0FB" class="em-page" style="background:linear-gradient(160deg,#E2EBFA 0%,#EEF4FC 60%,#F6F9FD 100%);padding:40px 16px;">
       <tr>
         <td align="center">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background-color:#FFFFFF;border-radius:16px;border:1px solid #E3EBFA;overflow:hidden;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="em-card" style="max-width:520px;background-color:#FFFFFF;border-radius:24px;border:1px solid #DFE8F7;overflow:hidden;box-shadow:0 18px 40px rgba(23,43,77,0.10);">
+
+            <!-- Brand header (navy holds its own in both modes; wordmark uses a
+                 mid-light tone that survives Gmail's dark-mode inversion) -->
             <tr>
-              <td style="background-color:#2A6CF7;padding:28px 32px;text-align:center;">
-                <span style="font-size:26px;font-weight:700;color:#FFFFFF;letter-spacing:-0.5px;">ParkiWell</span>
+              <td align="center" bgcolor="#16264A" style="background:linear-gradient(160deg,#1E3160,#0F1C33);padding:34px 32px 30px 32px;">
+                <div style="font-size:30px;font-weight:800;color:#C9D7F6;letter-spacing:-0.8px;">ParkiWell</div>
+                <div style="margin-top:6px;font-size:14px;font-weight:600;color:#8FA5D2;">Your everyday care companion</div>
               </td>
             </tr>
+
+            <!-- Body -->
             <tr>
-              <td style="padding:36px 32px 8px 32px;">
-                <h1 style="margin:0 0 12px 0;font-size:21px;font-weight:700;color:#16203A;">Confirm your email address</h1>
-                <p style="margin:0 0 24px 0;font-size:15px;line-height:1.6;color:#4A5878;">
-                  Welcome to ParkiWell. To finish creating your account and keep your
-                  care data securely synced, please confirm your email address.
+              <td style="padding:38px 36px 10px 36px;">
+                <h1 class="em-h1" style="margin:0 0 14px 0;font-size:24px;line-height:1.25;font-weight:800;color:#0F1C33;letter-spacing:-0.4px;">
+                  You're almost there
+                </h1>
+                <p class="em-body" style="margin:0 0 26px 0;font-size:17px;line-height:1.65;color:#44536F;">
+                  Welcome to ParkiWell! Confirm your email address to finish
+                  creating your account and keep your care records safely
+                  synced across your devices.
                 </p>
               </td>
             </tr>
+
+            <!-- Button -->
             <tr>
-              <td align="center" style="padding:0 32px 28px 32px;">
+              <td align="center" style="padding:0 36px 30px 36px;">
                 <a href="{{ .ConfirmationURL }}"
-                   style="display:inline-block;background-color:#2A6CF7;color:#FFFFFF;text-decoration:none;font-size:15px;font-weight:700;padding:14px 36px;border-radius:999px;">
-                  Confirm Email
+                   style="display:block;background-color:#2F56D9;color:#FFFFFF;text-decoration:none;font-size:18px;font-weight:700;padding:17px 20px;border-radius:16px;text-align:center;">
+                  Confirm my email
                 </a>
               </td>
             </tr>
+
+            <!-- Fallback link -->
             <tr>
-              <td style="padding:0 32px 28px 32px;">
-                <p style="margin:0 0 8px 0;font-size:13px;line-height:1.6;color:#7A87A6;">
-                  This link opens the ParkiWell app and signs you in automatically.
-                  If the button doesn't work, copy and paste this link into your browser:
+              <td style="padding:0 36px 30px 36px;">
+                <p class="em-muted" style="margin:0 0 8px 0;font-size:14px;line-height:1.6;color:#7A87A6;">
+                  The button opens ParkiWell and signs you in automatically. If it
+                  doesn't work, copy and paste this link into your browser:
                 </p>
-                <p style="margin:0;font-size:12px;line-height:1.5;word-break:break-all;">
-                  <a href="{{ .ConfirmationURL }}" style="color:#2A6CF7;">{{ .ConfirmationURL }}</a>
+                <p style="margin:0;font-size:13px;line-height:1.5;word-break:break-all;">
+                  <a href="{{ .ConfirmationURL }}" style="color:#4B74EC;">{{ .ConfirmationURL }}</a>
                 </p>
               </td>
             </tr>
+
+            <!-- Footer -->
             <tr>
-              <td style="padding:20px 32px;background-color:#F8FAFF;border-top:1px solid #E3EBFA;">
-                <p style="margin:0;font-size:12px;line-height:1.6;color:#7A87A6;">
-                  You're receiving this email because this address was used to sign up
-                  for ParkiWell. If this wasn't you, you can safely ignore this email and
-                  no account will be created.
+              <td bgcolor="#F7FAFE" class="em-footband" style="padding:22px 36px;border-top:1px solid #E5EDF9;">
+                <p class="em-muted" style="margin:0;font-size:13px;line-height:1.6;color:#7A87A6;">
+                  You're receiving this email because this address was used to
+                  sign up for ParkiWell. If this wasn't you, you can safely ignore
+                  it and no account will be created.
                 </p>
               </td>
             </tr>
           </table>
-          <p style="margin:18px 0 0 0;font-size:12px;color:#9AA6C2;">
-            ParkiWell · Personalized Parkinson's care, organized every day.
+
+          <p class="em-foot" style="margin:20px 0 0 0;font-size:13px;color:#8B98B6;">
+            ParkiWell &middot; A calmer way to manage Parkinson's care
+            &middot; <a href="https://parkiwell.com/support" style="color:#8B98B6;">Support</a>
+            &middot; <a href="https://parkiwell.com/privacy" style="color:#8B98B6;">Privacy</a>
           </p>
         </td>
       </tr>

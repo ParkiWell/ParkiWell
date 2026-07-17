@@ -16,12 +16,12 @@ Thank you for your interest in contributing to ParkiWell.
 1. Fork the repository
 2. Clone your fork:
    ```bash
-   git clone https://github.com/YOUR_USERNAME/parkiwell.git
+   git clone https://github.com/YOUR_USERNAME/ParkiWell.git
    cd parkiwell
    ```
 3. Add the upstream remote:
    ```bash
-   git remote add upstream https://github.com/Jc-965/parkiwell.git
+   git remote add upstream https://github.com/Jc-965/ParkiWell.git
    ```
 4. Install dependencies:
    ```bash
@@ -35,6 +35,21 @@ Thank you for your interest in contributing to ParkiWell.
      --dart-define=SUPABASE_ANON_KEY=YOUR_ANON_KEY \
      --dart-define=SUPABASE_AUTH_REDIRECT_URL=com.parkiwell.app://login-callback/
    ```
+
+   Or copy `.env.example` to `.env.local`, fill in your values, and run
+   `./scripts/run-backend.sh` (or `flutter run --dart-define-from-file=.env.local`).
+   Without any defines the app runs in local-only mode with no cloud sync.
+
+### Backend Setup
+
+1. Create a Supabase project at [supabase.com](https://supabase.com)
+2. Run `supabase/schema.sql` via the SQL editor (idempotent — safe to re-run)
+3. Optional: run `supabase/seed.sql` for demo data
+4. Enable the auth providers you need (email, Google, Apple) and add
+   `com.parkiwell.app://login-callback/` to the allowed redirect URLs
+
+Full backend guide: `docs/BACKEND_SETUP.md`. Release/CI secrets (Android
+keystore, Apple signing) are listed in `docs/SETUP.md`.
 
 ## Branch Strategy
 
@@ -94,11 +109,12 @@ lib/
 
 ## Pull Request Process
 
-1. Ensure your code passes all checks:
+1. Ensure your code passes all checks (same as CI):
    ```bash
-   flutter analyze
+   bash scripts/check-public-repo.sh
+   dart format --set-exit-if-changed lib test
+   flutter analyze --fatal-infos
    flutter test
-   dart format --set-exit-if-changed lib/
    ```
 
 2. Update documentation if needed
