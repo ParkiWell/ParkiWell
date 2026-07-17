@@ -1,11 +1,11 @@
 {
-    "name": "Levio",
-    "short_name": "Levio",
+    "name": "ParkiWell",
+    "short_name": "ParkiWell",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#F7F8F5",
     "theme_color": "#173B48",
-    "description": "Levio helps people manage Parkinson's care with tracking, schedules, recovery guidance, and community support.",
+    "description": "ParkiWell helps people manage Parkinson's care with tracking, schedules, recovery guidance, and community support.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

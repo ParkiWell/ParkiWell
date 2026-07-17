@@ -14,7 +14,7 @@
 	<false/>
 	<key>provisioningProfiles</key>
 	<dict>
-		<key>com.levio.app</key>
+		<key>com.parkiwell.app</key>
 		<string>YOUR_PROVISIONING_PROFILE_NAME</string>
 	</dict>
 </dict>

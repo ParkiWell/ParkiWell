@@ -1,6 +1,6 @@
 # Therapy Content Sources
 
-Levio embeds third-party YouTube videos using public YouTube IDs.
+ParkiWell embeds third-party YouTube videos using public YouTube IDs.
 
 ## Speech videos
 
@@ -34,7 +34,7 @@ Levio embeds third-party YouTube videos using public YouTube IDs.
 
 ## Usage and rights
 
-- Levio only embeds content hosted by YouTube.
+- ParkiWell only embeds content hosted by YouTube.
 - Video ownership remains with the original creators/channels.
 - If a creator removes or restricts a video, it may stop working in-app.
 - Before commercial release, review YouTube Terms of Service and each channel's usage policies, and obtain explicit permission when required.

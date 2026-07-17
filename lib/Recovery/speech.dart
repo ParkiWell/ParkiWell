@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:levio/singleton.dart';
+import 'package:parkiwell/singleton.dart';
 
 import '../theme/app_theme.dart';
 import '../utils/haptic_utils.dart';

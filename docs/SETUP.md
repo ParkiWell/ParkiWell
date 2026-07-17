@@ -73,11 +73,11 @@ Create environments in **Settings > Environments**:
 
 1. Generate keystore:
    ```bash
-   keytool -genkey -v -keystore levio-release.jks -keyalias levio -keyalg RSA -keysize 2048 -validity 10000
+   keytool -genkey -v -keystore parkiwell-release.jks -keyalias parkiwell -keyalg RSA -keysize 2048 -validity 10000
    ```
 2. Convert to base64:
    ```bash
-   base64 -i levio-release.jks -o keystore.txt
+   base64 -i parkiwell-release.jks -o keystore.txt
    ```
 3. Save as `ANDROID_KEYSTORE_BASE64` secret.
 
@@ -102,7 +102,7 @@ Create environments in **Settings > Environments**:
 
 ## 6. Backend Environment Variables
 
-Levio uses Supabase for authenticated cloud persistence and keeps pending
+ParkiWell uses Supabase for authenticated cloud persistence and keeps pending
 health-record mutations in an on-device journal for offline replay.
 Use these defines for local/CI builds:
 
@@ -110,7 +110,7 @@ Use these defines for local/CI builds:
 --dart-define=BACKEND_PROVIDER=supabase \
 --dart-define=SUPABASE_URL=... \
 --dart-define=SUPABASE_ANON_KEY=... \
---dart-define=SUPABASE_AUTH_REDIRECT_URL=com.levio.app://login-callback/
+--dart-define=SUPABASE_AUTH_REDIRECT_URL=com.parkiwell.app://login-callback/
 ```
 
 If defines are missing, authentication and sync will fail.

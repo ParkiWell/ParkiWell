@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Levio</string>
+	<string>ParkiWell</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -15,7 +15,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>Levio</string>
+	<string>ParkiWell</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -28,10 +28,10 @@
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>CFBundleURLName</key>
-			<string>com.levio.app</string>
+			<string>com.parkiwell.app</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>com.levio.app</string>
+				<string>com.parkiwell.app</string>
 			</array>
 		</dict>
 	</array>
@@ -47,11 +47,11 @@
 		<false/>
 	</dict>
 	<key>NSCameraUsageDescription</key>
-	<string>Levio needs access to your camera to take profile photos and record exercise videos.</string>
+	<string>ParkiWell needs access to your camera to take profile photos and record exercise videos.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Levio needs access to your microphone to record speech therapy exercises.</string>
+	<string>ParkiWell needs access to your microphone to record speech therapy exercises.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Levio needs access to your photo library to select a profile picture.</string>
+	<string>ParkiWell needs access to your photo library to select a profile picture.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

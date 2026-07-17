@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../Main/editProfile.dart';
 import '../theme/app_theme.dart';
 import '../utils/haptic_utils.dart';
-import '../widgets/levio_mark.dart';
+import '../widgets/parkiwell_mark.dart';
 import '../widgets/stage_transition_switcher.dart';
 
 class OnboardingFlowScreen extends StatefulWidget {
@@ -288,7 +288,7 @@ class _OnboardingFlowScreenState extends State<OnboardingFlowScreen>
   Widget _buildBrandRow(AppColors colors, {required bool compact}) {
     return Row(
       children: <Widget>[
-        LevioMark(
+        ParkiWellMark(
           size: compact ? 38 : 42,
           color: colors.textPrimary.blend(colors.secondary, 0.28),
         ),
@@ -298,7 +298,7 @@ class _OnboardingFlowScreenState extends State<OnboardingFlowScreen>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               Text(
-                'Levio',
+                'ParkiWell',
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       color: colors.textPrimary,
                       fontWeight: FontWeight.w800,

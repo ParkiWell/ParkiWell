@@ -1,4 +1,4 @@
-# Privacy Policy for Levio
+# Privacy Policy for ParkiWell
 
 **Effective Date: July 16, 2026**
 **Last Updated: July 16, 2026**
@@ -10,26 +10,26 @@ identity, contact email, mailing address) with real values. -->
 
 ## 1. Introduction
 
-Levio ("Levio," "the app," "we," "us," or "our") is a care-organization
+ParkiWell ("ParkiWell," "the app," "we," "us," or "our") is a care-organization
 app for people living with Parkinson's disease and the people who support
 them. It helps users record symptoms, keep medication schedules, follow
 guided speech and movement practice, and participate in an optional
 community.
 
-This Privacy Policy explains what information Levio handles, why, where it
+This Privacy Policy explains what information ParkiWell handles, why, where it
 is stored, who can access it, and the choices and rights you have. It
-applies to the Levio mobile and web applications.
+applies to the ParkiWell mobile and web applications.
 
 **Data controller:** [COMPANY / OWNER LEGAL NAME], [MAILING ADDRESS].
 For privacy requests, contact **[PRIVACY CONTACT EMAIL]**.
 
-Because Levio handles health-related information you choose to record, we
+Because ParkiWell handles health-related information you choose to record, we
 hold ourselves to the practices described here regardless of whether a
 specific law requires them.
 
 ## 2. Summary of Key Points
 
-- Levio works **local-first**: your records live in the app's private
+- ParkiWell works **local-first**: your records live in the app's private
   storage on your device and remain usable offline.
 - Cloud sync is **optional** and happens only when you create or sign in
   to a synced account.
@@ -66,7 +66,7 @@ specific law requires them.
 - **Practice recordings:** you may record a short video of yourself (up
   to three minutes, using the camera and microphone) to compare your form
   against a guided exercise. These recordings are stored only on your
-  device and are **never uploaded** to Levio's servers or any third
+  device and are **never uploaded** to ParkiWell's servers or any third
   party. Deleting the app deletes them.
 - **On-device insights:** trends, streaks, weekly progress, and pattern
   summaries (for example, comparisons of logged severity across therapy
@@ -89,7 +89,7 @@ specific law requires them.
 
 If you choose "Continue with Google," Google shares with us the basic
 profile of the Google account you select: your name, email address, and
-profile image reference. We use it only to create and identify your Levio
+profile image reference. We use it only to create and identify your ParkiWell
 account. We never receive your Google password. Google's handling of your
 data is governed by Google's own privacy policy.
 
@@ -139,11 +139,11 @@ Where the GDPR or UK GDPR applies, we rely on:
 
 ## 6. Where Your Data Is Stored
 
-Levio supports two storage modes:
+ParkiWell supports two storage modes:
 
 1. **Local-only mode (default before sign-in).** All records are stored
    in the app's private, sandboxed on-device storage. Nothing is
-   transmitted to Levio's servers.
+   transmitted to ParkiWell's servers.
 2. **Cloud sync mode (optional).** When you use a synced account, your
    records are also stored in a PostgreSQL database operated on Supabase
    infrastructure. Protections include:
@@ -173,12 +173,12 @@ brokers or advertisers. Information is disclosed only to:
   other users.
 - **Video platforms.** Recovery videos are embedded from YouTube. When a
   video loads or plays, YouTube (Google) may collect data under its own
-  privacy policy, as with any embedded YouTube player. Levio does not
+  privacy policy, as with any embedded YouTube player. ParkiWell does not
   send your health records to YouTube.
 - **Legal requirements.** We may disclose information if required by law,
   subpoena, or court order, or to protect the rights, safety, or property
   of users or the public.
-- **Business transfers.** If Levio is involved in a merger, acquisition,
+- **Business transfers.** If ParkiWell is involved in a merger, acquisition,
   or asset sale, data may transfer to the successor subject to this
   policy; we will notify you of any material change in ownership or use.
 
@@ -251,7 +251,7 @@ involved in the original decision.
 ## 11. International Data Transfers
 
 Synced data is hosted in the region of our database provider
-([HOSTING REGION — e.g., United States]). If you use Levio from another
+([HOSTING REGION — e.g., United States]). If you use ParkiWell from another
 region, your synced data is transferred to and processed in that hosting
 region. Where required, transfers from the EEA/UK rely on adequacy
 decisions or standard contractual clauses maintained by our processors.
@@ -264,7 +264,7 @@ We take measures appropriate to the sensitivity of health-related data:
   synced database.
 - Row-level security so each account can only touch its own records.
 - Passwords handled exclusively by the authentication provider as salted
-  hashes; Levio never stores plaintext passwords.
+  hashes; ParkiWell never stores plaintext passwords.
 - Email verification for new accounts and secure, expiring password-reset
   links.
 - The app's local data lives in the OS-sandboxed app container.
@@ -277,7 +277,7 @@ authorities as required by applicable law without undue delay.
 
 ## 13. Children's Privacy
 
-Levio is not directed to children and is not intended for anyone under
+ParkiWell is not directed to children and is not intended for anyone under
 the age of 13 (or the higher minimum age required in your jurisdiction,
 such as 16 in parts of the EEA). We do not knowingly collect personal
 data from children. If you believe a child has provided personal data,
@@ -285,10 +285,10 @@ contact **[PRIVACY CONTACT EMAIL]** and we will delete it.
 
 ## 14. Health Information Notice
 
-Records you keep in Levio are personal notes you create for yourself.
-Levio is **not** a covered entity or business associate under HIPAA, and
-the information you store in Levio is not a medical record held by a
-healthcare provider. Levio provides organizational and educational
+Records you keep in ParkiWell are personal notes you create for yourself.
+ParkiWell is **not** a covered entity or business associate under HIPAA, and
+the information you store in ParkiWell is not a medical record held by a
+healthcare provider. ParkiWell provides organizational and educational
 features only; it does not provide medical advice, diagnosis, or
 treatment. Always consult your care team about your health, and never
 disregard professional advice because of something recorded or displayed

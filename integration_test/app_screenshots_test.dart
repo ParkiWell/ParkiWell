@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
-import 'package:levio/navbar.dart';
-import 'package:levio/screens/onboarding_flow.dart';
-import 'package:levio/singleton.dart';
-import 'package:levio/theme/app_theme.dart';
+import 'package:parkiwell/navbar.dart';
+import 'package:parkiwell/screens/onboarding_flow.dart';
+import 'package:parkiwell/singleton.dart';
+import 'package:parkiwell/theme/app_theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Captures App Store marketing screenshots with seeded demo data.
@@ -52,7 +52,7 @@ Future<void> main() async {
 
   testWidgets('capture marketing screenshots', (tester) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('levio_main_tutorial_completed_v1', true);
+    await prefs.setBool('parkiwell_main_tutorial_completed_v1', true);
 
     final singleton = Singleton();
     await singleton.initialize(isProduction: false);

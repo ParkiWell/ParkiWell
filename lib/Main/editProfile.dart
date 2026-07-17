@@ -1337,7 +1337,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       ),
                       const SizedBox(height: 3),
                       Text(
-                        'Open the link sent to $email. Levio will finish setup when you return.',
+                        'Open the link sent to $email. ParkiWell will finish setup when you return.',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                               color: colors.textSecondary,
                               height: 1.4,
@@ -1367,7 +1367,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     return Column(
       children: <Widget>[
         Text(
-          'By continuing, you agree to Levio\'s',
+          'By continuing, you agree to ParkiWell\'s',
           textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: colors.textSecondary,
@@ -1396,7 +1396,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           ],
         ),
         Text(
-          'Levio supports tracking and education; it does not replace medical advice.',
+          'ParkiWell supports tracking and education; it does not replace medical advice.',
           textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
                 color: colors.textTertiary,

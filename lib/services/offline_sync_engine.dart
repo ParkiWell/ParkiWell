@@ -125,7 +125,7 @@ abstract class MutationJournalStore {
 class SharedPreferencesMutationJournalStore implements MutationJournalStore {
   SharedPreferencesMutationJournalStore(
     this.preferences, {
-    this.storageKey = 'levio_pending_mutations_v1',
+    this.storageKey = 'parkiwell_pending_mutations_v1',
   });
 
   final Future<SharedPreferences> preferences;

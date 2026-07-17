@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:levio/services/health_sync_coordinator.dart';
+import 'package:parkiwell/services/health_sync_coordinator.dart';
 
 void main() {
   const coordinator = HealthSyncCoordinator();
@@ -72,7 +72,7 @@ void main() {
     expect(reduction, greaterThanOrEqualTo(0.70));
     // ignore: avoid_print
     print(
-      'LEVIO_SYNC_METRIC sequential_p95_ms='
+      'PARKIWELL_SYNC_METRIC sequential_p95_ms='
       '${(sequentialP95 / 1000).toStringAsFixed(2)} parallel_p95_ms='
       '${(parallelP95 / 1000).toStringAsFixed(2)} reduction_pct='
       '${(reduction * 100).toStringAsFixed(1)}',

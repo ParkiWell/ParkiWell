@@ -78,7 +78,7 @@ class _PasswordUpdateDialogState extends State<_PasswordUpdateDialog> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'Enter a new password for your Levio account.',
+              'Enter a new password for your ParkiWell account.',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: colors.textSecondary,
                     height: 1.4,

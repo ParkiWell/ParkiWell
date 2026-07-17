@@ -2,15 +2,15 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-/// Levio's original four-loop monoline mark.
+/// ParkiWell's original four-loop monoline mark.
 ///
 /// The painter keeps the brand asset crisp at every display size and allows the
 /// line color to adapt to light and dark surfaces without loading a bitmap.
-class LevioMark extends StatelessWidget {
+class ParkiWellMark extends StatelessWidget {
   final double size;
   final Color color;
 
-  const LevioMark({
+  const ParkiWellMark({
     super.key,
     required this.size,
     required this.color,
@@ -20,13 +20,13 @@ class LevioMark extends StatelessWidget {
   Widget build(BuildContext context) {
     return Semantics(
       image: true,
-      label: 'Levio logo',
+      label: 'ParkiWell logo',
       child: ExcludeSemantics(
         child: RepaintBoundary(
           child: SizedBox.square(
             dimension: size,
             child: CustomPaint(
-              painter: _LevioMarkPainter(color),
+              painter: _ParkiWellMarkPainter(color),
             ),
           ),
         ),
@@ -35,10 +35,10 @@ class LevioMark extends StatelessWidget {
   }
 }
 
-class _LevioMarkPainter extends CustomPainter {
+class _ParkiWellMarkPainter extends CustomPainter {
   final Color color;
 
-  const _LevioMarkPainter(this.color);
+  const _ParkiWellMarkPainter(this.color);
 
   Path _petal() {
     return Path()
@@ -81,7 +81,7 @@ class _LevioMarkPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _LevioMarkPainter oldDelegate) {
+  bool shouldRepaint(covariant _ParkiWellMarkPainter oldDelegate) {
     return oldDelegate.color != color;
   }
 }

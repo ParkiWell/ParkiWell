@@ -3,9 +3,9 @@
 # DO NOT commit key.properties to version control!
 
 # To generate a keystore, run:
-# keytool -genkey -v -keystore ~/levio-release-key.jks -keyalg RSA -keysize 2048 -validity 10000 -alias levio
+# keytool -genkey -v -keystore ~/parkiwell-release-key.jks -keyalg RSA -keysize 2048 -validity 10000 -alias parkiwell
 
 storePassword=YOUR_KEYSTORE_PASSWORD
 keyPassword=YOUR_KEY_PASSWORD
-keyAlias=levio
-storeFile=/path/to/your/levio-release-key.jks
+keyAlias=parkiwell
+storeFile=/path/to/your/parkiwell-release-key.jks

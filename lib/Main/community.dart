@@ -266,7 +266,7 @@ class _CommunityScreenState extends State<CommunityScreen>
     try {
       await SharePlus.instance.share(
         ShareParams(
-          text: '${post.content}\n\nShared from Levio Community',
+          text: '${post.content}\n\nShared from ParkiWell Community',
         ),
       );
     } catch (_) {

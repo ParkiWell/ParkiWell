@@ -266,7 +266,7 @@ class _LogScreenState extends State<LogScreen> {
     }
 
     Future<void> pickTime(StateSetter setSheetState) async {
-      final time = await showLevioTimePicker(
+      final time = await showParkiWellTimePicker(
         context: context,
         selectedDate: selectedDateTime,
         initialTime: TimeOfDay.fromDateTime(selectedDateTime),
@@ -361,7 +361,7 @@ class _LogScreenState extends State<LogScreen> {
                   Row(
                     children: [
                       Expanded(
-                        child: LevioDateTimeField(
+                        child: ParkiWellDateTimeField(
                           label: 'Date',
                           value:
                               '${_monthNames[selectedDateTime.month - 1]} ${selectedDateTime.day}, ${selectedDateTime.year}',
@@ -371,7 +371,7 @@ class _LogScreenState extends State<LogScreen> {
                       ),
                       const SizedBox(width: 10),
                       Expanded(
-                        child: LevioDateTimeField(
+                        child: ParkiWellDateTimeField(
                           label: 'Time',
                           value: _formatTime(selectedDateTime),
                           icon: Icons.schedule_rounded,

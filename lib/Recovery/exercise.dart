@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:levio/singleton.dart';
+import 'package:parkiwell/singleton.dart';
 
 import '../services/tutorial_targets.dart';
 import '../theme/app_theme.dart';

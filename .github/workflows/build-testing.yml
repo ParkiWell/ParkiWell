@@ -73,7 +73,7 @@ jobs:
       BACKEND_PROVIDER: ${{ vars.BACKEND_PROVIDER || 'none' }}
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-      SUPABASE_AUTH_REDIRECT_URL: ${{ vars.SUPABASE_AUTH_REDIRECT_URL || 'com.levio.app://login-callback/' }}
+      SUPABASE_AUTH_REDIRECT_URL: ${{ vars.SUPABASE_AUTH_REDIRECT_URL || 'com.parkiwell.app://login-callback/' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -121,7 +121,7 @@ jobs:
       BACKEND_PROVIDER: ${{ vars.BACKEND_PROVIDER || 'none' }}
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-      SUPABASE_AUTH_REDIRECT_URL: ${{ vars.SUPABASE_AUTH_REDIRECT_URL || 'com.levio.app://login-callback/' }}
+      SUPABASE_AUTH_REDIRECT_URL: ${{ vars.SUPABASE_AUTH_REDIRECT_URL || 'com.parkiwell.app://login-callback/' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v6

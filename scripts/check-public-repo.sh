@@ -22,8 +22,8 @@ if git grep -IEn "$secret_pattern" -- . ':!scripts/check-public-repo.sh' >/dev/n
   fail "a value matching a secret pattern is tracked"
 fi
 
-if git grep -IEn '(/Users/[^/]+/|[A-Za-z]:\\Users\\[^\\]+\\)' -- . >/dev/null; then
-  git grep -IEn '(/Users/[^/]+/|[A-Za-z]:\\Users\\[^\\]+\\)' -- . >&2
+if git grep -IEn '(/Users/[^/]+/|[A-Za-z]:\\Users\\[^\\]+\\)' -- . ':!scripts/check-public-repo.sh' >/dev/null; then
+  git grep -IEn '(/Users/[^/]+/|[A-Za-z]:\\Users\\[^\\]+\\)' -- . ':!scripts/check-public-repo.sh' >&2
   fail "a local absolute home path is tracked"
 fi
 

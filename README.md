@@ -1,6 +1,6 @@
-# Levio
+# ParkiWell
 
-Levio is a Parkinson's care companion app for symptom tracking, medication scheduling, guided recovery exercises, and community support.
+ParkiWell is a Parkinson's care companion app for symptom tracking, medication scheduling, guided recovery exercises, and community support.
 
 ## Core Features
 
@@ -22,7 +22,7 @@ Levio is a Parkinson's care companion app for symptom tracking, medication sched
 
 ## Getting Started
 
-Levio keeps health-record changes locally until Supabase acknowledges them, so
+ParkiWell keeps health-record changes locally until Supabase acknowledges them, so
 connectivity drops do not block logging or lose pending work. Supabase remains
 the authenticated backend for cross-device persistence and community data.
 
@@ -47,7 +47,7 @@ flutter run \
   --dart-define=BACKEND_PROVIDER=supabase \
   --dart-define=SUPABASE_URL=https://YOUR_PROJECT.supabase.co \
   --dart-define=SUPABASE_ANON_KEY=YOUR_ANON_KEY \
-  --dart-define=SUPABASE_AUTH_REDIRECT_URL=com.levio.app://login-callback/
+  --dart-define=SUPABASE_AUTH_REDIRECT_URL=com.parkiwell.app://login-callback/
 ```
 
 ### 3. Supabase Setup
@@ -56,7 +56,7 @@ flutter run \
 2. Run the schema in `supabase/schema.sql` via the SQL editor
 3. Optional: run `supabase/seed.sql` to populate demo symptoms, medications, recovery exercise sessions, posts, comments, likes, and group memberships
 4. Enable **Anonymous Sign-In** and **Google OAuth** in Authentication > Providers
-5. Set the Google OAuth redirect URL to `com.levio.app://login-callback/`
+5. Set the Google OAuth redirect URL to `com.parkiwell.app://login-callback/`
 
 Full backend setup: `docs/BACKEND_SETUP.md`
 
@@ -114,5 +114,5 @@ Therapy video sources and usage notes:
 
 ## Medical Disclaimer
 
-Levio is for education and self-tracking only.  
+ParkiWell is for education and self-tracking only.  
 It is not a medical device and does not provide medical diagnosis or treatment.

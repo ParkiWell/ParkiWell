@@ -1,22 +1,22 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:levio/Main/manage.dart';
-import 'package:levio/Main/recovery.dart';
-import 'package:levio/Main/editProfile.dart';
-import 'package:levio/Manage/editLog.dart';
-import 'package:levio/Manage/schedule.dart';
-import 'package:levio/linechart.dart';
-import 'package:levio/main.dart';
-import 'package:levio/navbar.dart';
-import 'package:levio/routes.dart';
-import 'package:levio/screens/splash_screen.dart';
-import 'package:levio/screens/onboarding_flow.dart';
-import 'package:levio/singleton.dart';
-import 'package:levio/theme/app_theme.dart';
-import 'package:levio/widgets/levio_mark.dart';
-import 'package:levio/widgets/modern_button.dart';
-import 'package:levio/widgets/password_update_dialog.dart';
+import 'package:parkiwell/Main/manage.dart';
+import 'package:parkiwell/Main/recovery.dart';
+import 'package:parkiwell/Main/editProfile.dart';
+import 'package:parkiwell/Manage/editLog.dart';
+import 'package:parkiwell/Manage/schedule.dart';
+import 'package:parkiwell/linechart.dart';
+import 'package:parkiwell/main.dart';
+import 'package:parkiwell/navbar.dart';
+import 'package:parkiwell/routes.dart';
+import 'package:parkiwell/screens/splash_screen.dart';
+import 'package:parkiwell/screens/onboarding_flow.dart';
+import 'package:parkiwell/singleton.dart';
+import 'package:parkiwell/theme/app_theme.dart';
+import 'package:parkiwell/widgets/parkiwell_mark.dart';
+import 'package:parkiwell/widgets/modern_button.dart';
+import 'package:parkiwell/widgets/password_update_dialog.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -70,8 +70,8 @@ void main() {
       ),
     );
 
-    expect(find.text('Levio'), findsOneWidget);
-    expect(find.byType(LevioMark), findsOneWidget);
+    expect(find.text('ParkiWell'), findsOneWidget);
+    expect(find.byType(ParkiWellMark), findsOneWidget);
     expect(find.text('Preparing your care workspace'), findsOneWidget);
     expect(find.text('Personalized Parkinson\'s care,\norganized every day.'),
         findsOneWidget);

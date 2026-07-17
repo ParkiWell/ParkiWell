@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../theme/app_theme.dart';
-import '../widgets/levio_mark.dart';
+import '../widgets/parkiwell_mark.dart';
 
 class SplashScreen extends StatefulWidget {
   final VoidCallback onComplete;
@@ -214,7 +214,7 @@ class _SplashScreenState extends State<SplashScreen>
                                 child: Column(
                                   children: [
                                     Text(
-                                      'Levio',
+                                      'ParkiWell',
                                       style: GoogleFonts.plusJakartaSans(
                                         fontSize: 44,
                                         fontWeight: FontWeight.w700,
@@ -288,7 +288,7 @@ class _SplashScreenState extends State<SplashScreen>
     AppColors colors, {
     required bool isDark,
   }) {
-    return LevioMark(
+    return ParkiWellMark(
       size: 128,
       color: isDark
           ? colors.textPrimary

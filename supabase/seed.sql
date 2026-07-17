@@ -1,4 +1,4 @@
--- Levio sample data seed.
+-- ParkiWell sample data seed.
 --
 -- Run after supabase/schema.sql in a development or staging Supabase project.
 -- For private demo data to appear in-app, replace demo_user_id below with the
@@ -16,7 +16,7 @@ declare
 begin
   insert into public.users (id, name, email, age, profile_image)
   values
-    (demo_user_id, 'Levio Demo Member', 'demo@levio.local', 68, 'images/711128.png'),
+    (demo_user_id, 'ParkiWell Demo Member', 'demo@parkiwell.local', 68, 'images/711128.png'),
     (maya_user_id, 'Maya P.', null, 64, 'images/711128.png'),
     (daniel_user_id, 'Daniel R.', null, 71, 'images/711128.png'),
     (priya_user_id, 'Priya S.', null, 59, 'images/711128.png'),
@@ -380,7 +380,7 @@ begin
     (
       'demo-post-005',
       demo_user_id,
-      'Levio Demo Member',
+      'ParkiWell Demo Member',
       'images/711128.png',
       'This week I am pairing one balance video with one voice lesson. Small sessions are easier to keep consistent than saving everything for the weekend.',
       'General',
@@ -421,12 +421,12 @@ begin
     updated_at
   )
   values
-    ('demo-comment-001', 'demo-post-001', demo_user_id, 'Levio Demo Member', 'images/711128.png', 'Logging right after the video is helping me too. I forget if I wait until evening.', '2026-06-14 09:00:00+00', '2026-06-14 09:00:00+00'),
+    ('demo-comment-001', 'demo-post-001', demo_user_id, 'ParkiWell Demo Member', 'images/711128.png', 'Logging right after the video is helping me too. I forget if I wait until evening.', '2026-06-14 09:00:00+00', '2026-06-14 09:00:00+00'),
     ('demo-comment-002', 'demo-post-001', carlos_user_id, 'Carlos M.', 'images/711128.png', 'I like using the chair workouts on low energy days.', '2026-06-14 09:20:00+00', '2026-06-14 09:20:00+00'),
     ('demo-comment-003', 'demo-post-002', priya_user_id, 'Priya S.', 'images/711128.png', 'The schedule list plus a label on my water bottle has been useful.', '2026-06-14 11:42:00+00', '2026-06-14 11:42:00+00'),
     ('demo-comment-004', 'demo-post-002', maya_user_id, 'Maya P.', 'images/711128.png', 'I put the reminder after lunch instead of before. Fewer false alarms that way.', '2026-06-14 12:15:00+00', '2026-06-14 12:15:00+00'),
     ('demo-comment-005', 'demo-post-003', daniel_user_id, 'Daniel R.', 'images/711128.png', 'Repeating the same lesson made it easier for me to notice progress.', '2026-06-14 14:05:00+00', '2026-06-14 14:05:00+00'),
-    ('demo-comment-006', 'demo-post-004', demo_user_id, 'Levio Demo Member', 'images/711128.png', 'That is exactly the kind of context I want to remember before appointments.', '2026-06-14 16:55:00+00', '2026-06-14 16:55:00+00'),
+    ('demo-comment-006', 'demo-post-004', demo_user_id, 'ParkiWell Demo Member', 'images/711128.png', 'That is exactly the kind of context I want to remember before appointments.', '2026-06-14 16:55:00+00', '2026-06-14 16:55:00+00'),
     ('demo-comment-007', 'demo-post-005', maya_user_id, 'Maya P.', 'images/711128.png', 'Small and repeatable has been the best approach for me too.', '2026-06-14 18:40:00+00', '2026-06-14 18:40:00+00'),
     ('demo-comment-008', 'demo-post-006', daniel_user_id, 'Daniel R.', 'images/711128.png', 'That overview has become part of my morning check-in.', '2026-06-15 09:10:00+00', '2026-06-15 09:10:00+00')
   on conflict (id) do update

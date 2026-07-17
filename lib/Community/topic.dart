@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:levio/theme/app_theme.dart';
+import 'package:parkiwell/theme/app_theme.dart';
 
 /// Legacy placeholder -- not actively used in the current navigation flow.
 class TopicScreen extends StatefulWidget {

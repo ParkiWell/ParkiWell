@@ -19,7 +19,7 @@ SLIDES = [
     {
         "shot": "01-onboarding.png",
         "out": "01-welcome.png",
-        "headline": "Meet Levio",
+        "headline": "Meet ParkiWell",
         "sub": "Your everyday Parkinson’s care companion.",
         "dark": False,
     },

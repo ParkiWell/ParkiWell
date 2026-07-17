@@ -1,6 +1,6 @@
 # Backend Setup (Supabase + Local-First Sync)
 
-Levio stores pending health-record mutations on-device and replays them to
+ParkiWell stores pending health-record mutations on-device and replays them to
 Supabase after connectivity returns. User profiles, logs, schedules, medication
 events, recovery sessions, community posts/comments/likes, and group membership
 persist in Supabase for authenticated cross-device access.
@@ -16,7 +16,7 @@ persist in Supabase for authenticated cross-device access.
 4. In Auth settings:
    - enable **Anonymous sign-in**
    - enable **Google provider**
-   - set redirect URL to `com.levio.app://login-callback/`
+   - set redirect URL to `com.parkiwell.app://login-callback/`
 5. Run locally with Dart defines:
 
 ```bash
@@ -24,7 +24,7 @@ flutter run \
   --dart-define=BACKEND_PROVIDER=supabase \
   --dart-define=SUPABASE_URL=https://YOUR_PROJECT.supabase.co \
   --dart-define=SUPABASE_ANON_KEY=YOUR_ANON_KEY \
-  --dart-define=SUPABASE_AUTH_REDIRECT_URL=com.levio.app://login-callback/
+  --dart-define=SUPABASE_AUTH_REDIRECT_URL=com.parkiwell.app://login-callback/
 ```
 
 Optional local helper:
@@ -37,7 +37,7 @@ or standalone database.
 
 ## 2. Identity Fields Stored
 
-On account creation/Google sign-in Levio stores:
+On account creation/Google sign-in ParkiWell stores:
 
 - `uuid` (Supabase Auth user id) -> `users.id`
 - `name` -> `users.name`
@@ -72,4 +72,4 @@ If external contributors run CI or deploy from GitHub, configure environment var
 - `BACKEND_PROVIDER=supabase`
 - `SUPABASE_URL`
 - `SUPABASE_ANON_KEY`
-- `SUPABASE_AUTH_REDIRECT_URL=com.levio.app://login-callback/`
+- `SUPABASE_AUTH_REDIRECT_URL=com.parkiwell.app://login-callback/`

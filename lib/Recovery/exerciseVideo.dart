@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:levio/singleton.dart';
+import 'package:parkiwell/singleton.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -227,7 +227,7 @@ class _ExerciseVideoState extends State<ExerciseVideo> {
               ),
               const SizedBox(height: 8),
               Text(
-                'Use the preview as a private self-check. Levio does not score or diagnose your movement.',
+                'Use the preview as a private self-check. ParkiWell does not score or diagnose your movement.',
                 style: Theme.of(c).textTheme.bodyMedium?.copyWith(
                       color: colors.textSecondary,
                       height: 1.45,

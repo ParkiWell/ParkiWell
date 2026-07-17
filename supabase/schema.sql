@@ -1,4 +1,4 @@
--- Levio Supabase schema (production-hardened)
+-- ParkiWell Supabase schema (production-hardened)
 --
 -- This schema assumes Supabase Auth is enabled.
 -- The mobile app establishes an authenticated session (anonymous or user auth)

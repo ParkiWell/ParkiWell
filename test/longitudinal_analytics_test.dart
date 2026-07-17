@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:levio/services/longitudinal_analytics.dart';
+import 'package:parkiwell/services/longitudinal_analytics.dart';
 
 void main() {
   const analytics = LongitudinalAnalytics();
@@ -117,7 +117,7 @@ void main() {
     expect(p95Micros, lessThan(100000));
     // ignore: avoid_print
     print(
-      'LEVIO_ANALYTICS_METRIC events=$eventCount '
+      'PARKIWELL_ANALYTICS_METRIC events=$eventCount '
       'p50_ms=${(_percentile(samples, 0.50) / 1000).toStringAsFixed(2)} '
       'p95_ms=${(p95Micros / 1000).toStringAsFixed(2)}',
     );

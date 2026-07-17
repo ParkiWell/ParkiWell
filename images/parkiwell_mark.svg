@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title description">
-  <title id="title">Levio app icon</title>
-  <desc id="description">The Levio four-loop monoline mark on a warm ivory field.</desc>
-  <rect width="512" height="512" fill="#F7F8F5" />
+  <title id="title">ParkiWell mark</title>
+  <desc id="description">A four-loop monoline rosette representing steady movement, care, and progress.</desc>
   <g
     fill="none"
     stroke="#173B48"

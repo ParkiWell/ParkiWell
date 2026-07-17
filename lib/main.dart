@@ -3,15 +3,15 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:levio/navbar.dart';
-import 'package:levio/routes.dart';
-import 'package:levio/singleton.dart';
-import 'package:levio/theme/app_theme.dart';
-import 'package:levio/screens/onboarding_flow.dart';
-import 'package:levio/screens/splash_screen.dart';
-import 'package:levio/services/app_logger.dart';
-import 'package:levio/config/environment.dart';
-import 'package:levio/widgets/password_update_dialog.dart';
+import 'package:parkiwell/navbar.dart';
+import 'package:parkiwell/routes.dart';
+import 'package:parkiwell/singleton.dart';
+import 'package:parkiwell/theme/app_theme.dart';
+import 'package:parkiwell/screens/onboarding_flow.dart';
+import 'package:parkiwell/screens/splash_screen.dart';
+import 'package:parkiwell/services/app_logger.dart';
+import 'package:parkiwell/config/environment.dart';
+import 'package:parkiwell/widgets/password_update_dialog.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:terminate_restart/terminate_restart.dart';
 
@@ -210,7 +210,7 @@ class _MyAppState extends State<MyApp> {
 
     return MaterialApp(
       navigatorKey: _navigatorKey,
-      title: 'Levio',
+      title: 'ParkiWell',
       routes: namedRoutes,
       onGenerateRoute: onGenerateAppRoute,
       home: AnimatedSwitcher(

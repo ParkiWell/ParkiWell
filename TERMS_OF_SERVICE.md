@@ -1,4 +1,4 @@
-# Terms of Service for Levio
+# Terms of Service for ParkiWell
 
 **Effective Date: July 16, 2026**
 **Last Updated: July 16, 2026**
@@ -11,15 +11,15 @@ and replace the bracketed placeholders with real values. -->
 ## 1. Agreement to These Terms
 
 These Terms of Service ("Terms") are a binding agreement between you and
-[COMPANY / OWNER LEGAL NAME] ("Levio," "we," "us") governing your use of
-the Levio mobile and web applications and related services (together, the
+[COMPANY / OWNER LEGAL NAME] ("ParkiWell," "we," "us") governing your use of
+the ParkiWell mobile and web applications and related services (together, the
 "Service"). By creating an account, completing setup, or otherwise using
 the Service, you agree to these Terms and to the [Privacy Policy](PRIVACY_POLICY.md).
 If you do not agree, do not use the Service.
 
 ## 2. Important Medical Disclaimer
 
-**LEVIO IS AN ORGANIZATIONAL AND EDUCATIONAL TOOL. IT IS NOT A MEDICAL
+**PARKIWELL IS AN ORGANIZATIONAL AND EDUCATIONAL TOOL. IT IS NOT A MEDICAL
 DEVICE AND DOES NOT PROVIDE MEDICAL ADVICE, DIAGNOSIS, MONITORING, OR
 TREATMENT.**
 
@@ -106,7 +106,7 @@ We may remove content and restrict, suspend, or terminate accounts that
 violate these rules, with or without notice, and we may preserve or
 disclose content where the law requires. We are not obligated to monitor
 community content, and views expressed there belong to their authors, not
-to Levio.
+to ParkiWell.
 
 ## 8. Your Content and License to Us
 
@@ -188,7 +188,7 @@ EXCLUSIONS, SO SOME OF THE ABOVE MAY NOT APPLY TO YOU.
 
 ## 15. Limitation of Liability
 
-TO THE MAXIMUM EXTENT PERMITTED BY LAW, IN NO EVENT WILL LEVIO, ITS
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, IN NO EVENT WILL PARKIWELL, ITS
 DEVELOPERS, OR CONTRIBUTORS BE LIABLE FOR ANY INDIRECT, INCIDENTAL,
 SPECIAL, CONSEQUENTIAL, OR EXEMPLARY DAMAGES — INCLUDING LOSS OF DATA,
 LOSS OF USE, OR PERSONAL INJURY ARISING FROM RELIANCE ON THE SERVICE OR
@@ -201,7 +201,7 @@ BY LAW, INCLUDING LIABILITY FOR GROSS NEGLIGENCE OR WILLFUL MISCONDUCT.
 
 ## 16. Indemnification
 
-You agree to indemnify and hold harmless Levio and its developers from
+You agree to indemnify and hold harmless ParkiWell and its developers from
 claims, damages, and expenses (including reasonable attorneys' fees)
 arising from Your Content, your violation of these Terms, or your
 violation of any rights of another person, except to the extent caused by

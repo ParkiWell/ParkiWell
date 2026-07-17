@@ -77,12 +77,12 @@ class LegalDocumentScreen extends StatelessWidget {
         _LegalSection(
           title: 'Agreement to These Terms',
           body:
-              'These Terms of Service are a binding agreement between you and Levio governing your use of the app. By creating an account, completing setup, or using the app, you agree to these Terms and to the Privacy Policy. If you do not agree, please do not use the app.',
+              'These Terms of Service are a binding agreement between you and ParkiWell governing your use of the app. By creating an account, completing setup, or using the app, you agree to these Terms and to the Privacy Policy. If you do not agree, please do not use the app.',
         ),
         _LegalSection(
           title: 'Medical Disclaimer',
           body:
-              'Levio is an organizational and educational tool. It is not a medical device and does not provide medical advice, diagnosis, monitoring, or treatment. Trends, insights, charts, and guided videos are for general information only and are not a substitute for the judgment of a qualified healthcare professional. Never disregard, delay, or change medical care because of anything recorded in or shown by the app. Decisions about medications, therapy, and exercise belong with you and your care team.',
+              'ParkiWell is an organizational and educational tool. It is not a medical device and does not provide medical advice, diagnosis, monitoring, or treatment. Trends, insights, charts, and guided videos are for general information only and are not a substitute for the judgment of a qualified healthcare professional. Never disregard, delay, or change medical care because of anything recorded in or shown by the app. Decisions about medications, therapy, and exercise belong with you and your care team.',
         ),
         _LegalSection(
           title: 'Emergencies',
@@ -97,7 +97,7 @@ class LegalDocumentScreen extends StatelessWidget {
         _LegalSection(
           title: 'Eligibility',
           body:
-              'You must be at least 13 years old (or the higher minimum age in your jurisdiction) to use the app. If you use Levio on behalf of someone in your care, you are responsible for having their permission to record information about them.',
+              'You must be at least 13 years old (or the higher minimum age in your jurisdiction) to use the app. If you use ParkiWell on behalf of someone in your care, you are responsible for having their permission to record information about them.',
         ),
         _LegalSection(
           title: 'Your Account',
@@ -112,12 +112,12 @@ class LegalDocumentScreen extends StatelessWidget {
         _LegalSection(
           title: 'Community Rules',
           body:
-              'The community exists so people affected by Parkinson\'s can support each other. Be safe and kind: no harassment, hate speech, or threats. No medical misinformation — do not present unproven treatments as cures or discourage others from following professional advice. No advertising or solicitation. Do not post anyone else\'s personal or health information without permission. We may remove content and restrict or suspend accounts that break these rules. Views posted in the community belong to their authors, not to Levio.',
+              'The community exists so people affected by Parkinson\'s can support each other. Be safe and kind: no harassment, hate speech, or threats. No medical misinformation — do not present unproven treatments as cures or discourage others from following professional advice. No advertising or solicitation. Do not post anyone else\'s personal or health information without permission. We may remove content and restrict or suspend accounts that break these rules. Views posted in the community belong to their authors, not to ParkiWell.',
         ),
         _LegalSection(
           title: 'Your Content',
           body:
-              'You own everything you create in the app — logs, schedules, recovery history, recordings, posts, and comments. You grant Levio permission to store and process this content solely to operate, secure, and improve the app for you; community posts are additionally shown to other users. This permission ends for an item when you delete it, except for copies in encrypted backups until they rotate out. Practice recordings you capture never leave your device.',
+              'You own everything you create in the app — logs, schedules, recovery history, recordings, posts, and comments. You grant ParkiWell permission to store and process this content solely to operate, secure, and improve the app for you; community posts are additionally shown to other users. This permission ends for an item when you delete it, except for copies in encrypted backups until they rotate out. Practice recordings you capture never leave your device.',
         ),
         _LegalSection(
           title: 'Third-Party Content',
@@ -127,7 +127,7 @@ class LegalDocumentScreen extends StatelessWidget {
         _LegalSection(
           title: 'Service Availability and Changes',
           body:
-              'Features may change, be added, or be removed, and the service may occasionally be unavailable due to maintenance, updates, or third-party outages. Because Levio is local-first, your recorded data stays available on your device during cloud outages and sync resumes when connectivity returns. If the service is ever discontinued, we will give reasonable notice so you can access your data and delete your account.',
+              'Features may change, be added, or be removed, and the service may occasionally be unavailable due to maintenance, updates, or third-party outages. Because ParkiWell is local-first, your recorded data stays available on your device during cloud outages and sync resumes when connectivity returns. If the service is ever discontinued, we will give reasonable notice so you can access your data and delete your account.',
         ),
         _LegalSection(
           title: 'Termination',
@@ -137,7 +137,7 @@ class LegalDocumentScreen extends StatelessWidget {
         _LegalSection(
           title: 'Disclaimers and Limitation of Liability',
           body:
-              'The app is provided "as is" and "as available," without warranties of any kind to the maximum extent permitted by law. We do not warrant that it will be uninterrupted, error-free, or that data will never be lost — please keep independent records of critical medical information. To the maximum extent permitted by law, Levio is not liable for indirect, incidental, or consequential damages, including damages arising from reliance on the app or from exercise activities. Some jurisdictions do not allow certain exclusions, so parts of this section may not apply to you.',
+              'The app is provided "as is" and "as available," without warranties of any kind to the maximum extent permitted by law. We do not warrant that it will be uninterrupted, error-free, or that data will never be lost — please keep independent records of critical medical information. To the maximum extent permitted by law, ParkiWell is not liable for indirect, incidental, or consequential damages, including damages arising from reliance on the app or from exercise activities. Some jurisdictions do not allow certain exclusions, so parts of this section may not apply to you.',
         ),
         _LegalSection(
           title: 'Changes to These Terms',
@@ -160,7 +160,7 @@ class LegalDocumentScreen extends StatelessWidget {
       _LegalSection(
         title: 'Summary',
         body:
-            'Levio works local-first: your records live in private storage on your device and remain usable offline. Cloud sync is optional and happens only when you sign in. We do not sell personal data, show ads, track you across apps, or run remote analytics or crash reporting. Practice recordings never leave your device, and you can delete your account and synced data in-app at any time.',
+            'ParkiWell works local-first: your records live in private storage on your device and remain usable offline. Cloud sync is optional and happens only when you sign in. We do not sell personal data, show ads, track you across apps, or run remote analytics or crash reporting. Practice recordings never leave your device, and you can delete your account and synced data in-app at any time.',
       ),
       _LegalSection(
         title: 'Information You Provide',
@@ -215,12 +215,12 @@ class LegalDocumentScreen extends StatelessWidget {
       _LegalSection(
         title: 'Children',
         body:
-            'Levio is not directed to children and is not intended for anyone under 13 (or the higher minimum age in your jurisdiction). We do not knowingly collect personal data from children and will delete it if notified.',
+            'ParkiWell is not directed to children and is not intended for anyone under 13 (or the higher minimum age in your jurisdiction). We do not knowingly collect personal data from children and will delete it if notified.',
       ),
       _LegalSection(
         title: 'Health Information Notice',
         body:
-            'Records you keep in Levio are personal notes you create for yourself; they are not medical records held by a healthcare provider, and Levio is not covered by HIPAA. The app provides organizational and educational features only and does not provide medical advice, diagnosis, or treatment.',
+            'Records you keep in ParkiWell are personal notes you create for yourself; they are not medical records held by a healthcare provider, and ParkiWell is not covered by HIPAA. The app provides organizational and educational features only and does not provide medical advice, diagnosis, or treatment.',
       ),
       _LegalSection(
         title: 'Device Permissions',

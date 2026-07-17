@@ -17,7 +17,7 @@
     </queries>
     
     <application
-        android:label="Levio"
+        android:label="ParkiWell"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="false">
@@ -46,7 +46,7 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data
-                    android:scheme="com.levio.app"
+                    android:scheme="com.parkiwell.app"
                     android:host="login-callback" />
             </intent-filter>
         </activity>

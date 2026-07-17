@@ -187,7 +187,7 @@ class _EditLogScreenState extends State<EditLogScreen>
 
   Future<void> _pickTime() async {
     HapticUtils.selectionClick();
-    final time = await showLevioTimePicker(
+    final time = await showParkiWellTimePicker(
       context: context,
       selectedDate: _selectedDateTime,
       initialTime: TimeOfDay.fromDateTime(_selectedDateTime),
@@ -374,7 +374,7 @@ class _EditLogScreenState extends State<EditLogScreen>
                   Row(
                     children: [
                       Expanded(
-                        child: LevioDateTimeField(
+                        child: ParkiWellDateTimeField(
                           label: 'Date',
                           value: _formatDisplayDate(_selectedDateTime),
                           icon: Icons.calendar_today_outlined,
@@ -383,7 +383,7 @@ class _EditLogScreenState extends State<EditLogScreen>
                       ),
                       const SizedBox(width: 10),
                       Expanded(
-                        child: LevioDateTimeField(
+                        child: ParkiWellDateTimeField(
                           label: 'Time',
                           value: _selectedPreset == _WhenPreset.now
                               ? 'Current time'

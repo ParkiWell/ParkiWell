@@ -1,5 +1,5 @@
-name: levio
-description: Levio - Your personal companion for managing Parkinson's disease. Track symptoms, manage medications, and access guided speech therapy and physical exercises.
+name: parkiwell
+description: ParkiWell - Your personal companion for managing Parkinson's disease. Track symptoms, manage medications, and access guided speech therapy and physical exercises.
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -199,8 +199,8 @@ flutter:
     - images/711128.png
     - images/logo.png
     - images/app_icon.png
-    - images/levio_mark.svg
-    - images/levio_app_icon.svg
+    - images/parkiwell_mark.svg
+    - images/parkiwell_app_icon.svg
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in

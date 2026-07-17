@@ -3,12 +3,12 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
-import 'package:levio/services/app_logger.dart';
-import 'package:levio/services/cloud_backend_service.dart';
-import 'package:levio/services/content_filter.dart';
-import 'package:levio/services/health_sync_coordinator.dart';
-import 'package:levio/services/longitudinal_analytics.dart';
-import 'package:levio/services/offline_sync_engine.dart';
+import 'package:parkiwell/services/app_logger.dart';
+import 'package:parkiwell/services/cloud_backend_service.dart';
+import 'package:parkiwell/services/content_filter.dart';
+import 'package:parkiwell/services/health_sync_coordinator.dart';
+import 'package:parkiwell/services/longitudinal_analytics.dart';
+import 'package:parkiwell/services/offline_sync_engine.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import 'theme/app_theme.dart';
@@ -34,9 +34,9 @@ class Singleton extends ChangeNotifier {
   late final OfflineSyncEngine _offlineSyncEngine;
   StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
 
-  static const String _localCacheKey = 'levio_local_cache_v1';
-  static const String _syncStatusKey = 'levio_last_sync_status_v1';
-  static const String _syncTimestampKey = 'levio_last_sync_time_v1';
+  static const String _localCacheKey = 'parkiwell_local_cache_v1';
+  static const String _syncStatusKey = 'parkiwell_last_sync_status_v1';
+  static const String _syncTimestampKey = 'parkiwell_last_sync_time_v1';
 
   factory Singleton() => _instance;
 
@@ -1480,7 +1480,7 @@ class Singleton extends ChangeNotifier {
 
   String _normalizedDisplayName(String value) {
     final trimmed = value.trim();
-    return trimmed.isEmpty ? 'Levio Member' : trimmed;
+    return trimmed.isEmpty ? 'ParkiWell Member' : trimmed;
   }
 
   String _effectiveProfileImage(String? candidate) {

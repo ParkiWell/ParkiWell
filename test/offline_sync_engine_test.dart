@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:levio/services/offline_sync_engine.dart';
+import 'package:parkiwell/services/offline_sync_engine.dart';
 
 void main() {
   group('OfflineSyncEngine', () {
@@ -143,7 +143,7 @@ void main() {
 
         // ignore: avoid_print
         print(
-          'LEVIO_FAULT_METRIC writes=$mutationCount entities=$entityCount '
+          'PARKIWELL_FAULT_METRIC writes=$mutationCount entities=$entityCount '
           'lost=0 duplicates=0 '
           'deduplicated_replays=${backend.duplicateReplayCount} '
           'injected_failures=${backend.injectedFailures}',
@@ -196,7 +196,7 @@ void main() {
       expect(p95Micros, lessThan(100000));
       // ignore: avoid_print
       print(
-        'LEVIO_RECOVERY_METRIC records=$recordCount '
+        'PARKIWELL_RECOVERY_METRIC records=$recordCount '
         'p50_ms=${(_percentile(samples, 0.50) / 1000).toStringAsFixed(2)} '
         'p95_ms=${(p95Micros / 1000).toStringAsFixed(2)}',
       );
