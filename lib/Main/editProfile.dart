@@ -349,6 +349,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           displayName: resolvedName,
           userEmail: resolvedEmail,
           profileImage: _imagePath,
+          preferExistingName: true,
         );
         if (!synced) {
           throw Exception('Unable to complete account sync.');
@@ -404,6 +405,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           displayName: resolvedName,
           userEmail: resolvedEmail,
           profileImage: _imagePath,
+          preferExistingName: true,
         );
         if (!synced) {
           throw Exception('Unable to complete account sync.');
@@ -464,6 +466,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           displayName: displayName,
           userEmail: profile.email ?? email,
           profileImage: _imagePath,
+          preferExistingName: true,
         );
         if (!synced) {
           throw Exception('Unable to complete account sync.');
@@ -1015,18 +1018,23 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                       color: colors.textOnPrimary,
                                     ),
                                   )
-                                : const Icon(
+                                : Icon(
                                     Icons.mail_outline_rounded,
                                     size: 18,
+                                    color: colors.textOnPrimary,
                                   ),
                             label: AnimatedSwitcher(
                               duration: const Duration(milliseconds: 180),
                               switchInCurve: Curves.easeOutCubic,
                               switchOutCurve: Curves.easeOutCubic,
                               layoutBuilder: (currentChild, previousChildren) {
+                                // widthFactor keeps the label hugging its text
+                                // so the icon sits beside it instead of being
+                                // pushed to the button's edge.
                                 return ClipRect(
                                   child: Align(
                                     alignment: Alignment.center,
+                                    widthFactor: 1,
                                     child:
                                         currentChild ?? const SizedBox.shrink(),
                                   ),
@@ -1270,21 +1278,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(
-              width: 28,
-              height: 28,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: colors.surfaceVariant,
-                shape: BoxShape.circle,
-              ),
-              child: Text(
-                'G',
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      color: const Color(0xFF4285F4),
-                      fontWeight: FontWeight.w800,
-                    ),
-              ),
+            const CustomPaint(
+              size: Size.square(22),
+              painter: _GoogleGPainter(),
             ),
             const SizedBox(width: 12),
             Text(
@@ -1872,4 +1868,74 @@ class _GoalSetupButton extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Official multicolor Google "G", drawn from the brand's 18x18 vector paths
+/// so the sign-in button follows Google's branding guidelines.
+class _GoogleGPainter extends CustomPainter {
+  const _GoogleGPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final s = size.shortestSide / 18;
+    canvas.drawPath(
+      Path()
+        ..moveTo(17.64 * s, 9.20 * s)
+        ..cubicTo(17.64 * s, 8.56 * s, 17.58 * s, 7.95 * s, 17.48 * s, 7.36 * s)
+        ..lineTo(9.00 * s, 7.36 * s)
+        ..lineTo(9.00 * s, 10.84 * s)
+        ..lineTo(13.84 * s, 10.84 * s)
+        ..cubicTo(
+            13.63 * s, 11.97 * s, 13.00 * s, 12.92 * s, 12.04 * s, 13.56 * s)
+        ..lineTo(12.04 * s, 15.82 * s)
+        ..lineTo(14.96 * s, 15.82 * s)
+        ..cubicTo(
+            16.67 * s, 14.25 * s, 17.64 * s, 11.94 * s, 17.64 * s, 9.20 * s)
+        ..close(),
+      Paint()..color = const Color(0xFF4285F4),
+    );
+    canvas.drawPath(
+      Path()
+        ..moveTo(9.00 * s, 18.00 * s)
+        ..cubicTo(
+            11.43 * s, 18.00 * s, 13.47 * s, 17.20 * s, 14.96 * s, 15.82 * s)
+        ..lineTo(12.04 * s, 13.56 * s)
+        ..cubicTo(
+            11.24 * s, 14.10 * s, 10.20 * s, 14.42 * s, 9.00 * s, 14.42 * s)
+        ..cubicTo(6.66 * s, 14.42 * s, 4.68 * s, 12.84 * s, 3.97 * s, 10.72 * s)
+        ..lineTo(0.96 * s, 10.72 * s)
+        ..lineTo(0.96 * s, 13.05 * s)
+        ..cubicTo(2.44 * s, 15.98 * s, 5.48 * s, 18.00 * s, 9.00 * s, 18.00 * s)
+        ..close(),
+      Paint()..color = const Color(0xFF34A853),
+    );
+    canvas.drawPath(
+      Path()
+        ..moveTo(3.97 * s, 10.72 * s)
+        ..cubicTo(3.79 * s, 10.18 * s, 3.69 * s, 9.60 * s, 3.69 * s, 9.00 * s)
+        ..cubicTo(3.69 * s, 8.40 * s, 3.79 * s, 7.82 * s, 3.97 * s, 7.28 * s)
+        ..lineTo(3.97 * s, 4.95 * s)
+        ..lineTo(0.96 * s, 4.95 * s)
+        ..cubicTo(0.35 * s, 6.17 * s, 0.00 * s, 7.55 * s, 0.00 * s, 9.00 * s)
+        ..cubicTo(0.00 * s, 10.45 * s, 0.35 * s, 11.83 * s, 0.96 * s, 13.05 * s)
+        ..lineTo(3.97 * s, 10.72 * s)
+        ..close(),
+      Paint()..color = const Color(0xFFFBBC05),
+    );
+    canvas.drawPath(
+      Path()
+        ..moveTo(9.00 * s, 3.58 * s)
+        ..cubicTo(10.32 * s, 3.58 * s, 11.50 * s, 4.03 * s, 12.44 * s, 4.93 * s)
+        ..lineTo(15.02 * s, 2.35 * s)
+        ..cubicTo(13.46 * s, 0.90 * s, 11.42 * s, 0.00 * s, 9.00 * s, 0.00 * s)
+        ..cubicTo(5.48 * s, 0.00 * s, 2.44 * s, 2.02 * s, 0.96 * s, 4.95 * s)
+        ..lineTo(3.97 * s, 7.28 * s)
+        ..cubicTo(4.68 * s, 5.16 * s, 6.66 * s, 3.58 * s, 9.00 * s, 3.58 * s)
+        ..close(),
+      Paint()..color = const Color(0xFFEA4335),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _GoogleGPainter oldDelegate) => false;
 }

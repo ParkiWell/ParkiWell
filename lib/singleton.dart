@@ -1725,6 +1725,7 @@ class Singleton extends ChangeNotifier {
     required String displayName,
     String? userEmail,
     String? profileImage,
+    bool preferExistingName = false,
   }) async {
     try {
       if (!_cloud.isEnabled) return false;
@@ -1732,7 +1733,18 @@ class Singleton extends ChangeNotifier {
       final uid = await _resolveUserId();
       if (uid == null) return false;
 
-      final normalizedName = _normalizedDisplayName(displayName);
+      var normalizedName = _normalizedDisplayName(displayName);
+      if (preferExistingName) {
+        // Sign-in flows only derive a fallback name (email prefix or provider
+        // metadata); never let that overwrite the name the user chose.
+        final existing = await _cloud.getUser(uid);
+        final existingName = existing?['name']?.toString().trim();
+        if (existingName != null &&
+            existingName.isNotEmpty &&
+            existingName != '[Name]') {
+          normalizedName = existingName;
+        }
+      }
       final normalizedEmail = (userEmail != null && userEmail.trim().isNotEmpty)
           ? userEmail.trim()
           : null;
