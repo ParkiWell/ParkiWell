@@ -9,7 +9,7 @@
 Track symptoms, keep medication routines, and practice guided speech and
 movement, all in one supportive place that works even when you're offline.
 
-[**parkiwell.com**](https://parkiwell.com) · Coming soon to the App Store and Google Play
+[**parkiwell.com**](https://parkiwell.com)
 
 </div>
 
@@ -76,9 +76,10 @@ consult your care team about your health.
 
 ## For developers
 
-ParkiWell is a Flutter app backed by Supabase (auth + PostgreSQL with
-row-level security) with an offline-first sync engine. If you'd like to run
-it locally or contribute, start with the
-[contribution guide](CONTRIBUTING.md), which covers environment setup, the
-backend, quality checks, and CI. Therapy video sources and attributions are
-listed in [docs/CONTENT_SOURCES.md](docs/CONTENT_SOURCES.md).
+ParkiWell runs in local-only mode from a public checkout. Set up Flutter,
+install the dependencies, and run the app on Android or iOS. Supabase is
+optional for testing sign-in, sync, and community. [Local setup](docs/SETUP.md)
+
+The contribution guide explains how to run checks and submit changes.
+The source is available under the ParkiWell Source-Available License.
+[Contributing](CONTRIBUTING.md) · [License](LICENSE) · [Therapy video sources](docs/CONTENT_SOURCES.md)
