@@ -40,7 +40,11 @@ String? reasonCodeLabel(String code) => switch (code) {
 String? cueLabel(String code) => switch (code) {
   'amplitude' => 'make the movement a little larger',
   'tempo' => 'keep a steady, comfortable pace',
+  'slower_pace' => 'try a slower pace',
   'smoothness' => 'keep the movement smooth and controlled',
+  'symmetry' => 'make both sides a similar size',
+  'alternation' => 'switch sides',
+  'return_to_start' => 'return to the starting position',
   'positive' => 'nice movement',
   _ => null,
 };

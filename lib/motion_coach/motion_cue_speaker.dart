@@ -23,6 +23,7 @@ class PlatformMotionCueSpeaker implements MotionCueSpeaker {
   Future<void>? _initialization;
   bool _disposed = false;
   bool _speechAvailable = false;
+  int _utteranceVersion = 0;
 
   @override
   Future<void> initialize() => _initialization ??= _configure();
@@ -49,11 +50,14 @@ class PlatformMotionCueSpeaker implements MotionCueSpeaker {
   @override
   Future<void> speak(String text) async {
     if (_disposed || text.trim().isEmpty) return;
+    final int version = ++_utteranceVersion;
     try {
       await initialize();
-      if (_disposed || !_speechAvailable) return;
+      if (_disposed || !_speechAvailable || version != _utteranceVersion) {
+        return;
+      }
       await _engine.stop();
-      await _engine.speak(text);
+      if (!_disposed && version == _utteranceVersion) await _engine.speak(text);
     } catch (_) {
       // Text and haptic cues remain available if TTS is unavailable.
     }
@@ -62,6 +66,7 @@ class PlatformMotionCueSpeaker implements MotionCueSpeaker {
   @override
   Future<void> stop() async {
     if (_disposed) return;
+    ++_utteranceVersion;
     try {
       await _engine.stop();
     } catch (_) {

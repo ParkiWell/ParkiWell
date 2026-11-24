@@ -27,7 +27,11 @@ enum LiveExercisePhase { idle, moving, returning }
 enum ExerciseCueKind {
   amplitude('amplitude'),
   tempo('tempo'),
+  slowerPace('slower_pace'),
   smoothness('smoothness'),
+  symmetry('symmetry'),
+  alternation('alternation'),
+  returnToStart('return_to_start'),
   positive('positive');
 
   const ExerciseCueKind(this.code);
@@ -289,12 +293,19 @@ final class LiveExerciseCoach {
   double _rightMinimum = double.infinity;
   double _rightMaximum = double.negativeInfinity;
   int _reversalCount = 0;
+  int? _holdStartedMs;
+  int? _lastHoldSampleMs;
+  bool _returnCueIssued = false;
+  LiveExerciseCue? _inProgressCue;
 
   LiveExercisePhase get phase => _phase;
   List<LiveExerciseRepetition> get completedRepetitions =>
       List<LiveExerciseRepetition>.unmodifiable(_completed);
   int get totalFrames => _totalFrames;
   double get coverage => _totalFrames == 0 ? 0.0 : _validFrames / _totalFrames;
+
+  /// A cue issued by the latest frame before a repetition completed.
+  LiveExerciseCue? get inProgressCue => _inProgressCue;
 
   /// Discard an unfinished repetition across an intentional capture break.
   /// Completed repetitions and the measured tracking coverage are retained.
@@ -314,6 +325,7 @@ final class LiveExerciseCoach {
     _lastCueTimestampMs.clear();
     _lastCorrectionRep = null;
     _correctionNeedsPositive = false;
+    _inProgressCue = null;
     _clearRepetition();
     _primaryFilter.reset();
     _leftFilter.reset();
@@ -399,6 +411,8 @@ final class LiveExerciseCoach {
           _abandonRepetition();
         } else if (_repetitionOverdue(timestampMs)) {
           _abandonRepetition();
+        } else {
+          _guideHeldMovement(mean, velocity, timestampMs);
         }
       case LiveExercisePhase.returning:
         _updateRepetition(mean, left, right, velocity, timestampMs);
@@ -421,6 +435,37 @@ final class LiveExerciseCoach {
     return timestampMs - start > limitMs;
   }
 
+  void _guideHeldMovement(double value, double velocity, int timestampMs) {
+    if (_returnCueIssued) return;
+    final bool holding =
+        value - _baseline! >= config.minimumRomRatio * config.referenceRomDeg &&
+            velocity.abs() < 3;
+    if (!holding) {
+      _holdStartedMs = null;
+      _lastHoldSampleMs = null;
+      return;
+    }
+    final int? previous = _lastHoldSampleMs;
+    if (previous == null || timestampMs - previous > 500) {
+      _holdStartedMs = timestampMs;
+    }
+    _lastHoldSampleMs = timestampMs;
+    final double thresholdMs = math.max(2300, 800 * config.referenceTempoS);
+    const ExerciseCueKind kind = ExerciseCueKind.returnToStart;
+    if (timestampMs - _holdStartedMs! < thresholdMs ||
+        !_cooldownAllows(kind, timestampMs)) {
+      return;
+    }
+    _returnCueIssued = true;
+    _lastGlobalCueTimestampMs = timestampMs;
+    _lastCueTimestampMs[kind] = timestampMs;
+    _inProgressCue = const LiveExerciseCue(
+      kind: kind,
+      text: 'When you’re ready, return to the starting position.',
+      isCorrective: true,
+    );
+  }
+
   void _abandonRepetition() {
     _phase = LiveExercisePhase.idle;
     if (_baseline != null && _repMinimum.isFinite) {
@@ -435,6 +480,7 @@ final class LiveExerciseCoach {
       throw ArgumentError('live frame timestamps must be strictly increasing');
     }
     _lastTimestampMs = timestampMs;
+    _inProgressCue = null;
   }
 
   double _velocity(double mean, int timestampMs) {
@@ -531,7 +577,10 @@ final class LiveExerciseCoach {
       leftRom = _finiteRom(_leftMinimum, _leftMaximum);
       rightRom = _finiteRom(_rightMinimum, _rightMaximum);
       if (spec.laterality == ExerciseLaterality.alternating) {
-        if (leftRom != null && rightRom != null) {
+        side = 'unknown';
+        if (leftRom != null &&
+            rightRom != null &&
+            (leftRom - rightRom).abs() >= 0.18 * math.max(leftRom, rightRom)) {
           side = leftRom >= rightRom ? 'left' : 'right';
         }
       } else if (leftRom != null && rightRom != null) {
@@ -590,10 +639,26 @@ final class LiveExerciseCoach {
         text: cues.amplitude,
         isCorrective: true,
       );
+    } else if (_repeatedSameSide(repetition)) {
+      candidate = const LiveExerciseCue(
+        kind: ExerciseCueKind.alternation,
+        text: 'Try the other side for the next movement.',
+        isCorrective: true,
+      );
+    } else if ((score.symmetryScore ?? 100) < correctionThreshold) {
+      candidate = const LiveExerciseCue(
+        kind: ExerciseCueKind.symmetry,
+        text:
+            'Try to make both sides a similar size, within a comfortable range.',
+        isCorrective: true,
+      );
     } else if (score.tempoScore < correctionThreshold) {
+      final bool fast = repetition.tempoS < config.referenceTempoS;
       candidate = LiveExerciseCue(
-        kind: ExerciseCueKind.tempo,
-        text: cues.tempo,
+        kind: fast ? ExerciseCueKind.slowerPace : ExerciseCueKind.tempo,
+        text: fast
+            ? 'Try a slower, steadier pace on the next movement.'
+            : cues.tempo,
         isCorrective: true,
       );
     } else if (score.smoothnessScore < correctionThreshold) {
@@ -632,6 +697,11 @@ final class LiveExerciseCoach {
     return candidate;
   }
 
+  bool _repeatedSameSide(LiveExerciseRepetition repetition) =>
+      (repetition.side == 'left' || repetition.side == 'right') &&
+      _completed.length >= 2 &&
+      _completed[_completed.length - 2].side == repetition.side;
+
   bool _cooldownAllows(ExerciseCueKind kind, int timestampMs) {
     final int? lastGlobal = _lastGlobalCueTimestampMs;
     if (lastGlobal != null &&
@@ -652,6 +722,7 @@ final class LiveExerciseCoach {
     _primaryFilter.reset();
     _leftFilter.reset();
     _rightFilter.reset();
+    _inProgressCue = null;
   }
 
   void _clearRepetition() {
@@ -665,6 +736,9 @@ final class LiveExerciseCoach {
     _rightMaximum = double.negativeInfinity;
     _reversalCount = 0;
     _previousVelocity = null;
+    _holdStartedMs = null;
+    _lastHoldSampleMs = null;
+    _returnCueIssued = false;
   }
 
   static double? _finiteRom(double minimum, double maximum) {

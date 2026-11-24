@@ -84,6 +84,7 @@ class _MotionRoutineScreenState extends State<MotionRoutineScreen>
   int _handledCueSerial = 0;
   int _announcedStepIndex = -1;
   MotionRoutinePhase _lastSeenPhase = MotionRoutinePhase.framing;
+  MotionFramingStatus? _announcedFraming;
   bool _finishing = false;
   int _generation = 0;
   String _errorTitle = 'The guided routine is unavailable';
@@ -149,29 +150,9 @@ class _MotionRoutineScreenState extends State<MotionRoutineScreen>
       _handledRepSerial = _controller.repSerial;
       if (_preferences.hapticsEnabled) HapticUtils.selectionClick();
     }
-    final LiveExerciseCue? cue = _controller.cue;
-    if (_controller.cueSerial > _handledCueSerial && cue != null) {
-      _handledCueSerial = _controller.cueSerial;
-      if (_preferences.speechEnabled) unawaited(_cueSpeaker.speak(cue.text));
-    }
-    // Rest is a pause in coaching: silence any in-flight cue rather than
-    // letting it finish over the countdown.
-    if (_controller.phase == MotionRoutinePhase.rest &&
-        _lastSeenPhase != MotionRoutinePhase.rest) {
-      unawaited(_cueSpeaker.stop());
-    }
-    // Announce each newly started step by its reviewed catalog copy, so a
-    // person who is not watching the screen knows what to do next.
-    if (_controller.isStarted &&
-        _controller.phase == MotionRoutinePhase.active &&
-        _controller.stepIndex != _announcedStepIndex) {
-      _announcedStepIndex = _controller.stepIndex;
-      if (_preferences.speechEnabled) {
-        final MotionExerciseDefinition exercise = _controller.currentExercise;
-        unawaited(
-          _cueSpeaker.speak('${exercise.title}. ${exercise.instructions}'),
-        );
-      }
+    final String? announcement = _nextAnnouncement();
+    if (announcement != null && _preferences.speechEnabled) {
+      unawaited(_cueSpeaker.speak(announcement));
     }
     _lastSeenPhase = _controller.phase;
     if (_demonstrationExerciseId != _demonstrationTargetId) {
@@ -181,6 +162,39 @@ class _MotionRoutineScreenState extends State<MotionRoutineScreen>
       unawaited(_finish());
     }
     setState(() {});
+  }
+
+  String? _nextAnnouncement() {
+    if (_controller.isPaused) return null;
+    final phase = _controller.phase;
+    final bool newCue = _controller.cueSerial > _handledCueSerial;
+    _handledCueSerial = _controller.cueSerial;
+    if (phase == MotionRoutinePhase.rest && _lastSeenPhase != phase) {
+      _announcedFraming = null;
+      final next = _controller.upcomingExercise;
+      return next == null ? 'Rest.' : 'Rest. Next is ${next.title}.';
+    }
+    if (phase == MotionRoutinePhase.active &&
+        _controller.stepIndex != _announcedStepIndex) {
+      _announcedStepIndex = _controller.stepIndex;
+      _announcedFraming = null;
+      final exercise = _controller.currentExercise;
+      return '${exercise.title}. ${exercise.instructions}';
+    }
+    if (phase == MotionRoutinePhase.active ||
+        _controller.waitingForNextFraming) {
+      final framing = _controller.framingStatus;
+      if (_controller.isFramingReady) {
+        _announcedFraming = null;
+      } else if (framing != MotionFramingStatus.ready &&
+          framing != _announcedFraming) {
+        _announcedFraming = framing;
+        return _framingGuidance(framing);
+      }
+    }
+    return phase == MotionRoutinePhase.active && newCue
+        ? _controller.cue?.text
+        : null;
   }
 
   /// During rest, the guide previews the next exercise so the person can
@@ -829,8 +843,8 @@ class _MotionRoutineScreenState extends State<MotionRoutineScreen>
           'More than one person is in view. Movements cannot be counted '
               'until only you are in frame.',
         MotionFramingStatus.showMoreBody =>
-          'Part of you is out of frame. Move so your head, hands, and hips '
-              'are all visible.',
+          'Part of you is out of frame. Keep your upper body and moving '
+              'hands in view.',
         MotionFramingStatus.showLowerBody =>
           'Your legs are out of frame. Step back or tilt the phone down so '
               'your knees and feet stay visible.',
@@ -849,7 +863,7 @@ class _MotionRoutineScreenState extends State<MotionRoutineScreen>
         'More than one person is in view. The routine needs a single person '
             'in frame.',
       MotionFramingStatus.showMoreBody =>
-        'Move so your head, both hands, and both hips are inside the frame.',
+        'Keep your upper body and moving hands inside the frame.',
       MotionFramingStatus.showLowerBody =>
         'This exercise measures your legs. Step back or tilt the phone down '
             'so your knees and feet are inside the frame.',
@@ -889,6 +903,7 @@ class _MotionRoutineScreenState extends State<MotionRoutineScreen>
     final colors = context.colors;
     if (_controller.phase == MotionRoutinePhase.rest) {
       final MotionExerciseDefinition? upcoming = _controller.upcomingExercise;
+      final bool waitingForFraming = _controller.waitingForNextFraming;
       return ModernCard(
         margin: EdgeInsets.zero,
         padding: const EdgeInsets.all(20),
@@ -896,19 +911,30 @@ class _MotionRoutineScreenState extends State<MotionRoutineScreen>
         child: Column(
           children: <Widget>[
             Text(
-              'Rest',
+              waitingForFraming ? 'Get ready for the next exercise' : 'Rest',
               style: Theme.of(
                 context,
               ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 6),
-            Text(
-              '${_controller.restRemainingSeconds.ceil()} seconds',
-              style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                fontWeight: FontWeight.w800,
-                color: colors.primary,
+            if (!waitingForFraming)
+              Text(
+                '${_controller.restRemainingSeconds.ceil()} seconds',
+                style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: colors.primary,
+                ),
               ),
-            ),
+            if (waitingForFraming &&
+                _framingGuidance(_controller.framingStatus).isNotEmpty)
+              Semantics(
+                liveRegion: true,
+                child: Text(
+                  _framingGuidance(_controller.framingStatus),
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ),
             if (upcoming != null) ...[
               const SizedBox(height: 12),
               Text(

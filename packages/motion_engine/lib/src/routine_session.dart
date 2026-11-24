@@ -148,6 +148,18 @@ final class RoutineRepetitionScored extends RoutineSessionEvent {
   final LiveExerciseCue? cue;
 }
 
+final class RoutineCueIssued extends RoutineSessionEvent {
+  const RoutineCueIssued({
+    required this.stepIndex,
+    required this.timestampMs,
+    required this.cue,
+  });
+
+  final int stepIndex;
+  final int timestampMs;
+  final LiveExerciseCue cue;
+}
+
 final class RoutineRestStarted extends RoutineSessionEvent {
   const RoutineRestStarted({
     required this.completedStepIndex,
@@ -256,8 +268,16 @@ final class RoutineSession {
 
     final LiveExerciseCoach coach = _coaches[_stepIndex];
     final LiveExerciseDecision? decision = coach.addFrame(frame);
+    if (coach.inProgressCue case final LiveExerciseCue cue) {
+      _recordCue(cue);
+      events.add(RoutineCueIssued(
+        stepIndex: _stepIndex,
+        timestampMs: frame.timestampMs,
+        cue: cue,
+      ));
+    }
     if (decision != null) {
-      _recordCue(decision);
+      _recordCue(decision.cue);
       events.add(
         RoutineRepetitionScored(
           stepIndex: _stepIndex,
@@ -324,8 +344,7 @@ final class RoutineSession {
     );
   }
 
-  void _recordCue(LiveExerciseDecision decision) {
-    final LiveExerciseCue? cue = decision.cue;
+  void _recordCue(LiveExerciseCue? cue) {
     if (cue == null) {
       return;
     }

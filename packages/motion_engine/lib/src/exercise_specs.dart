@@ -7,8 +7,13 @@
 /// fixtures.
 library;
 
+import 'dart:math' as math;
+
 import 'features.dart';
 import 'models.dart';
+
+part 'expanded_exercise_specs.dart';
+part 'directional_exercise_features.dart';
 
 const String midHipPoint = 'mid_hip';
 const String midShoulderPoint = 'mid_shoulder';
@@ -150,6 +155,33 @@ Map<String, double> computeFrameFeatures(
         } else {
           computed[entry.key] = first >= second ? first : second;
         }
+      case _PlanarAngleFeature():
+        computed[entry.key] = _planarAngle(points, definition);
+      case _AnkleLiftFeature():
+        computed[entry.key] = definition.evaluate(points);
+      case _TorsoTurnFeature():
+        final Vector3? hips = _horizontalAxis(points, 'hip');
+        final Vector3? shoulders = _horizontalAxis(points, 'shoulder');
+        computed[entry.key] =
+            jointAngle(hips, const Vector3(0, 0, 0), shoulders);
+      case _BackwardThighFeature(:final side):
+        final Vector3? hip = _resolvePoint('${side}_hip', points, null);
+        final Vector3? knee = _resolvePoint('${side}_knee', points, null);
+        final Vector3? axis = _horizontalAxis(points, 'hip');
+        if (hip == null || knee == null || axis == null) {
+          computed[entry.key] = double.nan;
+        } else {
+          final double width = math.sqrt(axis.x * axis.x + axis.z * axis.z);
+          final Vector3 thigh = knee - hip;
+          // The configured view faces the camera. Orient the hip-normal
+          // away from the lens so forward movements cannot count as reaches.
+          final double depth = (thigh.z * axis.x - thigh.x * axis.z) *
+              (axis.x < 0 ? -1 : 1) /
+              width;
+          computed[entry.key] = width < 1e-5 || thigh.y <= 0
+              ? double.nan
+              : math.max(0, math.atan2(depth, thigh.y) * 180 / math.pi);
+        }
     }
   }
   return computed;
@@ -188,16 +220,21 @@ Vector3? _resolvePoint(
   }
 }
 
-Map<String, FeatureDefinition> _armFeatures() => <String, FeatureDefinition>{
-      'arm_elevation_l': const AngleFeatureDefinition(
+Map<String, FeatureDefinition> _armFeatures(_MovementPlane plane) =>
+    <String, FeatureDefinition>{
+      'arm_elevation_l': _PlanarAngleFeature(
         'left_hip',
         'left_shoulder',
         'left_wrist',
+        axisLandmark: 'shoulder',
+        plane: plane,
       ),
-      'arm_elevation_r': const AngleFeatureDefinition(
+      'arm_elevation_r': _PlanarAngleFeature(
         'right_hip',
         'right_shoulder',
         'right_wrist',
+        axisLandmark: 'shoulder',
+        plane: plane,
       ),
       'arm_elevation_mean': const PairFeatureDefinition(
         PairCombine.mean,
@@ -229,7 +266,7 @@ final Map<String, ExerciseSpec> exerciseRegistry = <String, ExerciseSpec>{
         'Sitting tall, raise both arms out to the sides, then lower them '
         'slowly.',
     posture: ExercisePosture.seated,
-    features: _armFeatures(),
+    features: _armFeatures(_MovementPlane.frontal),
     primarySignal: 'arm_elevation_mean',
     laterality: ExerciseLaterality.bilateralSync,
     sideFeatures: const <String>['arm_elevation_l', 'arm_elevation_r'],
@@ -252,7 +289,7 @@ final Map<String, ExerciseSpec> exerciseRegistry = <String, ExerciseSpec>{
         'Sitting tall, reach both arms forward and up, then bring them back '
         'down.',
     posture: ExercisePosture.seated,
-    features: _armFeatures(),
+    features: _armFeatures(_MovementPlane.sagittal),
     primarySignal: 'arm_elevation_mean',
     laterality: ExerciseLaterality.bilateralSync,
     sideFeatures: const <String>['arm_elevation_l', 'arm_elevation_r'],
@@ -322,16 +359,20 @@ final Map<String, ExerciseSpec> exerciseRegistry = <String, ExerciseSpec>{
         'sides.',
     posture: ExercisePosture.seated,
     features: <String, FeatureDefinition>{
-      'hip_flexion_l': const AngleFeatureDefinition(
+      'hip_flexion_l': const _PlanarAngleFeature(
         'left_shoulder',
         'left_hip',
         'left_knee',
+        axisLandmark: 'hip',
+        plane: _MovementPlane.sagittal,
         invert: true,
       ),
-      'hip_flexion_r': const AngleFeatureDefinition(
+      'hip_flexion_r': const _PlanarAngleFeature(
         'right_shoulder',
         'right_hip',
         'right_knee',
+        axisLandmark: 'hip',
+        plane: _MovementPlane.sagittal,
         invert: true,
       ),
       'hip_flexion_peak': const PairFeatureDefinition(
@@ -412,10 +453,12 @@ final Map<String, ExerciseSpec> exerciseRegistry = <String, ExerciseSpec>{
         'the other.',
     posture: ExercisePosture.seated,
     features: <String, FeatureDefinition>{
-      'trunk_lean': const AngleFeatureDefinition(
+      'trunk_lean': const _PlanarAngleFeature(
         worldVerticalUpPoint,
         midHipPoint,
         midShoulderPoint,
+        axisLandmark: 'hip',
+        plane: _MovementPlane.frontal,
       ),
     },
     primarySignal: 'trunk_lean',
@@ -438,16 +481,20 @@ final Map<String, ExerciseSpec> exerciseRegistry = <String, ExerciseSpec>{
         'then lift the other.',
     posture: ExercisePosture.standing,
     features: <String, FeatureDefinition>{
-      'hip_flexion_l': const AngleFeatureDefinition(
+      'hip_flexion_l': const _PlanarAngleFeature(
         'left_shoulder',
         'left_hip',
         'left_knee',
+        axisLandmark: 'hip',
+        plane: _MovementPlane.sagittal,
         invert: true,
       ),
-      'hip_flexion_r': const AngleFeatureDefinition(
+      'hip_flexion_r': const _PlanarAngleFeature(
         'right_shoulder',
         'right_hip',
         'right_knee',
+        axisLandmark: 'hip',
+        plane: _MovementPlane.sagittal,
         invert: true,
       ),
       'hip_flexion_peak': const PairFeatureDefinition(
@@ -530,16 +577,20 @@ final Map<String, ExerciseSpec> exerciseRegistry = <String, ExerciseSpec>{
         'straight, lower it, then switch legs.',
     posture: ExercisePosture.standing,
     features: <String, FeatureDefinition>{
-      'hip_abduction_l': const AngleFeatureDefinition(
+      'hip_abduction_l': const _PlanarAngleFeature(
         worldVerticalUpPoint,
         'left_hip',
         'left_ankle',
+        axisLandmark: 'hip',
+        plane: _MovementPlane.frontal,
         invert: true,
       ),
-      'hip_abduction_r': const AngleFeatureDefinition(
+      'hip_abduction_r': const _PlanarAngleFeature(
         worldVerticalUpPoint,
         'right_hip',
         'right_ankle',
+        axisLandmark: 'hip',
+        plane: _MovementPlane.frontal,
         invert: true,
       ),
       'hip_abduction_peak': const PairFeatureDefinition(
@@ -612,6 +663,7 @@ final Map<String, ExerciseSpec> exerciseRegistry = <String, ExerciseSpec>{
       amplitude: 'If comfortable, rise a little higher on the next one.',
     ),
   ),
+  ..._expandedExercises,
 };
 
 ExerciseSpec exerciseSpecById(String exerciseId) {

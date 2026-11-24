@@ -7,7 +7,7 @@ import 'package:motion_engine/motion_engine.dart';
 import '../services/feature_flags.dart';
 import 'motion_pose_bridge.dart';
 
-const String motionCoachEngineVersion = '0.3.0';
+const String motionCoachEngineVersion = '0.4.0';
 const bool motionCoachEnabled = bool.fromEnvironment(
   'PARKIWELL_MOTION_COACH',
   defaultValue: true,

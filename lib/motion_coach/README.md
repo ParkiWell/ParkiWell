@@ -10,20 +10,21 @@ this directory adapts the camera, assets, and app around it.
 Two product modes, per the engine repo's design docs:
 
 1. Realtime coaching: while the person moves, count repetitions, score each
-   one (range, tempo, smoothness, symmetry), and deliver short allowlisted
-   cues by text, speech, and haptics.
+   one for range, tempo, smoothness, and symmetry where supported, and deliver
+   adjustments by text and speech. Optional haptics mark a counted movement.
 2. Evidence-based feedback: after a session, show what was measured, per
-   movement, against the exercise reference, without invented judgment.
+   movement, against the exercise reference, with a recap of live adjustments.
 
 ## Architecture invariants
 
 - The engine decides; the app delivers. Every score, threshold, cue string,
   and summary sentence comes from `motion_engine` or from a template it
   validated. UI code never invents a measurement or rewords a cue.
-- Templates and routines are generated assets. `assets/motion/` is written
-  by `scripts/sync-motion-assets.py` from the engine repo and read by
-  `MotionReferenceLibrary`; live thresholds are derived from the template so
-  the app cannot drift from the engine's references.
+- Templates and routines are generated assets. The original ten exercises
+  use `scripts/sync-motion-assets.py`. Seven additional exercises and two
+  routines use `scripts/build-expanded-motion-assets.dart`. Live thresholds
+  come from the associated template. The added references are analytical
+  demonstrations with draft review status.
 - One session path. A single-exercise practice is a one-step routine
   (`singleExerciseRoutine`), so routines and practice share the
   `RoutineSession` engine path, one evaluation schema, and one history
@@ -64,6 +65,7 @@ Two product modes, per the engine repo's design docs:
 
 The native pose bridges switch to CPU inference when the GPU delegate fails
 to initialize or process a frame. The replacement still uses the bundled model.
+The iOS simulator starts with CPU inference to avoid a Metal process abort.
 
 Home and Recovery link to the coach on Android and iOS. Guided sessions with
 at least one assessed exercise count toward the weekly physical goal. New

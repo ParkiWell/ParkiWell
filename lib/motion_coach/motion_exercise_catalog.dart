@@ -277,6 +277,95 @@ const MotionExerciseDefinition standingHeelRaiseExercise =
       clinicalStatus: MotionExerciseClinicalStatus.development,
     );
 
+const seatedKneeExtensionExercise = MotionExerciseDefinition(
+  exerciseId: "seated_knee_extension",
+  title: "Seated knee extensions",
+  instructions: "Straighten one leg comfortably, lower it, then switch legs.",
+  setupHint:
+      "Sit near the front of a stable chair. Angle the phone so both knees and feet stay visible.",
+  minimumRecordingRepetitions: 4,
+  maximumRecordingRepetitions: 6,
+  posture: MotionExercisePosture.seated,
+  clinicalStatus: MotionExerciseClinicalStatus.development,
+);
+
+const seatedHeelRaiseExercise = MotionExerciseDefinition(
+  exerciseId: "seated_heel_raise",
+  title: "Seated heel raises",
+  instructions: "Keep your toes down. Lift both heels, then lower them.",
+  setupHint:
+      'Sit with both feet flat. Keep the phone level and place it slightly '
+      'to one side so both heels stay in view.',
+  minimumRecordingRepetitions: 3,
+  maximumRecordingRepetitions: 6,
+  posture: MotionExercisePosture.seated,
+  clinicalStatus: MotionExerciseClinicalStatus.development,
+);
+
+const seatedToeLiftExercise = MotionExerciseDefinition(
+  exerciseId: "seated_toe_lift",
+  title: "Seated toe lifts",
+  instructions: "Keep your heels down. Lift both toes, then lower them.",
+  setupHint:
+      "Sit with both feet flat and place the phone where it can see your toes and knees.",
+  minimumRecordingRepetitions: 3,
+  maximumRecordingRepetitions: 6,
+  posture: MotionExercisePosture.seated,
+  clinicalStatus: MotionExerciseClinicalStatus.development,
+);
+
+const seatedUpperBodyTurnExercise = MotionExerciseDefinition(
+  exerciseId: "seated_upper_body_turn",
+  title: "Seated upper-body turns",
+  instructions:
+      "Turn your shoulders gently, come back to center, then try the other side.",
+  setupHint:
+      "Sit facing the phone with both hips and shoulders in view. Keep your feet supported.",
+  minimumRecordingRepetitions: 4,
+  maximumRecordingRepetitions: 6,
+  posture: MotionExercisePosture.seated,
+  clinicalStatus: MotionExerciseClinicalStatus.development,
+);
+
+const seatedChestPressExercise = MotionExerciseDefinition(
+  exerciseId: "seated_chest_press",
+  title: "Seated chest presses",
+  instructions:
+      "Start with bent elbows. Reach both hands forward, then bring them back.",
+  setupHint:
+      "Angle the phone slightly so it can see both elbows and hands as you reach.",
+  minimumRecordingRepetitions: 3,
+  maximumRecordingRepetitions: 5,
+  posture: MotionExercisePosture.seated,
+  clinicalStatus: MotionExerciseClinicalStatus.development,
+);
+
+const standingBackLegReachExercise = MotionExerciseDefinition(
+  exerciseId: "standing_back_leg_reach",
+  title: "Supported backward leg reaches",
+  instructions:
+      "Hold a stable support. Reach one leg slightly behind you, return, then switch.",
+  setupHint:
+      "Face the phone at a slight angle. Leave space behind you and keep your legs in view.",
+  minimumRecordingRepetitions: 4,
+  maximumRecordingRepetitions: 6,
+  posture: MotionExercisePosture.standing,
+  clinicalStatus: MotionExerciseClinicalStatus.development,
+);
+
+const supportedShallowKneeBendExercise = MotionExerciseDefinition(
+  exerciseId: "supported_shallow_knee_bend",
+  title: "Supported shallow knee bends",
+  instructions:
+      "Hold a stable support. Bend both knees a little, then straighten.",
+  setupHint:
+      "Keep both legs and feet in view. Place support where it will not block the camera.",
+  minimumRecordingRepetitions: 3,
+  maximumRecordingRepetitions: 5,
+  posture: MotionExercisePosture.standing,
+  clinicalStatus: MotionExerciseClinicalStatus.development,
+);
+
 /// Every exercise the motion engine can measure, in a reasonable warm-up to
 /// weight-bearing order.
 const List<MotionExerciseDefinition> motionExerciseCatalog =
@@ -286,11 +375,18 @@ const List<MotionExerciseDefinition> motionExerciseCatalog =
       seatedElbowFlexionExercise,
       seatedTrunkLeanExercise,
       seatedAlternatingMarchExercise,
+      seatedKneeExtensionExercise,
+      seatedHeelRaiseExercise,
+      seatedToeLiftExercise,
+      seatedUpperBodyTurnExercise,
+      seatedChestPressExercise,
       sitToStandExercise,
       standingHipFlexionExercise,
       standingKneeFlexionExercise,
       standingSideLegRaiseExercise,
       standingHeelRaiseExercise,
+      standingBackLegReachExercise,
+      supportedShallowKneeBendExercise,
     ];
 
 /// Exercises with a bundled demonstration clip cut from the public-domain

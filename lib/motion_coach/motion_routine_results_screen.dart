@@ -47,6 +47,7 @@ class MotionRoutineResultsScreen extends StatelessWidget {
     final List<double> previous = <double>[
       for (final MotionSessionRecord entry in history.entries)
         if (entry.routineId == record.routineId &&
+            entry.engineVersion == record.engineVersion &&
             entry.completedAt.isBefore(record.completedAt) &&
             !entry.endedEarly &&
             entry.overallScore != null)
@@ -76,6 +77,7 @@ class MotionRoutineResultsScreen extends StatelessWidget {
         ? 'Measured without a score. Motion checks report evidence only.'
         : 'Not enough was visible to score this session';
     final statusColor = assessed ? coachingAccent : colors.navSelected;
+    final corrections = _correctionCounts(record.steps);
 
     return Scaffold(
       appBar: AppBar(
@@ -173,6 +175,19 @@ class MotionRoutineResultsScreen extends StatelessWidget {
                   text: line,
                 ),
             ],
+            if (corrections.isNotEmpty) ...[
+              const SizedBox(height: 24),
+              const MotionSectionTitle(title: 'Adjustments during practice'),
+              const SizedBox(height: 9),
+              for (final entry in corrections)
+                _FeedbackLine(
+                  icon: Icons.record_voice_over_outlined,
+                  color: colors.navSelected,
+                  text:
+                      'Guidance to ${entry.key} · ${entry.value} '
+                      '${entry.value == 1 ? 'time' : 'times'}',
+                ),
+            ],
             if (record.steps.isNotEmpty) ...[
               const SizedBox(height: 24),
               const MotionSectionTitle(title: 'By exercise'),
@@ -180,6 +195,7 @@ class MotionRoutineResultsScreen extends StatelessWidget {
               for (final step in record.steps) _StepCard(step: step),
             ],
             if (saved &&
+                assessed &&
                 MotionCoachPreferences.shared.aiSummaryEnabled &&
                 MotionCoachPreferences.shared.syncResultsEnabled &&
                 CloudBackendService().hasFullAccount) ...[
@@ -225,6 +241,25 @@ class MotionRoutineResultsScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+List<MapEntry<String, int>> _correctionCounts(
+  Iterable<MotionSessionStep> steps,
+) {
+  final counts = <String, int>{};
+  for (final step in steps) {
+    for (final cue in step.cueCounts.entries) {
+      if (cue.key == 'positive' || cue.value <= 0) continue;
+      if (cueLabel(cue.key) case final String label) {
+        counts.update(
+          label,
+          (count) => count + cue.value,
+          ifAbsent: () => cue.value,
+        );
+      }
+    }
+  }
+  return counts.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
 }
 
 /// Optional cloud-generated narrative, layered strictly on top of the
@@ -452,20 +487,11 @@ class _StepCard extends StatelessWidget {
   /// Repeated guidance is evidence about the session, not a judgment made
   /// here: both the code and its count come from the engine.
   String? _cueInsight() {
-    String? topCode;
-    int topCount = 0;
-    for (final MapEntry<String, int> entry in step.cueCounts.entries) {
-      if (entry.key == 'positive') continue;
-      if (entry.value > topCount) {
-        topCode = entry.key;
-        topCount = entry.value;
-      }
-    }
-    if (topCode == null || topCount < 2) return null;
-    final String? label = cueLabel(topCode);
-    if (label == null) return null;
+    final topCue = _correctionCounts([step]).firstOrNull;
+    if (topCue == null || topCue.value < 2) return null;
+    final int topCount = topCue.value;
     final String times = topCount == 2 ? 'twice' : '$topCount times';
-    return 'Live guidance to $label came up $times.';
+    return 'Live guidance to ${topCue.key} came up $times.';
   }
 
   static String _titleFor(String exerciseId) {
@@ -492,9 +518,6 @@ class _StepEvidence extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final bool alternating = step.repetitions.any(
-      (MotionSessionRep rep) => rep.side != 'both',
-    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
@@ -523,7 +546,11 @@ class _StepEvidence extends StatelessWidget {
                 ),
                 child: Text(
                   '${rep.index}'
-                  '${alternating ? (rep.side == 'left' ? ' L' : ' R') : ''}'
+                  '${switch (rep.side) {
+                    'left' => ' L',
+                    'right' => ' R',
+                    _ => '',
+                  }}'
                   ' · ${rep.romPctOfReference.round()}%',
                   style: Theme.of(context).textTheme.labelMedium?.copyWith(
                     fontWeight: FontWeight.w700,

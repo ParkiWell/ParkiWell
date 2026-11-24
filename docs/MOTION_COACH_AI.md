@@ -10,8 +10,14 @@ All measurement and coaching runs on the phone with no network:
 
 - MediaPipe's bundled pose model tracks 33 body landmarks per camera frame.
 - The vendored `motion_engine` package counts, times, and scores every
-  repetition, speaks allowlisted cues live, and produces the post-session
-  evaluation document.
+  tracked repetition. It issues movement-specific prompts as you practise
+  and produces the post-session evaluation document.
+- Prompts cover movement size, pace, smoothness, matching range on both sides,
+  switching sides, and returning to the starting position during a detected
+  hold. The app also speaks setup changes and waits for a clear view before
+  beginning the next exercise.
+- The offline overview shows measured movements, per-exercise evidence,
+  and which adjustments were delivered during practice.
 - Every sentence shown or spoken comes from a reviewed allowlist keyed to
   machine-readable engine codes. Nothing user-facing is generated.
 
@@ -59,8 +65,8 @@ An on-device language model was evaluated and deliberately deferred:
   Nano on a small set of Android devices) cover too little of the install
   base to be the only path, so the secure cloud route would still need to
   exist.
-- The deterministic tier already delivers the clinically meaningful
-  feedback offline; the AI tier is tone, not information.
+- The offline tier already provides the movement measurements and coaching
+  prompts. The cloud tier provides an optional written recap.
 
 If platform on-device models become broadly available, the summary call
 site is a single function (`getMotionSessionSummary`) behind the same

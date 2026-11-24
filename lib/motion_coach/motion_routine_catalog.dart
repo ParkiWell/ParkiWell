@@ -50,5 +50,31 @@ const MotionRoutineDescription fullBodyRoutine = MotionRoutineDescription(
   requiresStanding: true,
 );
 
+const MotionRoutineDescription seatedMobilityRoutine = MotionRoutineDescription(
+  routineAssetId: 'seated_mobility_v1',
+  title: 'Seated mobility',
+  summary:
+      'Chest presses, upper-body turns, knee extensions, heel raises, and toe lifts from a chair.',
+  approximateMinutes: 5,
+  icon: Icons.chair_alt_rounded,
+  requiresStanding: false,
+);
+
+const MotionRoutineDescription supportedMovementRoutine =
+    MotionRoutineDescription(
+      routineAssetId: 'supported_movement_v1',
+      title: 'Supported standing',
+      summary:
+          'Backward leg reaches and shallow knee bends with a stable support.',
+      approximateMinutes: 3,
+      icon: Icons.accessibility_rounded,
+      requiresStanding: true,
+    );
+
 const List<MotionRoutineDescription> motionRoutineCatalog =
-    <MotionRoutineDescription>[seatedFoundationRoutine, fullBodyRoutine];
+    <MotionRoutineDescription>[
+      seatedFoundationRoutine,
+      fullBodyRoutine,
+      seatedMobilityRoutine,
+      supportedMovementRoutine,
+    ];

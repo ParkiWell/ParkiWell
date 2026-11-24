@@ -243,6 +243,43 @@ void main() {
         'seated_bilateral_forward_reach',
       );
       expect(controller.restRemainingSeconds, greaterThan(0));
+
+      for (int index = 0; index < 8; index += 1) {
+        controller.handleSample(
+          armRaiseSample(10, 30_000 + index * 60, wellFramed: false),
+        );
+      }
+      expect(controller.phase, MotionRoutinePhase.rest);
+      expect(controller.restRemainingSeconds, 0);
+      expect(controller.waitingForNextFraming, isTrue);
+
+      for (int index = 0; index < 5; index += 1) {
+        controller.handleSample(armRaiseSample(10, 31_000 + index * 60));
+      }
+      expect(controller.phase, MotionRoutinePhase.rest);
+      controller.handleSample(armRaiseSample(10, 31_300));
+      expect(controller.phase, MotionRoutinePhase.active);
+      expect(controller.stepIndex, 1);
+    });
+
+    test('ignores rep geometry when the user moves out of view', () async {
+      final MotionRoutineController controller = await _controller(
+        targetRepetitions: 2,
+      );
+      addTearDown(controller.dispose);
+      controller.start();
+
+      int timestamp = 200;
+      for (final double phase in repPhase) {
+        controller.handleSample(
+          armRaiseSample(10 + 60 * phase, timestamp, wellFramed: false),
+        );
+        timestamp += 300;
+      }
+      expect(controller.completedRepetitions, 0);
+      expect(controller.cue, isNull);
+      _driveRepetitions(controller, count: 1, startMs: timestamp);
+      expect(controller.completedRepetitions, 1);
     });
 
     test('resumes with a new camera clock and keeps measured reps', () async {
@@ -332,6 +369,75 @@ void main() {
     setUpAll(() async {
       screenLibrary = MotionReferenceLibrary();
       await screenLibrary.templateFor(seatedArmRaiseExercise.exerciseId);
+    });
+
+    testWidgets('speaks an adjustment during motion and recaps it in results', (
+      tester,
+    ) async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final driver = _FakeRoutineDriver();
+      final speaker = _SilentCueSpeaker();
+      final history = MotionSessionHistory();
+      final preferences = MotionCoachPreferences(
+        preferences: await SharedPreferences.getInstance(),
+      );
+      await preferences.load();
+      addTearDown(preferences.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightTheme(),
+          home: MotionRoutineScreen(
+            description: singleExerciseDescription(seatedArmRaiseExercise),
+            routine: singleExerciseRoutine(seatedArmRaiseExercise),
+            library: screenLibrary,
+            driverFactory: () => driver,
+            cueSpeaker: speaker,
+            history: history,
+            preferences: preferences,
+            onSessionLogged: (_) async {},
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      int timestamp = 0;
+      void emit(double angle) {
+        driver.emit(armRaiseSample(angle, timestamp));
+        timestamp += 80;
+      }
+
+      for (int index = 0; index < 8; index++) {
+        emit(10);
+      }
+      await tester.pump();
+      await tester.tap(find.text('Start routine'));
+      for (int index = 0; index <= 20; index++) {
+        emit(10 + 3.0 * index);
+      }
+      for (int index = 0; index < 75; index++) {
+        emit(70);
+      }
+      await tester.pump();
+      const adjustment = 'When you’re ready, return to the starting position.';
+      expect(find.text(adjustment), findsOneWidget);
+      expect(speaker.spoken, contains(adjustment));
+      expect(find.textContaining('0 of '), findsWidgets);
+      for (int index = 1; index <= 30; index++) {
+        emit(index <= 20 ? 70 - 3.0 * index : 10);
+      }
+      await tester.pump();
+      await tester.tap(find.byTooltip('Close session'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Save and end'));
+      await tester.pumpAndSettle();
+      expect(
+        history.entries.single.steps.single.cueCounts['return_to_start'],
+        1,
+      );
+      expect(find.text('Adjustments during practice'), findsOneWidget);
+      expect(
+        find.text('Guidance to return to the starting position · 1 time'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('reopens a paused session and saves an early finish', (
@@ -730,11 +836,13 @@ class _FakeRoutineDriver implements MotionCaptureDriver {
 }
 
 class _SilentCueSpeaker implements MotionCueSpeaker {
+  final List<String> spoken = [];
+
   @override
   Future<void> initialize() async {}
 
   @override
-  Future<void> speak(String text) async {}
+  Future<void> speak(String text) async => spoken.add(text);
 
   @override
   Future<void> stop() async {}

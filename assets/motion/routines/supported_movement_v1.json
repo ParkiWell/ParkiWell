@@ -1,0 +1,1 @@
+{"schema_version":"routine.v1","routine_id":"supported_movement","routine_version":1,"display_name":"Supported standing routine","steps":[{"exercise_id":"standing_back_leg_reach","maximum_duration_s":60,"rest_duration_s":6,"target_repetitions":4},{"exercise_id":"supported_shallow_knee_bend","maximum_duration_s":60,"rest_duration_s":0,"target_repetitions":3}]}

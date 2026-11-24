@@ -40,6 +40,11 @@ the exercises reached so far. Preserve these operations when updating the
 vendored package. Regular scoring and the evaluation format still use the
 existing engine paths.
 
+ParkiWell's 0.4.0 coaching also adds body-relative movement directions,
+seven exercise definitions, more specific prompts, and a `RoutineCueIssued`
+event for prompts delivered before a movement completes. App replay tests
+check the added features against landmark streams and session summaries.
+
 ```dart
 final result = analyzePoseStream(
   PoseStream.fromJson(poseStreamJson),

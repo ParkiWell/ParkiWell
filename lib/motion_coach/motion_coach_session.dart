@@ -5,7 +5,7 @@ import 'package:motion_engine/motion_engine.dart';
 
 import 'motion_pose_bridge.dart';
 
-const List<int> _framingLandmarks = <int>[0, 11, 12, 15, 16, 23, 24];
+const List<int> _framingLandmarks = <int>[0, 11, 12, 23, 24];
 
 /// First landmark index of the lower body (knees and below). Framing
 /// failures at or past it get their own guidance: "show more of your body"
@@ -154,7 +154,10 @@ class MotionCoachSession extends ChangeNotifier {
 
     if (_recording && sample.detection.timestampMs > _lastTimestampMs) {
       _lastTimestampMs = sample.detection.timestampMs;
-      final PoseFrame frame = poseFrameFromDetection(sample.detection);
+      final PoseFrame frame = poseFrameFromDetection(
+        sample.detection,
+        inFrame: raw == MotionFramingStatus.ready,
+      );
       _frames.add(frame);
       _decisionClock
         ..reset()
@@ -169,16 +172,16 @@ class MotionCoachSession extends ChangeNotifier {
         _liveRepCount = decision.repetition.index;
         _lastRepScore = decision.repetition.score;
         _liveRepSerial += 1;
-        if (decision.cue case final LiveExerciseCue cue) {
-          _liveCue = cue;
-          _liveCueTimestampMs = sample.detection.timestampMs;
-          _liveCueSerial += 1;
-        }
       }
-      // A cue is only meaningful between repetitions: drop it as soon as the
-      // next rep starts or tracking is lost, so nothing stale is spoken.
+      if (decision?.cue ?? _liveCoach.inProgressCue
+          case final LiveExerciseCue cue) {
+        _liveCue = cue;
+        _liveCueTimestampMs = sample.detection.timestampMs;
+        _liveCueSerial += 1;
+      }
       if (frame.landmarks == null ||
-          _liveCoach.phase != LiveExercisePhase.idle) {
+          (_liveCoach.phase != LiveExercisePhase.idle &&
+              _liveCue?.kind != ExerciseCueKind.returnToStart)) {
         _liveCue = null;
         _liveCueTimestampMs = null;
       }
@@ -271,9 +274,10 @@ class MotionCoachSession extends ChangeNotifier {
 PoseFrame poseFrameFromDetection(
   MotionPoseDetection detection, {
   int? timestampMs,
+  bool inFrame = true,
 }) {
   final int frameTime = timestampMs ?? detection.timestampMs;
-  if (detection.poseCount != 1 || !detection.hasCompletePose) {
+  if (!inFrame || detection.poseCount != 1 || !detection.hasCompletePose) {
     return PoseFrame(timestampMs: frameTime, landmarks: null);
   }
   final List<MotionPoseLandmark> normalized = detection.normalizedLandmarks!;
@@ -329,10 +333,9 @@ MotionFramingStatus assessFraming(
           : MotionFramingStatus.showMoreBody;
     }
   }
-  final double shoulderSpan = (landmarks[11].x - landmarks[12].x).abs();
   final double shoulderY = (landmarks[11].y + landmarks[12].y) / 2;
   final double hipY = (landmarks[23].y + landmarks[24].y) / 2;
-  if (shoulderSpan < 0.12 || (hipY - shoulderY).abs() < 0.12) {
+  if ((hipY - shoulderY).abs() < 0.12) {
     return MotionFramingStatus.moveCloser;
   }
   return MotionFramingStatus.ready;

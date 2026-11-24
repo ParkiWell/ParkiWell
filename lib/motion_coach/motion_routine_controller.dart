@@ -107,6 +107,8 @@ class MotionRoutineController extends ChangeNotifier {
   LiveExerciseCue? get cue => _cue;
   ExerciseRepScore? get lastRepScore => _lastRepScore;
   double get restRemainingSeconds => _restRemainingSeconds;
+  bool get waitingForNextFraming =>
+      _phase == MotionRoutinePhase.rest && _restRemainingSeconds == 0;
 
   /// The `session-evaluation.v1` document, available once [phase] is
   /// [MotionRoutinePhase.complete].
@@ -190,7 +192,7 @@ class MotionRoutineController extends ChangeNotifier {
     _lastSampleTimestampMs = sample.detection.timestampMs;
     skeleton.value = MotionSkeletonFrame.fromDetection(sample.detection);
     final Object before = _observableState();
-    _updateFraming(sample);
+    final MotionFramingStatus framing = _updateFraming(sample);
 
     final RoutineSession? session = _session;
     final int sessionTimestampMs =
@@ -200,13 +202,30 @@ class MotionRoutineController extends ChangeNotifier {
         _phase != MotionRoutinePhase.complete &&
         sessionTimestampMs > _lastTimestampMs) {
       _lastTimestampMs = sessionTimestampMs;
-      final PoseFrame frame = poseFrameFromDetection(
-        sample.detection,
-        timestampMs: sessionTimestampMs,
-      );
-      _applyEvents(session.addFrame(frame));
-      _restRemainingSeconds = session.restRemainingAt(sessionTimestampMs);
-      _expireCue(sessionTimestampMs);
+      if (_phase == MotionRoutinePhase.rest) {
+        _restRemainingSeconds = session.restRemainingAt(sessionTimestampMs);
+      }
+      // The next exercise may need a different camera view. Let the rest
+      // clock expire, then wait for stable framing before the engine starts it.
+      final bool waiting =
+          waitingForNextFraming &&
+          (!_framingReady || framing != MotionFramingStatus.ready);
+      if (!waiting) {
+        final bool usable = framing == MotionFramingStatus.ready;
+        final PoseFrame frame = poseFrameFromDetection(
+          sample.detection,
+          timestampMs: sessionTimestampMs,
+          inFrame: usable,
+        );
+        _applyEvents(session.addFrame(frame));
+        _restRemainingSeconds = session.restRemainingAt(sessionTimestampMs);
+        if (usable && frame.landmarks != null) {
+          _expireCue(sessionTimestampMs);
+        } else {
+          _cue = null;
+          _cueTimestampMs = null;
+        }
+      }
     }
     if (_observableState() != before) {
       notifyListeners();
@@ -280,7 +299,7 @@ class MotionRoutineController extends ChangeNotifier {
   List<int> _framingExtra = const <int>[];
   String? _framingExerciseId;
 
-  void _updateFraming(MotionPoseSample sample) {
+  MotionFramingStatus _updateFraming(MotionPoseSample sample) {
     // Frame against the exercise the person is setting up for: during rest
     // that is the next step, mirroring the demonstration preview. A green
     // "ready" that the engine would immediately invalidate (legs out of
@@ -316,6 +335,7 @@ class MotionRoutineController extends ChangeNotifier {
       _goodFramingFrames = 0;
       if (_badFramingFrames >= 3) _framingReady = false;
     }
+    return raw;
   }
 
   void _applyEvents(List<RoutineSessionEvent> events) {
@@ -335,14 +355,15 @@ class MotionRoutineController extends ChangeNotifier {
           _completedReps = repetition.index;
           _lastRepScore = repetition.score;
           _repSerial += 1;
-          if (cue != null) {
-            _cue = cue;
-            _cueTimestampMs = repetition.endTimestampMs;
-            _cueSerial += 1;
-          }
+          if (cue != null) _showCue(cue, repetition.endTimestampMs);
+        case RoutineCueIssued(:final cue, :final timestampMs):
+          _showCue(cue, timestampMs);
         case RoutineRestStarted(:final double restDurationS):
           _phase = MotionRoutinePhase.rest;
           _restRemainingSeconds = restDurationS;
+          _cue = null;
+          _cueTimestampMs = null;
+          _resetFraming();
         case RoutineStepCompleted():
           break;
         case RoutineSessionCompleted(:final Map<String, Object?> evaluation):
@@ -352,6 +373,12 @@ class MotionRoutineController extends ChangeNotifier {
           _cueTimestampMs = null;
       }
     }
+  }
+
+  void _showCue(LiveExerciseCue cue, int timestampMs) {
+    _cue = cue;
+    _cueTimestampMs = timestampMs;
+    _cueSerial += 1;
   }
 
   void _expireCue(int timestampMs) {

@@ -11,7 +11,12 @@ final class MotionPoseBridge: NSObject, FlutterPlugin {
   )
   private var poseLandmarker: PoseLandmarker?
   private var gpuModelPath: String?
+  #if targetEnvironment(simulator)
+  // The Metal delegate can abort the simulator process during inference.
+  private var useCPU = true
+  #else
   private var useCPU = false
+  #endif
   private var disposed = false
 
   static func register(with registrar: FlutterPluginRegistrar) {
