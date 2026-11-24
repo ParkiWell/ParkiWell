@@ -7,7 +7,7 @@ PODS:
   - MediaPipeTasksCommon (0.10.21)
   - MediaPipeTasksVision (0.10.21):
     - MediaPipeTasksCommon (= 0.10.21)
-  - terminate_restart (1.0.9):
+  - terminate_restart (1.1.0):
     - Flutter
 
 DEPENDENCIES:
@@ -38,8 +38,8 @@ SPEC CHECKSUMS:
   flutter_tts: 35ac3c7d42412733e795ea96ad2d7e05d0a75113
   MediaPipeTasksCommon: 6cfa29170d4900f04d250ad95ec058f14a741f38
   MediaPipeTasksVision: 7b1c0f5a5820e87e9d96926f5e65d8cd3744fac2
-  terminate_restart: 7afc8cc5b5afc86871cdb1206a584c43262702ac
+  terminate_restart: 0fc748d0a297afebc179251b11b8d47771918601
 
 PODFILE CHECKSUM: a741e3661ef1d4d832d393619c171cc952f16a2b
 
-COCOAPODS: 1.16.2
+COCOAPODS: 1.17.0
