@@ -34,7 +34,7 @@ dependencies:
   # Core utilities
   cupertino_icons: ^1.0.9
   path_provider: ^2.1.6
-  shared_preferences: ^2.5.5
+  shared_preferences: ^2.5.6
   uuid: ^4.6.0
   
   # Cloud Backend
@@ -55,7 +55,7 @@ dependencies:
   motion_engine:
     path: packages/motion_engine
   video_player: ^2.13.0
-  url_launcher: ^6.3.1
+  url_launcher: ^6.3.3
   share_plus: ^11.1.0
   
   # Utilities
