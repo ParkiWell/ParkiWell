@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
@@ -34,13 +35,34 @@ class MotionSessionHistory {
   final EncryptedCacheStore _store = EncryptedCacheStore();
   List<MotionSessionRecord> _entries = const <MotionSessionRecord>[];
   bool _loaded = false;
+  Future<void>? _pendingOperation;
 
   bool get isLoaded => _loaded;
 
   /// Newest first.
   List<MotionSessionRecord> get entries => _entries;
 
-  Future<List<MotionSessionRecord>> load() async {
+  Future<List<MotionSessionRecord>> load() => _serialize(_load);
+
+  Future<T> _serialize<T>(Future<T> Function() operation) {
+    final Future<void>? previous = _pendingOperation;
+    final Future<T> result = previous == null
+        ? operation()
+        : previous.then((_) => operation());
+    final Future<void> completion = result.then<void>(
+      (_) {},
+      onError: (Object _) {},
+    );
+    _pendingOperation = completion;
+    unawaited(
+      completion.then((_) {
+        if (identical(_pendingOperation, completion)) _pendingOperation = null;
+      }),
+    );
+    return result;
+  }
+
+  Future<List<MotionSessionRecord>> _load() async {
     final SharedPreferences preferences = await _resolve();
     final String? raw = preferences.getString(storageKey);
     if (raw == null) {
@@ -55,13 +77,16 @@ class MotionSessionHistory {
     );
     bool backfilledIds = false;
     final String? opened = await _store.open(raw);
+    if (opened == null && _store.keystoreUnavailable) {
+      throw const KeystoreUnavailableException();
+    }
     if (opened == null) {
       _entries = const <MotionSessionRecord>[];
     } else {
       final (List<MotionSessionRecord> entries, bool backfilled) = _decode(
         opened,
       );
-      _entries = entries;
+      _entries = _newestFirst(entries);
       backfilledIds = backfilled;
     }
     _loaded = true;
@@ -71,7 +96,7 @@ class MotionSessionHistory {
     // persisting immediately keeps the id stable across launches, which
     // cloud sync depends on for dedupe.
     if (rewritePlaintext || backfilledIds) {
-      await _write();
+      await _write(_entries);
     }
     return _entries;
   }
@@ -97,59 +122,51 @@ class MotionSessionHistory {
   }
 
   /// Remove one session; returns whether it existed.
-  Future<bool> removeById(String id) async {
-    if (!_loaded) await load();
+  Future<bool> removeById(String id) => _serialize(() async {
+    if (!_loaded) await _load();
     final List<MotionSessionRecord> next = <MotionSessionRecord>[
       for (final MotionSessionRecord entry in _entries)
         if (entry.id != id) entry,
     ];
     if (next.length == _entries.length) return false;
-    _entries = List<MotionSessionRecord>.unmodifiable(next);
-    await _write();
+    await _replace(next);
     return true;
-  }
+  });
 
   /// Merge records restored from the account backend into local history.
   ///
   /// Union by id with local-wins on collision: the local copy is the one
   /// the person watched being created, and cloud rows can only ever be
   /// older uploads of the same session. Returns how many were added.
-  Future<int> mergeFromCloud(List<MotionSessionRecord> cloud) async {
-    if (!_loaded) await load();
+  Future<int> mergeFromCloud(
+    List<MotionSessionRecord> cloud, {
+    Set<String> deletedIds = const <String>{},
+    DateTime? deletedThrough,
+  }) => _serialize(() async {
+    if (!_loaded) await _load();
+    bool retained(MotionSessionRecord entry) =>
+        !deletedIds.contains(entry.id) &&
+        (deletedThrough == null || entry.completedAt.isAfter(deletedThrough));
+    final List<MotionSessionRecord> local = _entries.where(retained).toList();
     final Set<String> known = <String>{
-      for (final MotionSessionRecord entry in _entries) entry.id,
+      for (final MotionSessionRecord entry in local) entry.id,
     };
     final List<MotionSessionRecord> added = <MotionSessionRecord>[
       for (final MotionSessionRecord entry in cloud)
-        if (known.add(entry.id)) entry,
+        if (retained(entry) && known.add(entry.id)) entry,
     ];
-    if (added.isEmpty) return 0;
-    final List<MotionSessionRecord> merged =
-        <MotionSessionRecord>[..._entries, ...added]..sort(
-          (MotionSessionRecord a, MotionSessionRecord b) =>
-              b.completedAt.compareTo(a.completedAt),
-        );
-    _entries = merged.length > maximumEntries
-        ? List<MotionSessionRecord>.unmodifiable(
-            merged.sublist(0, maximumEntries),
-          )
-        : List<MotionSessionRecord>.unmodifiable(merged);
-    await _write();
+    if (added.isNotEmpty || local.length != _entries.length) {
+      await _replace(<MotionSessionRecord>[...local, ...added]);
+    }
     return added.length;
-  }
+  });
 
   /// Persist an already-parsed record.
-  Future<void> add(MotionSessionRecord entry) async {
-    if (!_loaded) await load();
-    final List<MotionSessionRecord> next = <MotionSessionRecord>[
-      entry,
-      ..._entries,
-    ];
-    _entries = next.length > maximumEntries
-        ? next.sublist(0, maximumEntries)
-        : next;
-    await _write();
-  }
+  Future<void> add(MotionSessionRecord entry) => _serialize(() async {
+    if (!_loaded) await _load();
+    if (byId(entry.id) != null) return;
+    await _replace(<MotionSessionRecord>[..._entries, entry]);
+  });
 
   /// Versioned export of every stored session, for the person to share or
   /// keep. Contains only what this store holds: derived scores, counts, and
@@ -166,12 +183,23 @@ class MotionSessionHistory {
         ],
       });
 
-  Future<void> clear() async {
-    _entries = const <MotionSessionRecord>[];
-    _loaded = true;
-    final SharedPreferences preferences = await _resolve();
-    await preferences.remove(storageKey);
-  }
+  Future<void> clear() =>
+      _serialize(() => _replace(const <MotionSessionRecord>[]));
+
+  Future<List<String>> removeThrough(DateTime cutoff) => _serialize(() async {
+    if (!_loaded) await _load();
+    final List<String> removed = <String>[];
+    final List<MotionSessionRecord> retained = <MotionSessionRecord>[];
+    for (final MotionSessionRecord entry in _entries) {
+      if (entry.completedAt.isAfter(cutoff)) {
+        retained.add(entry);
+      } else {
+        removed.add(entry.id);
+      }
+    }
+    if (removed.isNotEmpty) await _replace(retained);
+    return removed;
+  });
 
   /// Most recent score for each exercise, newest first, for a trend view.
   List<double> scoreTrendFor(String exerciseId) {
@@ -259,12 +287,33 @@ class MotionSessionHistory {
     return window.reduce((double a, double b) => a + b) / window.length;
   }
 
-  Future<void> _write() async {
+  List<MotionSessionRecord> _newestFirst(List<MotionSessionRecord> values) {
+    final List<MotionSessionRecord> sorted = values.toList()
+      ..sort((a, b) => b.completedAt.compareTo(a.completedAt));
+    return List<MotionSessionRecord>.unmodifiable(sorted.take(maximumEntries));
+  }
+
+  Future<void> _replace(List<MotionSessionRecord> entries) async {
+    final List<MotionSessionRecord> next = _newestFirst(entries);
+    await _write(next);
+    _entries = next;
+    _loaded = true;
+  }
+
+  Future<void> _write(List<MotionSessionRecord> entries) async {
     final SharedPreferences preferences = await _resolve();
+    if (entries.isEmpty) {
+      if (!await preferences.remove(storageKey)) {
+        throw StateError('Motion history could not be cleared');
+      }
+      return;
+    }
     final String payload = jsonEncode(<Object?>[
-      for (final MotionSessionRecord entry in _entries) entry.toJson(),
+      for (final MotionSessionRecord entry in entries) entry.toJson(),
     ]);
-    await preferences.setString(storageKey, await _store.seal(payload));
+    if (!await preferences.setString(storageKey, await _store.seal(payload))) {
+      throw StateError('Motion history could not be saved');
+    }
   }
 
   Future<SharedPreferences> _resolve() async =>
@@ -315,12 +364,14 @@ class MotionSessionRecord {
     required this.strengths,
     required this.focusAreas,
     required this.steps,
+    this.endedEarly = false,
   });
 
   factory MotionSessionRecord.fromEvaluation(
     Map<String, Object?> evaluation, {
     required DateTime completedAt,
     String? id,
+    bool endedEarly = false,
   }) {
     if (evaluation['schema_version'] != 'session-evaluation.v1') {
       throw const FormatException('unsupported evaluation schema');
@@ -338,6 +389,7 @@ class MotionSessionRecord {
       routineName: routine['display_name']! as String,
       engineVersion: evaluation['engine_version']! as String,
       overallScore: (overall['score'] as num?)?.toDouble(),
+      endedEarly: endedEarly,
       assessedSteps: (overall['assessed_steps']! as num).toInt(),
       totalSteps: (overall['total_steps']! as num).toInt(),
       strengths: List<String>.from(summary['strengths']! as List<Object?>),
@@ -403,6 +455,7 @@ class MotionSessionRecord {
         routineName: json['routine_name']! as String,
         engineVersion: json['engine_version']! as String,
         overallScore: (json['overall_score'] as num?)?.toDouble(),
+        endedEarly: json['ended_early'] == true,
         assessedSteps: (json['assessed_steps']! as num).toInt(),
         totalSteps: (json['total_steps']! as num).toInt(),
         strengths: List<String>.from(json['strengths']! as List<Object?>),
@@ -422,6 +475,7 @@ class MotionSessionRecord {
   final String routineName;
   final String engineVersion;
   final double? overallScore;
+  final bool endedEarly;
   final int assessedSteps;
   final int totalSteps;
   final List<String> strengths;
@@ -440,6 +494,7 @@ class MotionSessionRecord {
     'routine_name': routineName,
     'engine_version': engineVersion,
     'overall_score': overallScore,
+    if (endedEarly) 'ended_early': true,
     'assessed_steps': assessedSteps,
     'total_steps': totalSteps,
     'strengths': strengths,

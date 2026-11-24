@@ -1,11 +1,6 @@
-import {
-  assert,
-  assertFalse,
-} from "jsr:@std/assert@1";
-import {
-  extractAllowedNumbers,
-  validateSummary,
-} from "../validate.ts";
+import { assert, assertEquals, assertFalse } from "jsr:@std/assert@1";
+import { extractAllowedNumbers, validateSummary } from "../validate.ts";
+import { buildSummaryInput } from "../summary_input.ts";
 
 const input = {
   session: {
@@ -14,7 +9,7 @@ const input = {
       { exercise_id: "sit_to_stand", completed_repetitions: 3 },
     ],
   },
-  recent_sessions: [{ overall_score: 76.2, day: "2026-08-18" }],
+  recent_scores: [76.2],
 };
 
 Deno.test("accepts a summary that only restates provided numbers", () => {
@@ -48,4 +43,33 @@ Deno.test("allows rounded forms of provided decimals", () => {
   const allowed = extractAllowedNumbers({ score: 81.5 });
   assert(validateSummary("You reached 82 today.", allowed));
   assert(validateSummary("You reached 81.5 today.", allowed));
+});
+
+Deno.test("sends only bounded motion metrics to the summary provider", () => {
+  const record = {
+    id: "local-session",
+    completed_at: "2026-08-18T12:00:00Z",
+    routine_name: "Routine name",
+    strengths: ["Free text"],
+    assessed_steps: 2,
+    total_steps: 3,
+    steps: [
+      { exercise_id: "exercise", completed_repetitions: 3, range_score: 84 },
+      { completed_repetitions: 2, coverage: 0.9, range_score: "90" },
+      { completed_repetitions: -1, range_score: 101 },
+    ],
+  };
+  assertEquals(buildSummaryInput(record, 82.12345, [78, NaN, 80]), {
+    session: {
+      overall_score: 82.1,
+      assessed_steps: 2,
+      total_steps: 3,
+      steps: [
+        { completed_repetitions: 3, range_score: 84 },
+        { completed_repetitions: 2 },
+        {},
+      ],
+    },
+    recent_scores: [78, 80],
+  });
 });

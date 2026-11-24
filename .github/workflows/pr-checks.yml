@@ -52,6 +52,9 @@ jobs:
         run: deno test __tests__/
         working-directory: supabase/functions/motion_summary
 
+      - name: Type-check edge functions
+        run: deno check supabase/functions/{delete_account,motion_summary}/index.ts
+
       - name: Analyze code
         run: flutter analyze --fatal-infos
 
@@ -124,10 +127,15 @@ jobs:
           # Grep checks cannot catch ordering bugs; only running it can.
           psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
           create schema if not exists auth;
+          create table auth.users (id uuid primary key);
           create or replace function auth.uid() returns uuid
-            language sql as $$ select null::uuid $$;
+            language sql stable as $$
+              select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid
+            $$;
           create or replace function auth.jwt() returns jsonb
-            language sql as $$ select '{}'::jsonb $$;
+            language sql stable as $$
+              select coalesce(nullif(current_setting('request.jwt.claims', true), '')::jsonb, '{}'::jsonb)
+            $$;
           do $$ begin
             if not exists (select from pg_roles where rolname = 'authenticated')
               then create role authenticated; end if;
@@ -136,11 +144,18 @@ jobs:
             if not exists (select from pg_roles where rolname = 'service_role')
               then create role service_role; end if;
           end $$;
+          grant usage on schema auth to anon, authenticated, service_role;
+          alter default privileges in schema public
+            grant all on tables to anon, authenticated, service_role;
+          alter default privileges in schema public
+            grant execute on functions to anon, authenticated, service_role;
           SQL
           psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 \
             -q -f supabase/schema.sql
           psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 \
             -q -f supabase/schema.sql
+          psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 \
+            -q -f supabase/tests/security.sql
 
       - name: Analyze cloud backend sources
         run: |

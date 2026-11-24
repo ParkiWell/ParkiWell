@@ -40,6 +40,7 @@ class EncryptedCacheStore {
           );
 
   static const String _keyName = 'parkiwell_cache_data_key_v1';
+  static Future<void> _keyOperations = Future<void>.value();
 
   /// Prefix marking encrypted payloads, so legacy plaintext JSON snapshots
   /// can be recognized and migrated on first read.
@@ -49,7 +50,6 @@ class EncryptedCacheStore {
   final AesGcm _cipher = AesGcm.with256bits();
   final AppLogger _logger = AppLogger();
 
-  SecretKey? _dataKey;
   bool _keystoreUnavailable = false;
 
   /// True when the platform keystore cannot be reached (for example in unit
@@ -67,19 +67,30 @@ class EncryptedCacheStore {
     return fake;
   }
 
-  Future<SecretKey?> _obtainKey() async {
-    if (_dataKey != null) return _dataKey;
-    if (_keystoreUnavailable) return null;
+  static Future<T> _withKeyLock<T>(Future<T> Function() operation) {
+    final result = _keyOperations.then((_) => operation());
+    _keyOperations = result.then<void>((_) {}, onError: (Object _) {});
+    return result;
+  }
+
+  Future<SecretKey?> _obtainKey({required bool create}) async {
     if (!kReleaseMode && _inFakeAsyncZone()) {
       _keystoreUnavailable = true;
       return null;
     }
+    return _withKeyLock(() => _readKey(create: create));
+  }
+
+  Future<SecretKey?> _readKey({required bool create}) async {
     try {
       final stored = await _secureStorage.read(key: _keyName);
+      _keystoreUnavailable = false;
       if (stored != null && stored.isNotEmpty) {
-        _dataKey = SecretKey(base64Decode(stored));
-        return _dataKey;
+        final bytes = base64Decode(stored);
+        if (bytes.length != 32) throw const FormatException('Invalid key size');
+        return SecretKey(bytes);
       }
+      if (!create) return null;
       final rng = Random.secure();
       final bytes = List<int>.generate(32, (_) => rng.nextInt(256));
       final encoded = base64Encode(bytes);
@@ -91,17 +102,14 @@ class EncryptedCacheStore {
       final verify = await _secureStorage.read(key: _keyName);
       if (verify != encoded) {
         _keystoreUnavailable = true;
-        _logger.warning(
-          'Secure keystore write not persisted; cache stays unencrypted',
-        );
+        _logger.warning('Secure keystore did not persist the cache key');
         return null;
       }
-      _dataKey = SecretKey(bytes);
-      return _dataKey;
+      return SecretKey(bytes);
     } on MissingPluginException {
       // No keystore in this environment (tests, desktop shells).
       _keystoreUnavailable = true;
-      _logger.warning('Secure keystore unavailable; cache stays unencrypted');
+      _logger.warning('Secure keystore unavailable for the local cache');
       return null;
     } on PlatformException catch (e) {
       // A wedged device keystore: treat as unavailable so release builds
@@ -109,15 +117,19 @@ class EncryptedCacheStore {
       _keystoreUnavailable = true;
       _logger.error('Secure keystore error', e);
       return null;
+    } on FormatException {
+      _keystoreUnavailable = true;
+      _logger.error('Secure keystore contained an invalid cache key');
+      return null;
     }
   }
 
   /// Removes the data key from the keystore. Called on account deletion so
   /// any ciphertext that survives (backups, forensics) is undecryptable.
   Future<void> destroyKey() async {
-    _dataKey = null;
+    if (!kReleaseMode && _inFakeAsyncZone()) return;
     try {
-      await _secureStorage.delete(key: _keyName);
+      await _withKeyLock(() => _secureStorage.delete(key: _keyName));
     } on MissingPluginException {
       // No keystore in this environment.
     } on PlatformException catch (e) {
@@ -136,7 +148,7 @@ class EncryptedCacheStore {
   static const int _isolateThresholdBytes = 32 * 1024;
 
   Future<String> seal(String plaintext) async {
-    final key = await _obtainKey();
+    final key = await _obtainKey(create: true);
     if (key == null) {
       if (kReleaseMode) {
         throw const KeystoreUnavailableException();
@@ -163,7 +175,7 @@ class EncryptedCacheStore {
   /// undecryptable ciphertext returns null.
   Future<String?> open(String stored) async {
     if (!stored.startsWith(payloadPrefix)) return stored;
-    final key = await _obtainKey();
+    final key = await _obtainKey(create: false);
     if (key == null) return null;
     try {
       final raw = base64Decode(stored.substring(payloadPrefix.length));

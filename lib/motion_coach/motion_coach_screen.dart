@@ -79,6 +79,7 @@ class _MotionCoachScreenState extends State<MotionCoachScreen>
   late final MotionCoachPreferences _preferences;
   final Stopwatch _recordingClock = Stopwatch();
   MotionCaptureDriver? _driver;
+  Future<void>? _cameraCleanup;
   Timer? _timer;
   _CapturePhase _phase = _CapturePhase.initializing;
   Duration _elapsed = Duration.zero;
@@ -90,6 +91,7 @@ class _MotionCoachScreenState extends State<MotionCoachScreen>
   int _handledLiveRepSerial = 0;
   int _handledLiveCueSerial = 0;
   bool _finishingRecording = false;
+  bool _startingRecording = false;
   LiveExerciseCue? _spokenCue;
 
   bool get _isBusy =>
@@ -133,7 +135,7 @@ class _MotionCoachScreenState extends State<MotionCoachScreen>
       ..removeListener(_onSessionChanged)
       ..dispose();
     unawaited(_cueSpeaker.dispose());
-    unawaited(_driver?.dispose());
+    unawaited(_releaseCamera());
     super.dispose();
   }
 
@@ -182,35 +184,44 @@ class _MotionCoachScreenState extends State<MotionCoachScreen>
       ..stop()
       ..reset();
     _session.reset();
-    final MotionCaptureDriver? previous = _driver;
-    _driver = null;
-    await previous?.dispose();
-    if (!mounted || generation != _generation) return;
-
     setState(() {
       _phase = _CapturePhase.initializing;
       _elapsed = Duration.zero;
     });
+    await _releaseCamera();
+    if (!mounted || generation != _generation) return;
+    if (!motionCoachAvailable) {
+      setState(() {
+        _phase = _CapturePhase.error;
+        _cameraDenied = false;
+        _errorTitle = 'Motion Coach is unavailable';
+        _errorBody = 'Camera coaching is currently turned off.';
+      });
+      return;
+    }
     final MotionCaptureDriver driver =
         (widget.driverFactory ?? CameraMotionCaptureDriver.new)();
     _driver = driver;
     try {
       await driver.initialize(
-        _session.handleSample,
-        onPersistentFailure: _onDetectorFailure,
+        (sample) {
+          if (mounted && generation == _generation) {
+            _session.handleSample(sample);
+          }
+        },
+        onPersistentFailure: () {
+          if (generation == _generation) _onDetectorFailure();
+        },
       );
-      if (!mounted || generation != _generation) {
-        await driver.dispose();
-        return;
-      }
+      if (!mounted || generation != _generation) return;
       setState(() => _phase = _CapturePhase.framing);
     } on CameraException catch (error) {
-      await driver.dispose();
       if (!mounted || generation != _generation) return;
+      unawaited(_releaseCamera());
       _showCameraError(error);
     } catch (_) {
-      await driver.dispose();
       if (!mounted || generation != _generation) return;
+      unawaited(_releaseCamera());
       setState(() {
         _phase = _CapturePhase.error;
         _cameraDenied = false;
@@ -226,10 +237,9 @@ class _MotionCoachScreenState extends State<MotionCoachScreen>
   /// the person wait on framing that can never become ready.
   void _onDetectorFailure() {
     if (!mounted || _phase == _CapturePhase.error) return;
-    final MotionCaptureDriver? driver = _driver;
-    _driver = null;
-    unawaited(driver?.cancelRecording().catchError((_) {}));
-    unawaited(driver?.dispose());
+    ++_generation;
+    unawaited(_releaseCamera());
+    unawaited(_cueSpeaker.stop());
     _timer?.cancel();
     _recordingClock
       ..stop()
@@ -259,8 +269,34 @@ class _MotionCoachScreenState extends State<MotionCoachScreen>
       _errorBody = denied
           ? 'Allow Camera access for ParkiWell in your phone settings, '
                 'then return and try again.'
+          : error.code == 'NoCamera'
+          ? 'A front-facing camera is needed for the motion check.'
           : 'Close other apps using the camera, then try again.';
     });
+  }
+
+  Future<void> _releaseCamera() {
+    final MotionCaptureDriver? driver = _driver;
+    _driver = null;
+    if (driver == null) return _cameraCleanup ?? Future<void>.value();
+    return _cameraCleanup = _disposeDriver(driver);
+  }
+
+  Future<void> _disposeDriver(MotionCaptureDriver driver) async {
+    try {
+      if (driver.isRecording) await driver.cancelRecording();
+    } on Object catch (error, stackTrace) {
+      AppLogger().warning(
+        'Motion recording cancellation failed',
+        error,
+        stackTrace,
+      );
+    }
+    try {
+      await driver.dispose();
+    } on Object catch (error, stackTrace) {
+      AppLogger().warning('Motion camera cleanup failed', error, stackTrace);
+    }
   }
 
   /// Persist a kept motion check into the shared session history so its
@@ -307,35 +343,33 @@ class _MotionCoachScreenState extends State<MotionCoachScreen>
     // recording mid-finalization and delete its file under the analyzer.
     if (_finishingRecording) return;
     ++_generation;
+    setState(() {
+      _phase = _CapturePhase.suspended;
+      _elapsed = Duration.zero;
+    });
     _timer?.cancel();
     _recordingClock
       ..stop()
       ..reset();
     _session.reset();
-    final MotionCaptureDriver? driver = _driver;
-    _driver = null;
-    try {
-      await driver?.cancelRecording();
-    } catch (_) {
-      // Lifecycle cleanup continues even if the platform already stopped.
-    }
-    await driver?.dispose();
-    if (mounted) {
-      setState(() {
-        _phase = _CapturePhase.suspended;
-        _elapsed = Duration.zero;
-      });
-    }
+    unawaited(_cueSpeaker.stop());
+    await _releaseCamera();
   }
 
   Future<void> _startRecording() async {
     final MotionCaptureDriver? driver = _driver;
-    if (driver == null ||
+    if (_startingRecording ||
+        driver == null ||
         _phase != _CapturePhase.framing ||
         !_session.isReady) {
       return;
     }
-    HapticUtils.mediumImpact();
+    if (!motionCoachAvailable) {
+      await _initialize();
+      return;
+    }
+    _startingRecording = true;
+    if (_preferences.hapticsEnabled) HapticUtils.mediumImpact();
     _handledLiveRepSerial = 0;
     _handledLiveCueSerial = 0;
     _spokenCue = null;
@@ -378,8 +412,22 @@ class _MotionCoachScreenState extends State<MotionCoachScreen>
       });
       setState(() => _phase = _CapturePhase.recording);
     } on CameraException catch (error) {
+      if (!mounted || generation != _generation) return;
       _session.reset();
-      if (mounted) _showCameraError(error);
+      unawaited(_releaseCamera());
+      _showCameraError(error);
+    } on Object catch (error, stackTrace) {
+      if (!mounted || generation != _generation) return;
+      AppLogger().warning(
+        'Motion recording could not start',
+        error,
+        stackTrace,
+      );
+      _session.reset();
+      unawaited(_releaseCamera());
+      _showCameraError(CameraException('RecordingStartFailed', null));
+    } finally {
+      _startingRecording = false;
     }
   }
 
@@ -410,7 +458,7 @@ class _MotionCoachScreenState extends State<MotionCoachScreen>
       final frames = _session.finishAndDrain();
       final int width = _session.frameWidth;
       final int height = _session.frameHeight;
-      await driver.dispose();
+      await _disposeDriver(driver);
       final MotionAnalysisResult analysis = await widget.analyzer.analyze(
         frames: frames,
         width: width,
@@ -421,17 +469,23 @@ class _MotionCoachScreenState extends State<MotionCoachScreen>
         await _deleteVideo(videoPath);
         return;
       }
-      HapticUtils.success();
+      if (_preferences.hapticsEnabled) HapticUtils.success();
       final MotionCoachResultAction? action = await Navigator.of(context)
           .push<MotionCoachResultAction>(
             MaterialPageRoute<MotionCoachResultAction>(
               builder: (_) => MotionCoachResultsScreen(result: analysis),
             ),
           );
-      if (!mounted) return;
+      if (!mounted) {
+        await _deleteVideo(videoPath);
+        return;
+      }
       if (action == MotionCoachResultAction.useRecording) {
         await _persistMotionCheck(analysis);
-        if (!mounted) return;
+        if (!mounted) {
+          await _deleteVideo(videoPath);
+          return;
+        }
         // Only this screen's own route may carry the outcome; popping a
         // dialog that appeared meanwhile would throw a type error and the
         // catch below would delete the accepted recording.
@@ -449,7 +503,7 @@ class _MotionCoachScreenState extends State<MotionCoachScreen>
       await _initialize();
     } catch (_) {
       _session.finishAndDrain();
-      await driver.dispose();
+      await _disposeDriver(driver);
       if (videoPath != null) await _deleteVideo(videoPath);
       _finishingRecording = false;
       if (!mounted) return;

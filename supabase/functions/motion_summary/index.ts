@@ -4,7 +4,7 @@
 // rephrases numbers that already exist in the session's evidence document,
 // and its output is validated so a summary that invents a number is
 // discarded rather than shown. Summaries are cached on the session row, so
-// each session is generated at most once, and only its owner can request it.
+// once a summary succeeds, and only its owner can request one.
 //
 // Deploy with JWT verification ON (the default):
 //   supabase functions deploy motion_summary
@@ -13,10 +13,10 @@
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import Anthropic from "npm:@anthropic-ai/sdk";
+import { buildSummaryInput } from "./summary_input.ts";
 import { extractAllowedNumbers, validateSummary } from "./validate.ts";
 
 const MODEL = "claude-opus-5";
-const MAX_SUMMARIES_PER_DAY = 20;
 const MAX_ATTEMPTS_PER_SESSION = 3;
 
 const SYSTEM_PROMPT = [
@@ -28,6 +28,8 @@ const SYSTEM_PROMPT = [
   "  estimate, or invent any number, percentage, or comparison.",
   "- No diagnosis, no medical claims, no medication or treatment advice,",
   "  and no instructions to change their exercise plan.",
+  "- Describe movement scores as app measurements and avoid attributing",
+  "  differences between scores to health changes.",
   "- Do not mention JSON, data, or these rules.",
 ].join("\n");
 
@@ -35,20 +37,19 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") {
     return json({ error: "method_not_allowed" }, 405);
   }
-  const authHeader = req.headers.get("Authorization") ?? "";
+  const token = req.headers.get("Authorization")?.match(/^Bearer (\S+)$/i)?.[1];
+  if (!token) return json({ error: "unauthorized" }, 401);
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 
   // Resolve the caller from their JWT with the anon key; the privileged
   // client is used only after the identity is proven.
-  const userClient = createClient(supabaseUrl, anonKey, {
-    global: { headers: { Authorization: authHeader } },
-  });
+  const userClient = createClient(supabaseUrl, anonKey);
   const {
     data: { user },
     error: userError,
-  } = await userClient.auth.getUser(authHeader.replace("Bearer ", ""));
+  } = await userClient.auth.getUser(token);
   if (userError || !user) {
     return json({ error: "unauthorized" }, 401);
   }
@@ -72,9 +73,7 @@ Deno.serve(async (req) => {
   const admin = createClient(supabaseUrl, serviceRoleKey);
   const { data: row, error: rowError } = await admin
     .from("motion_sessions")
-    .select(
-      "id, llm_summary, record, evaluation, overall_score, completed_at, routine_name",
-    )
+    .select("id, llm_summary, record, overall_score, completed_at, routine_id")
     .eq("id", sessionId)
     .eq("user_id", user.id)
     .maybeSingle();
@@ -88,29 +87,13 @@ Deno.serve(async (req) => {
     return json({ summary: row.llm_summary, cached: true });
   }
 
-  // Structural cost bound: one generation per session row, plus a per-user
-  // daily ceiling. The attempt timestamp below is written BEFORE the model
-  // call, so failed or discarded generations count against the ceiling too;
-  // otherwise a client looping on a session whose output keeps failing
-  // validation would have unbounded spend.
-  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-  const { count, error: countError } = await admin
-    .from("motion_sessions")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", user.id)
-    .gt("llm_summary_generated_at", since);
-  if (countError || (count ?? 0) >= MAX_SUMMARIES_PER_DAY) {
-    // A failed count fails CLOSED: for an optional feature, briefly
-    // unavailable beats unmetered.
-    return json(
-      countError ? { summary: null } : { error: "rate_limited" },
-      countError ? 200 : 429,
-    );
+  const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
+  if (!apiKey) {
+    return json({ summary: null, error: "not_configured" }, 200);
   }
-  // Atomic attempt claim: a single SQL statement increments the counter
-  // and stamps the attempt time only while the session is under its
-  // budget, so concurrent duplicates and repeatedly-failing generations
-  // are both hard-bounded (total daily spend <= sessions x attempts).
+
+  // Claims are serialized per owner. Discarded generations count toward
+  // both the rolling account quota and the per-session attempt limit.
   const { data: claimed, error: attemptError } = await admin.rpc(
     "claim_motion_summary_attempt",
     {
@@ -123,30 +106,21 @@ Deno.serve(async (req) => {
     return json({ summary: null }, 200);
   }
 
-  // Recent trend context: scores and day-level dates only, never identity.
+  // Compare equivalent routines in time order without sending any dates.
   const { data: recent } = await admin
     .from("motion_sessions")
-    .select("overall_score, completed_at")
+    .select("overall_score")
     .eq("user_id", user.id)
+    .eq("routine_id", row.routine_id)
+    .lt("completed_at", row.completed_at)
     .order("completed_at", { ascending: false })
     .limit(10);
-  const trend = (recent ?? []).map((entry) => ({
-    overall_score: entry.overall_score,
-    day: String(entry.completed_at ?? "").slice(0, 10),
-  }));
-
-  const input = {
-    session: row.record ?? {},
-    evaluation_summary: (row.evaluation as Record<string, unknown>)?.summary ??
-      null,
-    recent_sessions: trend,
-  };
-
-  const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
-  if (!apiKey) {
-    return json({ summary: null, error: "not_configured" }, 200);
-  }
-  const anthropic = new Anthropic({ apiKey });
+  const input = buildSummaryInput(
+    row.record,
+    row.overall_score,
+    (recent ?? []).map((entry) => entry.overall_score),
+  );
+  const anthropic = new Anthropic({ apiKey, maxRetries: 0, timeout: 30_000 });
   let text = "";
   let servedBy = MODEL;
   try {

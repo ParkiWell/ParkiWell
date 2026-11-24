@@ -55,6 +55,9 @@ class MotionRoutineController extends ChangeNotifier {
       MotionFramingStatus.lookingForPerson;
   int _candidateFramingFrames = 0;
   bool _framingReady = false;
+  bool _paused = false;
+  bool _endedEarly = false;
+  int _captureTimeOffsetMs = 0;
   int _lastTimestampMs = -1;
   int _lastSampleTimestampMs = 0;
   int _stepIndex = 0;
@@ -74,6 +77,10 @@ class MotionRoutineController extends ChangeNotifier {
   bool get isFramingReady => _framingReady;
 
   bool get isStarted => _session != null;
+  bool get isPaused => _paused;
+  bool get endedEarly => _endedEarly;
+  bool get canFinishEarly =>
+      _repSerial > 0 && _phase != MotionRoutinePhase.complete;
   int get stepIndex => _stepIndex;
   int get stepCount => routine.steps.length;
   RoutineStepDefinition get currentStep => routine.steps[_stepIndex];
@@ -136,8 +143,41 @@ class MotionRoutineController extends ChangeNotifier {
     _completedReps = 0;
     _lastRepScore = null;
     _evaluation = null;
-    _applyEvents(session.start(_lastSampleTimestampMs));
+    _lastTimestampMs = _lastSampleTimestampMs;
+    _applyEvents(session.start(_lastTimestampMs));
     notifyListeners();
+  }
+
+  /// Freeze engine time and prepare to recheck framing on the next capture.
+  void pause() {
+    if (_disposed || _phase == MotionRoutinePhase.complete) return;
+    _paused = _session != null;
+    if (_phase == MotionRoutinePhase.active) {
+      _session?.currentCoach.interruptTracking();
+    }
+    _cue = null;
+    _cueTimestampMs = null;
+    _resetFraming();
+    notifyListeners();
+  }
+
+  /// The new camera can have a new clock origin. Only time from the first
+  /// post-resume sample onward advances the engine and any remaining rest.
+  bool resume() {
+    if (_disposed || !_paused || !_framingReady) return false;
+    _captureTimeOffsetMs = _lastTimestampMs - _lastSampleTimestampMs;
+    _paused = false;
+    notifyListeners();
+    return true;
+  }
+
+  bool finishEarly() {
+    final RoutineSession? session = _session;
+    if (_disposed || session == null || !canFinishEarly) return false;
+    _endedEarly = true;
+    _applyEvents(session.finishEarly());
+    notifyListeners();
+    return true;
   }
 
   /// Feed one camera sample.
@@ -153,16 +193,20 @@ class MotionRoutineController extends ChangeNotifier {
     _updateFraming(sample);
 
     final RoutineSession? session = _session;
+    final int sessionTimestampMs =
+        _lastSampleTimestampMs + _captureTimeOffsetMs;
     if (session != null &&
+        !_paused &&
         _phase != MotionRoutinePhase.complete &&
-        sample.detection.timestampMs > _lastTimestampMs) {
-      _lastTimestampMs = sample.detection.timestampMs;
-      final PoseFrame frame = poseFrameFromDetection(sample.detection);
-      _applyEvents(session.addFrame(frame));
-      _restRemainingSeconds = session.restRemainingAt(
-        sample.detection.timestampMs,
+        sessionTimestampMs > _lastTimestampMs) {
+      _lastTimestampMs = sessionTimestampMs;
+      final PoseFrame frame = poseFrameFromDetection(
+        sample.detection,
+        timestampMs: sessionTimestampMs,
       );
-      _expireCue(sample.detection.timestampMs);
+      _applyEvents(session.addFrame(frame));
+      _restRemainingSeconds = session.restRemainingAt(sessionTimestampMs);
+      _expireCue(sessionTimestampMs);
     }
     if (_observableState() != before) {
       notifyListeners();
@@ -187,25 +231,26 @@ class MotionRoutineController extends ChangeNotifier {
   /// No-op unless a step is actively running.
   void skipCurrentStep() {
     final RoutineSession? session = _session;
-    if (_disposed || session == null || _phase != MotionRoutinePhase.active) {
+    if (_disposed ||
+        _paused ||
+        session == null ||
+        _phase != MotionRoutinePhase.active) {
       return;
     }
-    _applyEvents(session.skipStep(_lastSampleTimestampMs));
-    _restRemainingSeconds = session.restRemainingAt(_lastSampleTimestampMs);
+    _applyEvents(session.skipStep(_lastTimestampMs));
+    _restRemainingSeconds = session.restRemainingAt(_lastTimestampMs);
     notifyListeners();
   }
 
   /// Abandon the run without an evaluation, e.g. the user backing out.
   void reset() {
-    if (!_disposed) skeleton.value = null;
+    if (_disposed) return;
     _session = null;
     _phase = MotionRoutinePhase.framing;
-    _framingStatus = MotionFramingStatus.lookingForPerson;
-    _goodFramingFrames = 0;
-    _badFramingFrames = 0;
-    _candidateFramingStatus = MotionFramingStatus.lookingForPerson;
-    _candidateFramingFrames = 0;
-    _framingReady = false;
+    _paused = false;
+    _endedEarly = false;
+    _captureTimeOffsetMs = 0;
+    _resetFraming();
     _lastTimestampMs = -1;
     _lastSampleTimestampMs = 0;
     _stepIndex = 0;
@@ -218,6 +263,16 @@ class MotionRoutineController extends ChangeNotifier {
     _restRemainingSeconds = 0;
     _evaluation = null;
     notifyListeners();
+  }
+
+  void _resetFraming() {
+    skeleton.value = null;
+    _framingStatus = MotionFramingStatus.lookingForPerson;
+    _goodFramingFrames = 0;
+    _badFramingFrames = 0;
+    _candidateFramingStatus = MotionFramingStatus.lookingForPerson;
+    _candidateFramingFrames = 0;
+    _framingReady = false;
   }
 
   // Cached per target exercise: this runs at camera rate and must not

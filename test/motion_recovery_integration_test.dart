@@ -19,6 +19,19 @@ void main() {
   });
 
   group('motion coach recovery integration', () {
+    test('a coach result links to one Recovery entry even on retry', () async {
+      const id = '7deb310c-4d3b-4295-b84f-e760edbe8119';
+      for (int index = 0; index < 2; index++) {
+        await singleton.recordMotionCoachSession(
+          routineId: 'seated_foundation',
+          title: 'Motion coach: Seated foundation',
+          recordId: id,
+        );
+      }
+      expect(singleton.recoverySessions.single['id'], id);
+      expect(singleton.weeklyPhysicalExerciseSessions, 1);
+    });
+
     test('a completed session counts as a physical recovery session', () async {
       await singleton.recordMotionCoachSession(
         routineId: 'seated_foundation',

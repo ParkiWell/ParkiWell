@@ -296,6 +296,10 @@ final class LiveExerciseCoach {
   int get totalFrames => _totalFrames;
   double get coverage => _totalFrames == 0 ? 0.0 : _validFrames / _totalFrames;
 
+  /// Discard an unfinished repetition across an intentional capture break.
+  /// Completed repetitions and the measured tracking coverage are retained.
+  void interruptTracking() => _invalidateTracking();
+
   void reset() {
     _phase = LiveExercisePhase.idle;
     _lastTimestampMs = null;

@@ -10,7 +10,9 @@ import 'widgets/modern_card.dart';
 import 'utils/haptic_utils.dart';
 
 class LineChartSample1 extends StatefulWidget {
-  const LineChartSample1({super.key});
+  const LineChartSample1({super.key, this.leading});
+
+  final Widget? leading;
 
   @override
   State<StatefulWidget> createState() => LineChartSample1State();
@@ -348,31 +350,44 @@ class LineChartSample1State extends State<LineChartSample1>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Quick stats row
+          ?widget.leading,
           FadeTransition(
             opacity: _animation,
-            child: Row(
-              children: [
-                Expanded(
-                  child: _buildQuickStat(
-                    colors,
-                    Icons.favorite_rounded,
-                    '${singleton.log.length}',
-                    'Symptoms',
-                    colors.primary,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildQuickStat(
-                    colors,
-                    Icons.medication_rounded,
-                    '${singleton.schedule.length}',
-                    'Medications',
-                    colors.secondary,
-                  ),
-                ),
-              ],
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final symptomCount = _buildQuickStat(
+                  colors,
+                  Icons.favorite_rounded,
+                  '${singleton.log.length}',
+                  'Symptoms',
+                  colors.primary,
+                );
+                final medicationCount = _buildQuickStat(
+                  colors,
+                  Icons.medication_rounded,
+                  '${singleton.schedule.length}',
+                  'Medications',
+                  colors.secondary,
+                );
+                if (constraints.maxWidth < 405 &&
+                    MediaQuery.textScalerOf(context).scale(14) > 18) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      symptomCount,
+                      const SizedBox(height: 10),
+                      medicationCount,
+                    ],
+                  );
+                }
+                return Row(
+                  children: [
+                    Expanded(child: symptomCount),
+                    const SizedBox(width: 12),
+                    Expanded(child: medicationCount),
+                  ],
+                );
+              },
             ),
           ),
           const SizedBox(height: 24),
@@ -510,9 +525,10 @@ class LineChartSample1State extends State<LineChartSample1>
                         ),
                       )
                     : Container(
-                        height: 200,
+                        constraints: const BoxConstraints(minHeight: 200),
                         alignment: Alignment.center,
                         child: Column(
+                          mainAxisSize: MainAxisSize.min,
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(
@@ -565,9 +581,10 @@ class LineChartSample1State extends State<LineChartSample1>
                 _medicationChartHasData
                     ? const BarChartSample3()
                     : Container(
-                        height: 180,
+                        constraints: const BoxConstraints(minHeight: 180),
                         alignment: Alignment.center,
                         child: Column(
+                          mainAxisSize: MainAxisSize.min,
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(
@@ -624,8 +641,6 @@ class LineChartSample1State extends State<LineChartSample1>
                 const SizedBox(height: 2),
                 Text(
                   label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: colors.textSecondary,
                     fontWeight: FontWeight.w500,

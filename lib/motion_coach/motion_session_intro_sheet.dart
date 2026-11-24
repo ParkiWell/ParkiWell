@@ -5,19 +5,14 @@ import 'package:motion_engine/motion_engine.dart';
 
 import '../services/app_logger.dart';
 import '../theme/app_theme.dart';
-import '../widgets/modern_card.dart';
+import 'motion_coach_layout.dart';
 import 'motion_demo_video_view.dart';
 import 'motion_demonstration_view.dart';
 import 'motion_exercise_catalog.dart';
 import 'motion_reference_library.dart';
 import 'motion_routine_catalog.dart';
 
-/// Pre-session intro: watch the movement, read the setup, then start.
-///
-/// The coach's flow is deliberately demonstration-first. Someone should see
-/// what the movement looks like and how to place the phone before the
-/// camera opens, not discover both mid-session; this sheet is that step.
-/// Returns true when the person chooses to start.
+/// Shows the movements and camera setup before the user starts a session.
 Future<bool> showMotionSessionIntro(
   BuildContext context, {
   required MotionRoutineDescription description,
@@ -28,8 +23,10 @@ Future<bool> showMotionSessionIntro(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
-    backgroundColor: Colors.transparent,
-    builder: (BuildContext context) => _MotionSessionIntroSheet(
+    showDragHandle: true,
+    backgroundColor: context.colors.background,
+    constraints: const BoxConstraints(maxWidth: 720),
+    builder: (context) => _MotionSessionIntroSheet(
       description: description,
       routine: routine,
       library: library,
@@ -43,9 +40,8 @@ class _MotionSessionIntroSheet extends StatefulWidget {
     required this.description,
     required this.routine,
     required this.library,
-  }) : exercises = <MotionExerciseDefinition>[
-         for (final RoutineStepDefinition step in routine.steps)
-           motionExerciseById(step.exerciseId),
+  }) : exercises = [
+         for (final step in routine.steps) motionExerciseById(step.exerciseId),
        ];
 
   final MotionRoutineDescription description;
@@ -61,14 +57,11 @@ class _MotionSessionIntroSheet extends StatefulWidget {
 class _MotionSessionIntroSheetState extends State<_MotionSessionIntroSheet> {
   MotionDemonstrationLoop? _loop;
   int _previewIndex = 0;
+  int _previewRequest = 0;
+  bool _loading = true;
+  final GlobalKey _previewAnchor = GlobalKey();
 
-  /// Exercises whose bundled clip failed to decode on this device; they
-  /// fall back to the animated guide for the rest of this sheet's life.
   final Set<String> _videoUnavailable = <String>{};
-
-  bool _showsVideo(MotionExerciseDefinition exercise) =>
-      exercise.demoVideoAsset != null &&
-      !_videoUnavailable.contains(exercise.exerciseId);
 
   @override
   void initState() {
@@ -77,189 +70,235 @@ class _MotionSessionIntroSheetState extends State<_MotionSessionIntroSheet> {
   }
 
   Future<void> _loadPreview(int index) async {
-    _previewIndex = index;
+    final int request = ++_previewRequest;
     try {
-      final MotionDemonstrationLoop loop = await widget.library
-          .loadDemonstration(widget.exercises[index].exerciseId);
-      if (!mounted || _previewIndex != index) return;
-      setState(() => _loop = loop);
+      final loop = await widget.library.loadDemonstration(
+        widget.exercises[index].exerciseId,
+      );
+      if (!mounted || _previewRequest != request) return;
+      setState(() {
+        _loop = loop;
+        _loading = false;
+      });
     } on Object catch (error, stackTrace) {
-      // The written instructions below remain the fallback.
       AppLogger().warning('Intro demonstration failed', error, stackTrace);
-      if (!mounted || _previewIndex != index) return;
-      setState(() => _loop = null);
+      if (!mounted || _previewRequest != request) return;
+      setState(() => _loading = false);
     }
+  }
+
+  void _selectPreview(int index) {
+    if (index == _previewIndex) return;
+    setState(() {
+      _previewIndex = index;
+      _loop = null;
+      _loading = true;
+    });
+    unawaited(_loadPreview(index));
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final MotionExerciseDefinition previewed =
-        widget.exercises[_previewIndex.clamp(0, widget.exercises.length - 1)];
-    final MotionDemonstrationLoop? loop = _loop;
+    final text = Theme.of(context).textTheme;
+    final previewed = widget.exercises[_previewIndex];
+    final videoAsset = _videoUnavailable.contains(previewed.exerciseId)
+        ? null
+        : previewed.demoVideoAsset;
+    final loop = _loop;
+    final multipleSteps = widget.exercises.length > 1;
+    final description = widget.description;
 
     return DraggableScrollableSheet(
-      initialChildSize: 0.85,
-      minChildSize: 0.5,
-      maxChildSize: 0.95,
+      initialChildSize: 0.94,
+      minChildSize: 0.6,
+      maxChildSize: 1,
       expand: false,
-      builder: (BuildContext context, ScrollController scrollController) {
-        return Container(
-          decoration: BoxDecoration(
-            color: colors.background,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: Column(
-            children: <Widget>[
-              const SizedBox(height: 10),
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: colors.textSecondary.withValues(alpha: 0.4),
-                  borderRadius: BorderRadius.circular(2),
+      builder: (context, scrollController) => Column(
+        children: [
+          Expanded(
+            child: ListView(
+              controller: scrollController,
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 18),
+              children: [
+                Semantics(
+                  header: true,
+                  child: Text(
+                    description.title,
+                    style: text.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.6,
+                    ),
+                  ),
                 ),
-              ),
-              Expanded(
-                child: ListView(
-                  controller: scrollController,
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-                  children: <Widget>[
-                    Text(
-                      widget.description.title,
-                      style: Theme.of(context).textTheme.headlineSmall
-                          ?.copyWith(fontWeight: FontWeight.w800),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      widget.description.summary,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: colors.textSecondary,
-                        height: 1.45,
+                const SizedBox(height: 5),
+                Text(
+                  '${description.durationLabel} · '
+                  '${multipleSteps ? '${widget.exercises.length} exercises' : previewed.postureLabel}'
+                  '${multipleSteps && description.requiresStanding ? ' · Includes standing' : ''}',
+                  style: text.bodyMedium?.copyWith(color: colors.textSecondary),
+                ),
+                const SizedBox(height: 16),
+                MotionSectionTitle(
+                  key: _previewAnchor,
+                  title: multipleSteps ? previewed.title : 'Movement preview',
+                ),
+                if (multipleSteps)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Exercise ${_previewIndex + 1} of ${widget.exercises.length}',
+                          style: text.bodySmall?.copyWith(
+                            color: colors.textSecondary,
+                          ),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 16),
-                    ModernCard(
-                      margin: EdgeInsets.zero,
-                      padding: const EdgeInsets.all(12),
-                      child: Column(
-                        children: <Widget>[
-                          SizedBox(
-                            height: 190,
-                            child: _showsVideo(previewed)
-                                ? MotionDemoVideoView(
-                                    key: ValueKey<String>(
-                                      previewed.demoVideoAsset!,
-                                    ),
-                                    assetPath: previewed.demoVideoAsset!,
-                                    onUnavailable: () {
-                                      if (!mounted) return;
-                                      setState(() {
-                                        _videoUnavailable.add(
-                                          previewed.exerciseId,
-                                        );
-                                      });
-                                    },
+                      IconButton(
+                        tooltip: 'Previous exercise preview',
+                        onPressed: _previewIndex > 0
+                            ? () => _selectPreview(_previewIndex - 1)
+                            : null,
+                        icon: const Icon(Icons.chevron_left_rounded),
+                      ),
+                      IconButton(
+                        tooltip: 'Next exercise preview',
+                        onPressed: _previewIndex < widget.exercises.length - 1
+                            ? () => _selectPreview(_previewIndex + 1)
+                            : null,
+                        icon: const Icon(Icons.chevron_right_rounded),
+                      ),
+                    ],
+                  ),
+                const SizedBox(height: 8),
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: colors.surfaceVariant,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: SizedBox(
+                    height: 172,
+                    child: videoAsset != null
+                        ? MotionDemoVideoView(
+                            key: ValueKey(videoAsset),
+                            assetPath: videoAsset,
+                            onUnavailable: () {
+                              if (mounted) {
+                                setState(
+                                  () => _videoUnavailable.add(
+                                    previewed.exerciseId,
+                                  ),
+                                );
+                              }
+                            },
+                          )
+                        : loop != null
+                        ? Semantics(
+                            image: true,
+                            label:
+                                'Movement demonstration for ${previewed.title}',
+                            child: MotionDemonstrationView(
+                              key: ValueKey(loop.exerciseId),
+                              loop: loop,
+                              color: colors.navSelected,
+                            ),
+                          )
+                        : Center(
+                            child: _loading
+                                ? const CircularProgressIndicator(
+                                    semanticsLabel: 'Loading demonstration',
                                   )
-                                : loop == null
-                                ? Center(
-                                    child: Icon(
-                                      Icons.accessibility_new_rounded,
-                                      size: 56,
-                                      color: colors.textSecondary,
+                                : Padding(
+                                    padding: const EdgeInsets.all(16),
+                                    child: Text(
+                                      'The demonstration is unavailable. Follow the instructions below.',
+                                      textAlign: TextAlign.center,
+                                      style: text.bodyMedium,
                                     ),
-                                  )
-                                : MotionDemonstrationView(
-                                    key: ValueKey<String>(loop.exerciseId),
-                                    loop: loop,
-                                    color: colors.primary,
                                   ),
                           ),
-                          const SizedBox(height: 6),
-                          Text(
-                            previewed.title,
-                            style: Theme.of(context).textTheme.labelLarge
-                                ?.copyWith(fontWeight: FontWeight.w700),
-                          ),
-                          Text(
-                            _showsVideo(previewed)
-                                ? demoVideoCreditLine
-                                : 'Reference movement, repeated on a loop',
-                            style: Theme.of(context).textTheme.labelSmall
-                                ?.copyWith(color: colors.textSecondary),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      widget.exercises.length == 1
-                          ? 'The movement'
-                          : 'The movements, in order',
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    for (
-                      int index = 0;
-                      index < widget.exercises.length;
-                      index += 1
-                    )
-                      _ExerciseIntroRow(
-                        index: index,
-                        exercise: widget.exercises[index],
-                        targetRepetitions:
-                            widget.routine.steps[index].targetRepetitions,
-                        selected: index == _previewIndex,
-                        onTap: () => unawaited(_loadPreview(index)),
-                      ),
-                    const SizedBox(height: 12),
-                    ModernCard(
-                      margin: EdgeInsets.zero,
-                      padding: const EdgeInsets.all(14),
-                      backgroundColor: colors.primary.withValues(alpha: 0.08),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Icon(
-                            Icons.lightbulb_outline_rounded,
-                            size: 20,
-                            color: colors.primary,
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              'Move at a comfortable pace and stay within a '
-                              'range that feels safe. You can stop at any '
-                              'time. Nothing is recorded; the camera only '
-                              'measures your movement on this phone.',
-                              style: Theme.of(
-                                context,
-                              ).textTheme.bodySmall?.copyWith(height: 1.45),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-                child: FilledButton.icon(
-                  onPressed: () => Navigator.of(context).pop(true),
-                  icon: const Icon(Icons.videocam_rounded),
-                  style: FilledButton.styleFrom(
-                    minimumSize: const Size.fromHeight(56),
                   ),
-                  label: const Text('Open camera and begin'),
                 ),
-              ),
-            ],
+                if (videoAsset != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text(
+                      demoVideoCreditLine,
+                      style: text.bodySmall?.copyWith(
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 10),
+                Text(
+                  previewed.instructions,
+                  style: text.bodyMedium?.copyWith(height: 1.45),
+                ),
+                if (!multipleSteps) ...[
+                  const SizedBox(height: 5),
+                  Text(
+                    '${widget.routine.steps.first.targetRepetitions} movements',
+                    style: text.bodySmall?.copyWith(
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 20),
+                const MotionSectionTitle(title: 'Set up your space'),
+                const SizedBox(height: 6),
+                Text(
+                  previewed.setupHint,
+                  style: text.bodyMedium?.copyWith(height: 1.45),
+                ),
+                if (multipleSteps && description.requiresStanding) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Use a stable chair and leave room around it for the standing exercise.',
+                    style: text.bodyMedium?.copyWith(height: 1.45),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                Text(
+                  'Move within a comfortable range and stop if you feel unwell. '
+                  'Camera frames are processed on this device during guided practice.',
+                  style: text.bodySmall?.copyWith(
+                    color: colors.textSecondary,
+                    height: 1.45,
+                  ),
+                ),
+                if (multipleSteps) ...[
+                  const SizedBox(height: 24),
+                  const MotionSectionTitle(title: 'Movements in this routine'),
+                  const SizedBox(height: 6),
+                  for (var index = 0; index < widget.exercises.length; index++)
+                    _ExerciseIntroRow(
+                      index: index,
+                      exercise: widget.exercises[index],
+                      repetitions:
+                          widget.routine.steps[index].targetRepetitions,
+                      selected: index == _previewIndex,
+                      onTap: () {
+                        _selectPreview(index);
+                        final previewContext = _previewAnchor.currentContext;
+                        if (previewContext != null) {
+                          unawaited(Scrollable.ensureVisible(previewContext));
+                        }
+                      },
+                    ),
+                ],
+              ],
+            ),
           ),
-        );
-      },
+          MotionActionBar(
+            child: FilledButton.icon(
+              onPressed: () => Navigator.of(context).pop(true),
+              icon: const Icon(Icons.videocam_outlined),
+              style: FilledButton.styleFrom(minimumSize: const Size(48, 52)),
+              label: const Text('Open camera and begin'),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -268,70 +307,36 @@ class _ExerciseIntroRow extends StatelessWidget {
   const _ExerciseIntroRow({
     required this.index,
     required this.exercise,
-    required this.targetRepetitions,
+    required this.repetitions,
     required this.selected,
     required this.onTap,
   });
 
   final int index;
   final MotionExerciseDefinition exercise;
-  final int targetRepetitions;
+  final int repetitions;
   final bool selected;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    return ModernCard(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(14),
-      backgroundColor: selected ? colors.primary.withValues(alpha: 0.08) : null,
+    final text = Theme.of(context).textTheme;
+    return ListTile(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      selected: selected,
+      selectedColor: colors.navSelected,
+      selectedTileColor: colors.surfaceVariant,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12),
       onTap: onTap,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Container(
-            width: 28,
-            height: 28,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: colors.primary.withValues(alpha: 0.12),
-              shape: BoxShape.circle,
-            ),
-            child: Text(
-              '${index + 1}',
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                fontWeight: FontWeight.w800,
-                color: colors.primary,
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  '${exercise.title} · ${exercise.postureLabel} · '
-                  '$targetRepetitions movements',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  exercise.setupHint,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: colors.textSecondary,
-                    height: 1.35,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (selected)
-            Icon(Icons.play_circle_outline_rounded, color: colors.primary),
-        ],
+      leading: Text('${index + 1}', style: text.labelLarge),
+      title: Text(exercise.title),
+      subtitle: Text(
+        '${exercise.postureLabel} · $repetitions movements',
+        style: text.bodySmall?.copyWith(color: colors.textSecondary),
+      ),
+      trailing: Icon(
+        selected ? Icons.play_circle_filled_rounded : Icons.play_circle_outline,
       ),
     );
   }

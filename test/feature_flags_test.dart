@@ -37,6 +37,23 @@ void main() {
     expect(flags.isEnabled(FeatureFlags.motionCoachKey), isFalse);
   });
 
+  test('listeners see changes from storage and refresh exactly once', () async {
+    SharedPreferences.setMockInitialValues(<String, Object>{
+      FeatureFlags.storageKey: '{"motion_coach": false}',
+    });
+    final flags = FeatureFlags();
+    final changes = <bool>[];
+    flags.addListener(
+      () => changes.add(flags.isEnabled(FeatureFlags.motionCoachKey)),
+    );
+
+    await flags.load();
+    await flags.refresh(_EnabledFlagsCloud());
+    await flags.refresh(_EnabledFlagsCloud());
+
+    expect(changes, [false, true]);
+  });
+
   test('an unreadable cache falls back instead of crashing', () async {
     SharedPreferences.setMockInitialValues(<String, Object>{
       FeatureFlags.storageKey: 'not json at all',
@@ -46,4 +63,11 @@ void main() {
 
     expect(flags.isEnabled(FeatureFlags.motionCoachKey), isTrue);
   });
+}
+
+class _EnabledFlagsCloud extends Fake implements CloudBackendService {
+  @override
+  Future<Map<String, bool>?> fetchAppFlags() async => {
+    FeatureFlags.motionCoachKey: true,
+  };
 }

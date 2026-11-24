@@ -1,19 +1,27 @@
+import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import '../Recovery/exercise.dart';
 import '../Recovery/speech.dart';
-import '../motion_coach/motion_analysis.dart' show motionCoachAvailable;
-import '../motion_coach/motion_coach_home_screen.dart';
+import '../motion_coach/motion_routine_results_screen.dart';
+import '../motion_coach/motion_session_history.dart';
+import '../services/app_logger.dart';
 import '../singleton.dart';
 import '../theme/app_theme.dart';
 import '../utils/app_routes.dart';
 import '../utils/haptic_utils.dart';
+import '../widgets/motion_coach_entry.dart';
 import '../widgets/recovery_log_sheet.dart';
 
 enum _RecoverySection { plan, history }
+
+bool _isMotionSession(Map<String, dynamic> session) =>
+    session['video_id']?.toString().startsWith(
+      Singleton.motionSessionIdPrefix,
+    ) ??
+    false;
 
 class _RecoverySession {
   final String videoId;
@@ -51,7 +59,9 @@ class RecoveryScreen extends StatefulWidget {
 
 class _RecoveryScreenState extends State<RecoveryScreen> {
   final singleton = Singleton();
+  final _motionHistory = MotionSessionHistory.shared;
   _RecoverySection _section = _RecoverySection.plan;
+  bool _loadingMotionHistory = false;
   late final List<_RecoverySession> _weekPlan;
 
   @override
@@ -68,7 +78,33 @@ class _RecoveryScreenState extends State<RecoveryScreen> {
   }
 
   void _onSingletonUpdate() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    setState(() {});
+    if (_section == _RecoverySection.history) unawaited(_loadMotionHistory());
+  }
+
+  void _selectSection(_RecoverySection section) {
+    if (!mounted || section == _section) return;
+    HapticUtils.selectionClick();
+    setState(() => _section = section);
+    if (section == _RecoverySection.history) unawaited(_loadMotionHistory());
+  }
+
+  Future<void> _loadMotionHistory() async {
+    if (_motionHistory.isLoaded ||
+        _loadingMotionHistory ||
+        !singleton.recoverySessions.any(_isMotionSession)) {
+      return;
+    }
+    _loadingMotionHistory = true;
+    try {
+      await _motionHistory.load();
+      if (mounted) setState(() {});
+    } on Object catch (error, stackTrace) {
+      AppLogger().warning('Unable to load motion results', error, stackTrace);
+    } finally {
+      _loadingMotionHistory = false;
+    }
   }
 
   List<_RecoverySession> _buildWeekPlan() {
@@ -101,7 +137,10 @@ class _RecoveryScreenState extends State<RecoveryScreen> {
   }
 
   Color _accentFor(_RecoverySession session, AppColors colors) {
-    return session.isPhysical ? colors.secondary : colors.primary;
+    if (context.isDarkMode) {
+      return session.isPhysical ? colors.secondary : colors.primary;
+    }
+    return session.isPhysical ? colors.secondaryDark : colors.primaryDark;
   }
 
   int _countFor(_RecoverySession session) {
@@ -153,8 +192,7 @@ class _RecoveryScreenState extends State<RecoveryScreen> {
           ),
           action: SnackBarAction(
             label: 'View',
-            onPressed: () =>
-                setState(() => _section = _RecoverySection.history),
+            onPressed: () => _selectSection(_RecoverySection.history),
           ),
         ),
       );
@@ -225,67 +263,67 @@ class _RecoveryScreenState extends State<RecoveryScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final reduceMotion = MediaQuery.disableAnimationsOf(context);
 
     return Material(
       color: colors.background,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _RecoveryTabs(
-                  section: _section,
-                  onChanged: (section) {
-                    if (section == _section) return;
-                    HapticUtils.selectionClick();
-                    setState(() => _section = section);
-                  },
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: AnimatedSwitcher(
-              duration: reduceMotion
-                  ? Duration.zero
-                  : const Duration(milliseconds: 180),
-              switchInCurve: Curves.easeOutCubic,
-              switchOutCurve: Curves.easeInCubic,
-              transitionBuilder: (child, animation) => FadeTransition(
-                opacity: animation,
-                child: SlideTransition(
-                  position: Tween<Offset>(
-                    begin: const Offset(0.015, 0),
-                    end: Offset.zero,
-                  ).animate(animation),
-                  child: child,
-                ),
-              ),
-              child: _section == _RecoverySection.plan
-                  ? _PlanView(
-                      key: const ValueKey('recovery-plan'),
-                      singleton: singleton,
-                      sessions: _weekPlan,
-                      accentFor: (session) => _accentFor(session, colors),
-                      countFor: _countFor,
-                      onEditGoals: _editGoals,
-                      onStart: _startSession,
-                      onLog: _logSession,
-                      exerciseCardKey: widget.exerciseCardKey,
-                    )
-                  : _HistoryView(
-                      key: const ValueKey('recovery-history'),
-                      singleton: singleton,
-                      onDelete: _deleteSession,
-                    ),
-            ),
-          ),
-        ],
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 760),
+          child: _buildSection(context),
+        ),
       ),
+    );
+  }
+
+  Widget _buildSection(BuildContext context) {
+    final colors = context.colors;
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+          child: _RecoveryTabs(section: _section, onChanged: _selectSection),
+        ),
+        Expanded(
+          child: AnimatedSwitcher(
+            duration: reduceMotion
+                ? Duration.zero
+                : const Duration(milliseconds: 180),
+            switchInCurve: Curves.easeOutCubic,
+            switchOutCurve: Curves.easeInCubic,
+            transitionBuilder: (child, animation) => FadeTransition(
+              opacity: animation,
+              child: SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(0.015, 0),
+                  end: Offset.zero,
+                ).animate(animation),
+                child: child,
+              ),
+            ),
+            child: _section == _RecoverySection.plan
+                ? _PlanView(
+                    key: const ValueKey('recovery-plan'),
+                    singleton: singleton,
+                    sessions: _weekPlan,
+                    accentFor: (session) => _accentFor(session, colors),
+                    countFor: _countFor,
+                    onEditGoals: _editGoals,
+                    onStart: _startSession,
+                    onLog: _logSession,
+                    exerciseCardKey: widget.exerciseCardKey,
+                  )
+                : _HistoryView(
+                    key: const ValueKey('recovery-history'),
+                    singleton: singleton,
+                    motionHistory: _motionHistory,
+                    onDelete: _deleteSession,
+                  ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -299,6 +337,7 @@ class _RecoveryTabs extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
 
     return Semantics(
       container: true,
@@ -312,13 +351,12 @@ class _RecoveryTabs extends StatelessWidget {
                 child: Semantics(
                   button: true,
                   selected: selected,
-                  label: '$label tab',
                   child: InkWell(
                     onTap: () => onChanged(item),
                     child: Column(
                       children: [
-                        SizedBox(
-                          height: 44,
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(minHeight: 48),
                           child: Center(
                             child: Text(
                               label,
@@ -335,7 +373,9 @@ class _RecoveryTabs extends StatelessWidget {
                           ),
                         ),
                         AnimatedContainer(
-                          duration: const Duration(milliseconds: 160),
+                          duration: reduceMotion
+                              ? Duration.zero
+                              : const Duration(milliseconds: 160),
                           curve: Curves.easeOutCubic,
                           height: 2,
                           color: selected ? colors.textPrimary : colors.divider,
@@ -386,6 +426,11 @@ class _PlanView extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 34),
           sliver: SliverList.list(
             children: [
+              const MotionCoachEntry(
+                description:
+                    'Camera-guided practice counts toward your movement goal.',
+                margin: EdgeInsets.only(bottom: 16),
+              ),
               _WeeklyPlanPanel(singleton: singleton, onEditGoals: onEditGoals),
               const SizedBox(height: 28),
               _SectionTitle(
@@ -485,32 +530,6 @@ class _PlanView extends StatelessWidget {
                         );
                       },
                     ),
-                    // The camera-coached routines need a platform camera and
-                    // the on-device pose model, so they are not offered on
-                    // web, when the feature is compiled out, or when the
-                    // remote kill switch has disabled it.
-                    if (motionCoachAvailable && !kIsWeb) ...[
-                      Divider(
-                        height: 1,
-                        indent: 18,
-                        endIndent: 18,
-                        color: colors.divider,
-                      ),
-                      _LibraryRow(
-                        icon: Icons.videocam_rounded,
-                        title: 'Motion coach',
-                        detail: 'Guided routines counted by your camera',
-                        color: colors.success,
-                        onTap: () {
-                          HapticUtils.lightImpact();
-                          Navigator.of(context).push(
-                            buildSubtleFadeRoute(
-                              page: const MotionCoachHomeScreen(),
-                            ),
-                          );
-                        },
-                      ),
-                    ],
                   ],
                 ),
               ),
@@ -548,6 +567,20 @@ class _WeeklyPlanPanel extends StatelessWidget {
         ? '$goal sessions planned'
         : '$done complete · $remaining left';
     final reduceMotion = MediaQuery.disableAnimationsOf(context);
+    final speechCount = _PracticeCount(
+      icon: Icons.graphic_eq_rounded,
+      label: 'Speech',
+      completed: speechDone,
+      goal: speechGoal,
+      color: colors.primary,
+    );
+    final movementCount = _PracticeCount(
+      icon: Icons.accessibility_new_rounded,
+      label: 'Movement',
+      completed: physicalDone,
+      goal: physicalGoal,
+      color: colors.secondary,
+    );
 
     return _RecoverySurface(
       elevated: true,
@@ -555,15 +588,15 @@ class _WeeklyPlanPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          OverflowBar(
+            alignment: MainAxisAlignment.spaceBetween,
+            overflowSpacing: 4,
             children: [
-              Expanded(
-                child: Text(
-                  'This week',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: colors.textPrimary,
-                    fontWeight: FontWeight.w800,
-                  ),
+              Text(
+                'This week',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: colors.textPrimary,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
               TextButton(
@@ -575,8 +608,10 @@ class _WeeklyPlanPanel extends StatelessWidget {
           const SizedBox(height: 12),
           Semantics(
             label: '$percent percent of weekly recovery goal',
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
+            child: OverflowBar(
+              alignment: MainAxisAlignment.spaceBetween,
+              spacing: 12,
+              overflowSpacing: 8,
               children: [
                 AnimatedSwitcher(
                   duration: reduceMotion
@@ -593,15 +628,11 @@ class _WeeklyPlanPanel extends StatelessWidget {
                     ),
                   ),
                 ),
-                const Spacer(),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 2),
-                  child: Text(
-                    progressLabel,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: colors.textSecondary,
-                      fontWeight: FontWeight.w700,
-                    ),
+                Text(
+                  progressLabel,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: colors.textSecondary,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ],
@@ -625,31 +656,29 @@ class _WeeklyPlanPanel extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 18),
-          Row(
-            children: [
-              Expanded(
-                child: _PracticeCount(
-                  icon: Icons.graphic_eq_rounded,
-                  label: 'Speech',
-                  completed: speechDone,
-                  goal: speechGoal,
-                  color: colors.primary,
-                ),
-              ),
-              SizedBox(
-                height: 38,
-                child: VerticalDivider(width: 32, color: colors.divider),
-              ),
-              Expanded(
-                child: _PracticeCount(
-                  icon: Icons.accessibility_new_rounded,
-                  label: 'Movement',
-                  completed: physicalDone,
-                  goal: physicalGoal,
-                  color: colors.secondary,
-                ),
-              ),
-            ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              if (constraints.maxWidth < 370 &&
+                  MediaQuery.textScalerOf(context).scale(13) > 18) {
+                return Column(
+                  children: [
+                    speechCount,
+                    const SizedBox(height: 12),
+                    movementCount,
+                  ],
+                );
+              }
+              return Row(
+                children: [
+                  Expanded(child: speechCount),
+                  SizedBox(
+                    height: 38,
+                    child: VerticalDivider(width: 32, color: colors.divider),
+                  ),
+                  Expanded(child: movementCount),
+                ],
+              );
+            },
           ),
         ],
       ),
@@ -755,35 +784,37 @@ class _NextSessionCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
+                OverflowBar(
+                  alignment: MainAxisAlignment.spaceBetween,
+                  spacing: 12,
+                  overflowSpacing: 6,
                   children: [
-                    Icon(session.icon, size: 17, color: accent),
-                    const SizedBox(width: 7),
-                    Text(
-                      session.typeLabel,
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        color: accent,
-                        fontWeight: FontWeight.w700,
-                      ),
+                    Wrap(
+                      spacing: 7,
+                      runSpacing: 5,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Icon(session.icon, size: 17, color: accent),
+                        Text(
+                          session.typeLabel,
+                          style: Theme.of(context).textTheme.labelMedium
+                              ?.copyWith(
+                                color: accent,
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                        if (session.duration.isNotEmpty)
+                          Text(
+                            session.duration,
+                            style: Theme.of(context).textTheme.labelMedium
+                                ?.copyWith(color: colors.textTertiary),
+                          ),
+                      ],
                     ),
-                    if (session.duration.isNotEmpty) ...[
-                      Text(
-                        '  ·  ',
-                        style: TextStyle(color: colors.textTertiary),
-                      ),
-                      Text(
-                        session.duration,
-                        style: Theme.of(context).textTheme.labelMedium
-                            ?.copyWith(color: colors.textTertiary),
-                      ),
-                    ],
-                    const Spacer(),
                     Text(
                       sessionCount == 0 ? 'Not logged' : '$sessionCount× done',
                       style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: sessionCount == 0
-                            ? colors.textTertiary
-                            : colors.success,
+                        color: colors.textSecondary,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -813,10 +844,10 @@ class _NextSessionCard extends StatelessWidget {
                 const SizedBox(height: 16),
                 SizedBox(
                   width: double.infinity,
-                  height: 50,
                   child: FilledButton.icon(
                     onPressed: onStart,
                     style: FilledButton.styleFrom(
+                      minimumSize: const Size(48, 50),
                       backgroundColor: colors.textPrimary,
                       foregroundColor: colors.background,
                       shape: RoundedRectangleBorder(
@@ -830,7 +861,6 @@ class _NextSessionCard extends StatelessWidget {
                 const SizedBox(height: 4),
                 SizedBox(
                   width: double.infinity,
-                  height: 46,
                   child: TextButton.icon(
                     onPressed: onLog,
                     icon: const Icon(Icons.check_rounded, size: 18),
@@ -898,11 +928,12 @@ class _QueuedSessionRow extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 4),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
+          OverflowBar(
+            alignment: MainAxisAlignment.end,
+            overflowAlignment: OverflowBarAlignment.end,
+            spacing: 2,
             children: [
               TextButton(onPressed: onLog, child: const Text('Log done')),
-              const SizedBox(width: 2),
               TextButton.icon(
                 onPressed: onStart,
                 icon: const Icon(Icons.play_arrow_rounded, size: 18),
@@ -982,11 +1013,13 @@ class _LibraryRow extends StatelessWidget {
 
 class _HistoryView extends StatelessWidget {
   final Singleton singleton;
+  final MotionSessionHistory motionHistory;
   final Future<void> Function(Map<String, dynamic> session) onDelete;
 
   const _HistoryView({
     super.key,
     required this.singleton,
+    required this.motionHistory,
     required this.onDelete,
   });
 
@@ -1043,10 +1076,17 @@ class _HistoryView extends StatelessWidget {
               itemCount: sessions.length,
               separatorBuilder: (context, index) =>
                   Divider(height: 1, color: colors.divider),
-              itemBuilder: (context, index) => _HistoryRow(
-                session: sessions[index],
-                onDelete: () => onDelete(sessions[index]),
-              ),
+              itemBuilder: (context, index) {
+                final session = sessions[index];
+                final motionResult = _isMotionSession(session)
+                    ? motionHistory.byId(session['id']?.toString() ?? '')
+                    : null;
+                return _HistoryRow(
+                  session: session,
+                  motionResult: motionResult,
+                  onDelete: () => onDelete(session),
+                );
+              },
             ),
           ),
       ],
@@ -1162,27 +1202,42 @@ class _WeeklyActivity extends StatelessWidget {
 
 class _HistoryRow extends StatelessWidget {
   final Map<String, dynamic> session;
+  final MotionSessionRecord? motionResult;
   final VoidCallback onDelete;
 
-  const _HistoryRow({required this.session, required this.onDelete});
+  const _HistoryRow({
+    required this.session,
+    required this.motionResult,
+    required this.onDelete,
+  });
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final isMotion = _isMotionSession(session);
     final isPhysical =
         session['type']?.toString() == Singleton.recoveryTypePhysical;
     final accent = isPhysical ? colors.secondary : colors.primary;
-    final icon = isPhysical
+    final icon = isMotion
+        ? Icons.center_focus_weak_rounded
+        : isPhysical
         ? Icons.accessibility_new_rounded
         : Icons.graphic_eq_rounded;
     final date = DateTime.tryParse(
       session['completed_at']?.toString() ?? '',
     )?.toLocal();
-    final title = session['title']?.toString().trim().isNotEmpty == true
-        ? session['title'].toString()
+    final rawTitle = session['title']?.toString().trim() ?? '';
+    const motionTitlePrefix = 'Motion coach: ';
+    final title = isMotion && rawTitle.startsWith(motionTitlePrefix)
+        ? rawTitle.substring(motionTitlePrefix.length)
+        : rawTitle.isNotEmpty
+        ? rawTitle
         : isPhysical
         ? 'Movement session'
         : 'Speech session';
+    final dateLabel = date == null
+        ? 'Date unavailable'
+        : _formatHistoryDate(date);
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 11),
@@ -1196,8 +1251,6 @@ class _HistoryRow extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
                     color: colors.textPrimary,
                     fontWeight: FontWeight.w700,
@@ -1205,7 +1258,7 @@ class _HistoryRow extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  date == null ? 'Date unavailable' : _formatHistoryDate(date),
+                  isMotion ? 'Motion coach · $dateLabel' : dateLabel,
                   style: Theme.of(
                     context,
                   ).textTheme.bodySmall?.copyWith(color: colors.textTertiary),
@@ -1213,6 +1266,19 @@ class _HistoryRow extends StatelessWidget {
               ],
             ),
           ),
+          if (motionResult case final result?)
+            IconButton(
+              tooltip: 'View result for $title',
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => MotionRoutineResultsScreen(
+                    title: result.routineName,
+                    record: result,
+                  ),
+                ),
+              ),
+              icon: Icon(Icons.insights_outlined, color: colors.primary),
+            ),
           IconButton(
             tooltip: 'Remove $title from history',
             onPressed: onDelete,

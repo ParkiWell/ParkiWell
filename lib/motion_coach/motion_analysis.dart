@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:isolate';
 
+import 'package:flutter/foundation.dart';
 import 'package:motion_engine/motion_engine.dart';
 
 import '../services/feature_flags.dart';
@@ -18,6 +19,9 @@ const bool motionCoachEnabled = bool.fromEnvironment(
 /// connectivity.
 bool get motionCoachAvailable =>
     motionCoachEnabled &&
+    !kIsWeb &&
+    (defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS) &&
     FeatureFlags.shared.isEnabled(FeatureFlags.motionCoachKey);
 
 String get motionPoseRuntime {

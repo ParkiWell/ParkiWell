@@ -649,6 +649,18 @@ class CloudBackendService {
   /// another user (RLS would reject them, but the client should not try).
   String? get _effectiveUser => _cloudUserId;
 
+  Session? _sessionForFullAccount(String? userId) {
+    final session = _client?.auth.currentSession;
+    if (userId == null ||
+        _effectiveUser != userId ||
+        session == null ||
+        session.user.id != userId ||
+        session.user.isAnonymous) {
+      return null;
+    }
+    return session;
+  }
+
   Future<void> _deleteByUserIfExists(String table, String userId) async {
     try {
       await _client!.from(table).delete().eq('user_id', userId);
@@ -874,25 +886,69 @@ class CloudBackendService {
     }
   }
 
-  /// Fetch (or lazily generate) the cloud AI summary for one synced motion
-  /// session. Returns null on any failure or when unavailable: the summary
-  /// is an enhancement layered over deterministic feedback, never required.
-  /// Server-side sweep for "delete my movement history": removes every
-  /// motion session row the account owns and tombstones the ids. Needed
-  /// because the device only knows its capped local window of ids.
-  Future<bool> deleteAllMotionSessionsRemote() async {
-    if (!isEnabled || !hasFullAccount) return false;
+  /// Sweeps the account's motion history through the requested deletion time.
+  Future<bool> deleteAllMotionSessionsRemote({DateTime? through}) async {
+    final userId = _effectiveUser;
+    if (!isEnabled || !hasFullAccount || userId == null) return false;
     try {
-      await _withRetry<void>('delete all motion sessions', () async {
-        await _client!.rpc('delete_my_motion_sessions');
+      return await _withRetry<bool>('delete all motion sessions', () async {
+        final session = _sessionForFullAccount(userId);
+        if (session == null) return false;
+        // Bind the request to this identity even if the auth client changes
+        // accounts while preparing the network request.
+        await _client!
+            .rpc(
+              'delete_my_motion_sessions',
+              params: through == null
+                  ? null
+                  : <String, dynamic>{
+                      'p_through': through.toUtc().toIso8601String(),
+                    },
+            )
+            .setHeader('Authorization', 'Bearer ${session.accessToken}');
+        return _sessionForFullAccount(userId) != null;
       });
-      return true;
     } catch (e, stackTrace) {
       _logger.warning('Bulk motion session deletion failed', e, stackTrace);
       return false;
     }
   }
 
+  /// Reconciles another device's account-wide sweep and per-session deletions.
+  Future<({DateTime? cutoff, Set<String> deletedIds})>
+  getMotionSessionDeletions(List<String> localIds) async {
+    const empty = (cutoff: null, deletedIds: <String>{});
+    if (!isEnabled || !hasFullAccount) return empty;
+    final userId = _effectiveUser;
+    try {
+      final result = await _withRetry<Map<String, dynamic>>(
+        'fetch motion session deletions',
+        () {
+          final session = _sessionForFullAccount(userId);
+          if (session == null) throw StateError('The syncing account changed');
+          return _client!
+              .rpc<Map<String, dynamic>>(
+                'get_my_motion_session_deletions',
+                params: <String, dynamic>{
+                  'p_local_ids': localIds.take(60).toList(),
+                },
+              )
+              .setHeader('Authorization', 'Bearer ${session.accessToken}');
+        },
+      );
+      final cutoff = result['cutoff'] as String?;
+      final deletedIds = result['deleted_ids'] as List<dynamic>;
+      return (
+        cutoff: cutoff == null ? null : DateTime.parse(cutoff),
+        deletedIds: deletedIds.cast<String>().toSet(),
+      );
+    } on PostgrestException catch (error) {
+      if (error.code == '42883' || error.code == 'PGRST202') return empty;
+      rethrow;
+    }
+  }
+
+  /// Fetch or generate an optional cloud summary for one synced session.
   Future<String?> getMotionSessionSummary(String sessionId) async {
     if (!isEnabled || !hasFullAccount) return null;
     try {
@@ -905,8 +961,8 @@ class CloudBackendService {
         return data['summary'] as String;
       }
       return null;
-    } catch (e) {
-      _logger.info('Motion summary unavailable: $e');
+    } catch (_) {
+      _logger.info('Motion summary unavailable');
       return null;
     }
   }
@@ -972,17 +1028,25 @@ class CloudBackendService {
   }
 
   Future<Set<String>> applyHealthMutations(
-    List<Map<String, dynamic>> mutations,
-  ) async {
+    List<Map<String, dynamic>> mutations, {
+    String? expectedUserId,
+  }) async {
     if (!isEnabled || mutations.isEmpty) return <String>{};
+    final userId = expectedUserId ?? _effectiveUser;
 
     try {
       final result = await _withRetry<dynamic>(
         'apply health mutation batch',
-        () => _client!.rpc(
-          'apply_health_mutations',
-          params: <String, dynamic>{'p_mutations': mutations},
-        ),
+        () {
+          final session = _sessionForFullAccount(userId);
+          if (session == null) throw StateError('The syncing account changed');
+          return _client!
+              .rpc(
+                'apply_health_mutations',
+                params: <String, dynamic>{'p_mutations': mutations},
+              )
+              .setHeader('Authorization', 'Bearer ${session.accessToken}');
+        },
       );
       if (result is List) {
         return result
@@ -1111,15 +1175,21 @@ class CloudBackendService {
       if (effectiveUserId == null) return false;
 
       await _withRetry<void>('save community post', () async {
-        await _client!.from('community_posts').upsert(<String, dynamic>{
-          'id': id,
-          'user_id': effectiveUserId,
-          'user_name': userName,
-          'profile_image': profileImage,
-          'content': content,
-          'category': category,
-          'updated_at': DateTime.now().toIso8601String(),
-        }, onConflict: 'id');
+        await _client!
+            .from('community_posts')
+            .upsert(
+              <String, dynamic>{
+                'id': id,
+                'user_id': effectiveUserId,
+                'user_name': userName,
+                'profile_image': profileImage,
+                'content': content,
+                'category': category,
+                'updated_at': DateTime.now().toIso8601String(),
+              },
+              onConflict: 'id',
+              ignoreDuplicates: true,
+            );
       });
       return true;
     } catch (e, stackTrace) {
@@ -1349,7 +1419,7 @@ class CloudBackendService {
       return AccountDeletionResult.failed;
     } catch (e, stackTrace) {
       _logger.error('Account deletion function failed', e, stackTrace);
-      return AccountDeletionResult.unavailable;
+      return AccountDeletionResult.failed;
     }
   }
 
@@ -1496,14 +1566,20 @@ class CloudBackendService {
       if (effectiveUserId == null) return false;
 
       await _withRetry<void>('save community comment', () async {
-        await _client!.from('community_comments').upsert(<String, dynamic>{
-          'id': id,
-          'post_id': postId,
-          'user_id': effectiveUserId,
-          'user_name': userName,
-          'profile_image': profileImage,
-          'content': content,
-        }, onConflict: 'id');
+        await _client!
+            .from('community_comments')
+            .upsert(
+              <String, dynamic>{
+                'id': id,
+                'post_id': postId,
+                'user_id': effectiveUserId,
+                'user_name': userName,
+                'profile_image': profileImage,
+                'content': content,
+              },
+              onConflict: 'id',
+              ignoreDuplicates: true,
+            );
       });
       return true;
     } catch (e, stackTrace) {

@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app_logger.dart';
@@ -13,7 +14,7 @@ import 'cloud_backend_service.dart';
 /// dependency: a device that cannot reach the backend keeps the last value
 /// it saw, and a device that has never reached it uses the caller's
 /// fallback. This makes the table a kill switch, not a launch gate.
-class FeatureFlags {
+class FeatureFlags extends ChangeNotifier {
   /// Shared instance so every gate site reads one cached map.
   static final FeatureFlags shared = FeatureFlags();
 
@@ -40,12 +41,14 @@ class FeatureFlags {
   Future<void> load() async {
     if (_loaded) return;
     final SharedPreferences preferences = await _resolve();
+    if (_loaded) return;
     final String? raw = preferences.getString(storageKey);
+    Map<String, bool> flags = const <String, bool>{};
     if (raw != null) {
       try {
         final Object? decoded = jsonDecode(raw);
         if (decoded is Map<String, Object?>) {
-          _flags = <String, bool>{
+          flags = <String, bool>{
             for (final MapEntry<String, Object?> entry in decoded.entries)
               if (entry.value is bool) entry.key: entry.value! as bool,
           };
@@ -56,6 +59,7 @@ class FeatureFlags {
       }
     }
     _loaded = true;
+    _updateFlags(flags);
   }
 
   /// Fetch current flags and update the cache. Best-effort: any failure
@@ -64,9 +68,15 @@ class FeatureFlags {
     await load();
     final Map<String, bool>? fetched = await cloud.fetchAppFlags();
     if (fetched == null) return;
-    _flags = Map<String, bool>.unmodifiable(fetched);
+    _updateFlags(fetched);
     final SharedPreferences preferences = await _resolve();
     await preferences.setString(storageKey, jsonEncode(_flags));
+  }
+
+  void _updateFlags(Map<String, bool> flags) {
+    if (mapEquals(_flags, flags)) return;
+    _flags = Map<String, bool>.unmodifiable(flags);
+    notifyListeners();
   }
 
   Future<SharedPreferences> _resolve() async =>

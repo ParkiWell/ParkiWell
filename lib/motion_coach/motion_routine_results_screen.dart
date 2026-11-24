@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../services/cloud_backend_service.dart';
 import '../theme/app_theme.dart';
-import '../widgets/liquid_glass.dart';
 import '../widgets/modern_card.dart';
+import 'motion_coach_layout.dart';
 import 'motion_exercise_catalog.dart';
 import 'motion_coach_preferences.dart';
 import 'motion_feedback_copy.dart';
@@ -11,9 +11,8 @@ import 'motion_session_history.dart';
 
 /// Renders a completed `session-evaluation.v1` document.
 ///
-/// Every sentence shown here comes from the engine's allowlisted summary
-/// text or from a number it computed. Nothing is generated, inferred, or
-/// rephrased in the UI, which is what keeps the wording reviewable.
+/// Renders the engine's measurements and reviewed feedback sentences.
+/// Saved sessions may also have an optional account summary.
 class MotionRoutineResultsScreen extends StatelessWidget {
   /// Takes an already-parsed record on purpose: parsing the raw evaluation
   /// here would repeat, unguarded, exactly the parse the caller just
@@ -42,12 +41,15 @@ class MotionRoutineResultsScreen extends StatelessWidget {
   /// most recent previous scored sessions, or null when this is the first.
   double? get _trendDelta {
     final double? score = record.overallScore;
-    if (score == null) return null;
+    if (score == null || record.endedEarly) return null;
     final MotionSessionHistory history =
         _history ?? MotionSessionHistory.shared;
     final List<double> previous = <double>[
       for (final MotionSessionRecord entry in history.entries)
-        if (entry.id != record.id && entry.overallScore != null)
+        if (entry.routineId == record.routineId &&
+            entry.completedAt.isBefore(record.completedAt) &&
+            !entry.endedEarly &&
+            entry.overallScore != null)
           entry.overallScore!,
     ];
     if (previous.isEmpty) return null;
@@ -60,212 +62,165 @@ class MotionRoutineResultsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final double? score = record.overallScore;
+    final text = Theme.of(context).textTheme;
+    final score = record.overallScore;
     final bool assessed = score != null;
-    // Motion checks measure evidence without producing a score; a fully
-    // successful one must not be dressed in setup-help warnings.
     final bool measuredUnscored = !assessed && record.assessedSteps > 0;
+    final delta = _trendDelta;
+    final coachingAccent = context.isDarkMode
+        ? colors.secondary
+        : colors.secondaryDark;
+    final summary = assessed
+        ? 'Movement score out of 100'
+        : measuredUnscored
+        ? 'Measured without a score. Motion checks report evidence only.'
+        : 'Not enough was visible to score this session';
+    final statusColor = assessed ? coachingAccent : colors.navSelected;
 
     return Scaffold(
-      backgroundColor: colors.background,
       appBar: AppBar(
-        backgroundColor: colors.background,
-        surfaceTintColor: Colors.transparent,
-        elevation: 0,
-        automaticallyImplyLeading: false,
-        title: const Text('Routine summary'),
+        title: Text(
+          record.routineId.startsWith('check:')
+              ? 'Motion check'
+              : 'Routine summary',
+        ),
       ),
-      body: LiquidBackground(
-        child: SafeArea(
-          top: false,
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: <Widget>[
-                ModernCard(
-                  margin: EdgeInsets.zero,
-                  padding: const EdgeInsets.all(22),
-                  backgroundColor:
-                      (assessed
-                              ? colors.success
-                              : measuredUnscored
-                              ? colors.primary
-                              : colors.warning)
-                          .withValues(alpha: 0.11),
-                  child: Column(
-                    children: <Widget>[
-                      Text(
-                        title,
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(color: colors.textSecondary),
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        assessed ? '${score.round()}' : '—',
-                        style: Theme.of(context).textTheme.displayMedium
-                            ?.copyWith(
-                              fontWeight: FontWeight.w800,
-                              color: assessed
-                                  ? colors.success
-                                  : measuredUnscored
-                                  ? colors.primary
-                                  : colors.warning,
-                            ),
-                      ),
-                      Text(
-                        assessed
-                            ? 'Movement score out of 100'
-                            : measuredUnscored
-                            ? 'Measured without a score — motion checks '
-                                  'report evidence only'
-                            : 'Not enough was visible to score this session',
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: colors.textSecondary,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        '${record.assessedSteps} of ${record.totalSteps} '
-                        'steps measured · ${record.completedRepetitions} '
-                        'movements counted',
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: colors.textSecondary,
-                        ),
-                      ),
-                      if (assessed) ...[
-                        const SizedBox(height: 8),
-                        Builder(
-                          builder: (BuildContext context) {
-                            final double? delta = _trendDelta;
-                            final String text = delta == null
-                                ? 'Your first scored session'
-                                : delta.abs() < 1
-                                ? 'Right at your recent average'
-                                : delta > 0
-                                ? '${delta.round()} points above your '
-                                      'recent average'
-                                : '${delta.abs().round()} points below '
-                                      'your recent average';
-                            return Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 5,
-                              ),
-                              decoration: BoxDecoration(
-                                color: colors.surface.withValues(alpha: 0.7),
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                              child: Text(
-                                text,
-                                style: Theme.of(context).textTheme.labelMedium
-                                    ?.copyWith(fontWeight: FontWeight.w700),
-                              ),
-                            );
-                          },
-                        ),
-                      ],
-                    ],
-                  ),
+      body: MotionScreenScroll(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Semantics(
+              header: true,
+              child: Text(
+                title,
+                style: text.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.6,
                 ),
-                if (record.strengths.isNotEmpty) ...[
-                  const SizedBox(height: 18),
-                  const SectionHeading(title: 'What went well'),
-                  const SizedBox(height: 10),
-                  for (final String line in record.strengths)
-                    _BulletCard(
-                      icon: Icons.check_circle_outline_rounded,
-                      color: colors.success,
-                      text: line,
-                    ),
-                ],
-                if (record.focusAreas.isNotEmpty) ...[
-                  const SizedBox(height: 18),
-                  const SectionHeading(title: 'What to focus on next time'),
-                  const SizedBox(height: 10),
-                  for (final String line in record.focusAreas)
-                    _BulletCard(
-                      icon: Icons.flag_outlined,
-                      color: colors.primary,
-                      text: line,
-                    ),
-                ],
-                const SizedBox(height: 18),
-                const SectionHeading(title: 'Step by step'),
-                const SizedBox(height: 10),
-                for (final MotionSessionStep step in record.steps)
-                  _StepCard(step: step),
-                if (saved &&
-                    MotionCoachPreferences.shared.aiSummaryEnabled &&
-                    MotionCoachPreferences.shared.syncResultsEnabled &&
-                    CloudBackendService().hasFullAccount) ...[
-                  const SizedBox(height: 18),
-                  _AiSummaryCard(sessionId: record.id),
-                ],
-                const SizedBox(height: 18),
-                ModernCard(
-                  margin: EdgeInsets.zero,
-                  padding: const EdgeInsets.all(18),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Row(
-                        children: <Widget>[
-                          Icon(
-                            Icons.lock_outline_rounded,
-                            size: 18,
-                            color: colors.textSecondary,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            saved ? 'Saved on this device' : 'Not saved',
-                            style: Theme.of(context).textTheme.labelLarge
-                                ?.copyWith(fontWeight: FontWeight.w700),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        saved
-                            ? 'These scores are stored on this phone and, '
-                                  'when you are signed in with backup turned '
-                                  'on, in your account. No video or pose data '
-                                  'was recorded at any point.'
-                            : 'This summary could not be written to your '
-                                  'history, so it will be gone when you leave '
-                                  'this screen.',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: colors.textSecondary,
-                          height: 1.45,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'These are camera measurements, not a diagnosis or a '
-                        'measure of how the movement felt. Stay within a '
-                        'comfortable range, and stop if you feel pain, dizzy, '
-                        'or unwell.',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: colors.textSecondary,
-                          height: 1.45,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 20),
-                FilledButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  style: FilledButton.styleFrom(
-                    minimumSize: const Size.fromHeight(56),
-                  ),
-                  child: const Text('Done'),
-                ),
-              ],
+              ),
             ),
-          ),
+            if (record.endedEarly) ...[
+              const SizedBox(height: 6),
+              Text(
+                'Ended early. This summary reflects the movements you did.',
+                style: text.bodyMedium?.copyWith(color: colors.textSecondary),
+              ),
+            ],
+            const SizedBox(height: 14),
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: colors.surfaceVariant.blend(statusColor, 0.07),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      assessed ? '${score.round()}' : '—',
+                      style: text.displayMedium?.copyWith(
+                        color: statusColor,
+                        fontWeight: FontWeight.w800,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                    Text(summary, style: text.titleSmall),
+                    const SizedBox(height: 10),
+                    Text(
+                      '${record.assessedSteps} of ${record.totalSteps} '
+                      'exercises measured · ${record.completedRepetitions} '
+                      'movements counted',
+                      style: text.bodyMedium?.copyWith(
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                    if (delta != null) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        delta.abs() < 1
+                            ? 'Close to your recent average for this routine.'
+                            : '${delta.abs().round()} points ${delta > 0 ? 'above' : 'below'} '
+                                  'your recent average for this routine.',
+                        style: text.bodySmall?.copyWith(
+                          color: colors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            if (record.strengths.isNotEmpty) ...[
+              const SizedBox(height: 24),
+              const MotionSectionTitle(title: 'What went well'),
+              const SizedBox(height: 9),
+              for (final line in record.strengths)
+                _FeedbackLine(
+                  icon: Icons.check_circle_outline_rounded,
+                  color: coachingAccent,
+                  text: line,
+                ),
+            ],
+            if (record.focusAreas.isNotEmpty) ...[
+              const SizedBox(height: 24),
+              const MotionSectionTitle(title: 'What to focus on next time'),
+              const SizedBox(height: 9),
+              for (final line in record.focusAreas)
+                _FeedbackLine(
+                  icon: Icons.flag_outlined,
+                  color: colors.navSelected,
+                  text: line,
+                ),
+            ],
+            if (record.steps.isNotEmpty) ...[
+              const SizedBox(height: 24),
+              const MotionSectionTitle(title: 'By exercise'),
+              const SizedBox(height: 9),
+              for (final step in record.steps) _StepCard(step: step),
+            ],
+            if (saved &&
+                MotionCoachPreferences.shared.aiSummaryEnabled &&
+                MotionCoachPreferences.shared.syncResultsEnabled &&
+                CloudBackendService().hasFullAccount) ...[
+              const SizedBox(height: 18),
+              _AiSummaryCard(sessionId: record.id),
+            ],
+            const SizedBox(height: 24),
+            Text(
+              saved ? 'Saved on this device' : 'Not saved',
+              style: text.titleSmall,
+            ),
+            const SizedBox(height: 5),
+            Text(
+              saved
+                  ? 'Your movement results are stored on this device. '
+                        'Account backup syncs your results when enabled and signed in.'
+                  : 'This summary could not be written to your history. '
+                        'It will be gone when you leave this screen.',
+              style: text.bodySmall?.copyWith(
+                color: colors.textSecondary,
+                height: 1.45,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Use these camera measurements as movement feedback. A score is '
+              'not a diagnosis. Stay within a comfortable range and stop if '
+              'you feel pain, dizziness, or discomfort.',
+              style: text.bodySmall?.copyWith(
+                color: colors.textSecondary,
+                height: 1.45,
+              ),
+            ),
+          ],
+        ),
+      ),
+      bottomNavigationBar: MotionActionBar(
+        child: FilledButton(
+          onPressed: () => Navigator.of(context).pop(),
+          style: FilledButton.styleFrom(minimumSize: const Size(48, 52)),
+          child: const Text('Done'),
         ),
       ),
     );
@@ -370,8 +325,8 @@ class _AiSummaryCardState extends State<_AiSummaryCard> {
   }
 }
 
-class _BulletCard extends StatelessWidget {
-  const _BulletCard({
+class _FeedbackLine extends StatelessWidget {
+  const _FeedbackLine({
     required this.icon,
     required this.color,
     required this.text,
@@ -383,20 +338,19 @@ class _BulletCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ModernCard(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(16),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Icon(icon, color: color, size: 22),
-          const SizedBox(width: 12),
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(width: 10),
           Expanded(
             child: Text(
               text,
               style: Theme.of(
                 context,
-              ).textTheme.bodyMedium?.copyWith(height: 1.4),
+              ).textTheme.bodyMedium?.copyWith(height: 1.45),
             ),
           ),
         ],
@@ -420,28 +374,20 @@ class _StepCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: Text(
-                  title,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
-                ),
-              ),
-              Text(
-                step.overallScore == null
-                    ? 'Not measured'
-                    : '${step.overallScore!.round()}',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  color: step.overallScore == null
-                      ? colors.textSecondary
-                      : colors.primary,
-                ),
-              ),
-            ],
+          Text(title, style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 5),
+          Text(
+            step.overallScore == null
+                ? step.assessed
+                      ? 'Evidence measured'
+                      : 'Not measured'
+                : '${step.overallScore!.round()} out of 100',
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w800,
+              color: step.overallScore == null
+                  ? colors.textSecondary
+                  : colors.navSelected,
+            ),
           ),
           const SizedBox(height: 6),
           Text(
@@ -636,41 +582,43 @@ class _ComponentBar extends StatelessWidget {
   Widget build(BuildContext context) {
     if (value == null) return const SizedBox.shrink();
     final colors = context.colors;
+    final text = Theme.of(context).textTheme;
+    final rounded = '${value!.round()}';
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        children: <Widget>[
-          SizedBox(
-            width: 110,
-            child: Text(
-              label,
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: colors.textSecondary),
+      padding: const EdgeInsets.only(bottom: 9),
+      child: Semantics(
+        label: '$label, $rounded out of 100',
+        excludeSemantics: true,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    label,
+                    style: text.bodySmall?.copyWith(
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  rounded,
+                  style: text.bodySmall?.copyWith(fontWeight: FontWeight.w700),
+                ),
+              ],
             ),
-          ),
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(6),
-              child: LinearProgressIndicator(
-                value: (value! / 100).clamp(0.0, 1.0),
-                minHeight: 8,
-                backgroundColor: colors.primary.withValues(alpha: 0.12),
-              ),
+            const SizedBox(height: 4),
+            LinearProgressIndicator(
+              value: (value! / 100).clamp(0.0, 1.0),
+              minHeight: 5,
+              borderRadius: BorderRadius.circular(4),
+              backgroundColor: colors.surfaceVariant,
+              color: colors.navSelected,
             ),
-          ),
-          const SizedBox(width: 10),
-          SizedBox(
-            width: 30,
-            child: Text(
-              '${value!.round()}',
-              textAlign: TextAlign.right,
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

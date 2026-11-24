@@ -34,6 +34,12 @@ self-contained while preserving the independently verified Dart/Python parity
 boundary (live-engine and routine behavior are pinned there by cross-language
 parity fixtures).
 
+ParkiWell adds two lifecycle operations to this copy. `interruptTracking`
+clears an in-flight movement when capture pauses, and `finishEarly` evaluates
+the exercises reached so far. Preserve these operations when updating the
+vendored package. Regular scoring and the evaluation format still use the
+existing engine paths.
+
 ```dart
 final result = analyzePoseStream(
   PoseStream.fromJson(poseStreamJson),

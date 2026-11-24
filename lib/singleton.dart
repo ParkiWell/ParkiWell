@@ -512,9 +512,15 @@ class Singleton extends ChangeNotifier {
     required MotionSessionRecord record,
     required Map<String, Object?> evaluation,
   }) async {
+    final String? owner = _motionBackupOwner;
+    if (owner == null) return;
     final MotionCoachPreferences preferences = MotionCoachPreferences.shared;
     if (!preferences.isLoaded) await preferences.load();
     if (!preferences.syncResultsEnabled) return;
+    final DateTime? deletionCutoff = _motionDeletionCutoff(await _prefs, owner);
+    if (deletionCutoff != null && !record.completedAt.isAfter(deletionCutoff)) {
+      return;
+    }
 
     final payload = <String, dynamic>{
       'routine_id': record.routineId,
@@ -529,14 +535,14 @@ class Singleton extends ChangeNotifier {
     // rejected on every replay must not enter the journal, or it
     // dead-letters forever. Dropping the raw evaluation keeps the parsed
     // record (everything the app renders) syncable.
-    if (jsonEncode(payload).length > 120000) {
+    if (utf8.encode(jsonEncode(payload)).length > 120000) {
       _logger.warning(
         'Motion session ${record.id} evaluation too large to sync; '
         'keeping parsed record only',
       );
       payload['evaluation'] = const <String, Object?>{};
     }
-    if (jsonEncode(payload['record']).length > 60000) {
+    if (utf8.encode(jsonEncode(payload['record'])).length > 60000) {
       // The backend caps the parsed record independently; a payload that
       // would be rejected on every replay must never enter the journal.
       _logger.warning(
@@ -545,6 +551,9 @@ class Singleton extends ChangeNotifier {
       return;
     }
     try {
+      if (_motionBackupOwner != owner || !preferences.syncResultsEnabled) {
+        return;
+      }
       await _queueHealthMutation(
         entityType: SyncEntityType.motionSession,
         entityId: record.id,
@@ -559,8 +568,28 @@ class Singleton extends ChangeNotifier {
 
   /// Persisted marker that a full-history deletion still needs the
   /// server-side sweep (device was offline when the person deleted).
-  static const String motionBulkDeletePendingKey =
+  static const String _legacyMotionBulkDeletePendingKey =
       'parkiwell_motion_bulk_delete_pending_v1';
+  static const String _motionBulkDeletePendingKey =
+      'parkiwell_motion_bulk_delete_pending_v2';
+  static const String _motionBulkDeleteThroughKey =
+      'parkiwell_motion_bulk_delete_through_v1';
+
+  String? get _motionBackupOwner =>
+      _cloud.hasFullAccount ? _cloud.cloudUserId : null;
+
+  DateTime? _motionDeletionCutoff(
+    SharedPreferences preferences,
+    String owner,
+  ) => DateTime.tryParse(
+    preferences.getString('$_motionBulkDeleteThroughKey:$owner') ?? '',
+  );
+
+  bool _hasMotionSweepPending(SharedPreferences preferences) {
+    final String? owner = _motionBackupOwner;
+    return owner != null &&
+        preferences.getBool('$_motionBulkDeletePendingKey:$owner') == true;
+  }
 
   /// Delete every motion session locally AND from the account.
   ///
@@ -571,12 +600,23 @@ class Singleton extends ChangeNotifier {
   /// and blocks restores from resurrecting anything in the meantime.
   Future<void> deleteAllMotionSessions({MotionSessionHistory? history}) async {
     final MotionSessionHistory store = history ?? MotionSessionHistory.shared;
-    if (!store.isLoaded) await store.load();
-    final List<String> ids = <String>[
-      for (final MotionSessionRecord entry in store.entries) entry.id,
-    ];
-    await store.clear();
+    final DateTime through = DateTime.now().toUtc();
+    final String? owner = _motionBackupOwner;
+    if (owner == null) {
+      await store.clear();
+      return;
+    }
+    final prefs = await _prefs;
+    // Block reads before clearing local history. Keep the cutoff after a
+    // successful sweep so an in-flight restore cannot reintroduce old data.
+    await prefs.setString(
+      '$_motionBulkDeleteThroughKey:$owner',
+      through.toIso8601String(),
+    );
+    await prefs.setBool('$_motionBulkDeletePendingKey:$owner', true);
+    final List<String> ids = await store.removeThrough(through);
     for (final String id in ids) {
+      if (_motionBackupOwner != owner) return;
       try {
         await _queueHealthMutation(
           entityType: SyncEntityType.motionSession,
@@ -591,8 +631,6 @@ class Singleton extends ChangeNotifier {
         );
       }
     }
-    final prefs = await _prefs;
-    await prefs.setBool(motionBulkDeletePendingKey, true);
     await _completeMotionBulkDeleteIfPending();
     if (ids.isNotEmpty) unawaited(syncPendingMutations());
   }
@@ -600,15 +638,22 @@ class Singleton extends ChangeNotifier {
   /// Run the server-side deletion sweep if one is still owed.
   Future<void> _completeMotionBulkDeleteIfPending() async {
     final prefs = await _prefs;
-    if (prefs.getBool(motionBulkDeletePendingKey) != true) return;
-    if (await _cloud.deleteAllMotionSessionsRemote()) {
-      await prefs.remove(motionBulkDeletePendingKey);
+    final String? owner = _motionBackupOwner;
+    if (owner == null || !_hasMotionSweepPending(prefs)) return;
+    final DateTime? through = _motionDeletionCutoff(prefs, owner);
+    if (through != null &&
+        await _cloud.deleteAllMotionSessionsRemote(through: through) &&
+        through == _motionDeletionCutoff(prefs, owner)) {
+      await prefs.remove('$_motionBulkDeletePendingKey:$owner');
     }
   }
 
   /// Delete one synced motion session locally and from the account.
   Future<bool> deleteMotionSession(String id) async {
+    final String? owner = _motionBackupOwner;
     final bool removed = await MotionSessionHistory.shared.removeById(id);
+    _motionDeletedLocally.add(id);
+    if (owner == null || _motionBackupOwner != owner) return removed;
     try {
       await _queueHealthMutation(
         entityType: SyncEntityType.motionSession,
@@ -627,16 +672,44 @@ class Singleton extends ChangeNotifier {
   }
 
   /// Fold cloud motion session rows into local history (restore path).
+  final Set<String> _motionDeletedLocally = <String>{};
+
   Future<void> _mergeCloudMotionSessions(
-    List<Map<String, dynamic>> rows,
-  ) async {
-    if (rows.isEmpty) return;
-    // A deletion the person already performed must win over a restore
-    // whose snapshot predates it: skip entirely while the server sweep is
-    // owed, and never re-add an id with a pending or quarantined delete.
+    List<Map<String, dynamic>> rows, {
+    required String owner,
+  }) async {
+    final MotionSessionHistory history = MotionSessionHistory.shared;
+    if (_motionBackupOwner != owner) return;
+    try {
+      if (!history.isLoaded) await history.load();
+    } on Object catch (error, stackTrace) {
+      _logger.warning('Motion history could not be loaded', error, stackTrace);
+      return;
+    }
+    final ({DateTime? cutoff, Set<String> deletedIds}) remote;
+    try {
+      remote = await _cloud.getMotionSessionDeletions(
+        history.entries.map((entry) => entry.id).toList(),
+      );
+    } on Object catch (error, stackTrace) {
+      _logger.warning(
+        'Motion deletion state could not be loaded',
+        error,
+        stackTrace,
+      );
+      return;
+    }
     final prefs = await _prefs;
-    if (prefs.getBool(motionBulkDeletePendingKey) == true) return;
+    if (_motionBackupOwner != owner) return;
+    DateTime? cutoff = _motionDeletionCutoff(prefs, owner);
+    final DateTime? remoteCutoff = remote.cutoff;
+    if (remoteCutoff != null &&
+        (cutoff == null || remoteCutoff.isAfter(cutoff))) {
+      cutoff = remoteCutoff;
+    }
     final Set<String> deletedIds = <String>{
+      ..._motionDeletedLocally,
+      ...remote.deletedIds,
       for (final mutation in _offlineSyncEngine.pendingMutations)
         if (mutation.entityType == SyncEntityType.motionSession &&
             mutation.operation == SyncMutationOperation.delete)
@@ -652,9 +725,11 @@ class Singleton extends ChangeNotifier {
         if (deletedIds.contains(row['id'])) continue;
         final Object? record = row['record'];
         if (record is! Map<String, dynamic> || record.isEmpty) continue;
-        records.add(
-          MotionSessionRecord.fromJson(Map<String, Object?>.from(record)),
+        final MotionSessionRecord entry = MotionSessionRecord.fromJson(
+          Map<String, Object?>.from(record),
         );
+        if (cutoff != null && !entry.completedAt.isAfter(cutoff)) continue;
+        records.add(entry);
       } catch (error, stackTrace) {
         // One unreadable cloud row must never abort the whole restore.
         _logger.warning(
@@ -664,7 +739,11 @@ class Singleton extends ChangeNotifier {
         );
       }
     }
-    final int added = await MotionSessionHistory.shared.mergeFromCloud(records);
+    final int added = await history.mergeFromCloud(
+      records,
+      deletedIds: deletedIds,
+      deletedThrough: cutoff,
+    );
     if (added > 0) {
       _logger.info('Restored $added motion sessions from account backup');
     }
@@ -684,6 +763,7 @@ class Singleton extends ChangeNotifier {
     required String routineId,
     required String title,
     DateTime? completedAt,
+    String? recordId,
   }) async {
     final trimmedRoutineId = routineId.trim();
     final trimmedTitle = title.trim();
@@ -713,8 +793,13 @@ class Singleton extends ChangeNotifier {
           .toString();
       videoId = '${motionSessionIdPrefix}h:${digest.substring(0, 22)}';
     }
+    final String sessionId =
+        recordId != null && Uuid.isValidUUID(fromString: recordId)
+        ? recordId
+        : _uuid.v4();
+    if (recoverySessions.any((entry) => entry['id'] == sessionId)) return;
     final session = <String, dynamic>{
-      'id': _uuid.v4(),
+      'id': sessionId,
       'type': recoveryTypePhysical,
       'video_id': videoId,
       'title': trimmedTitle,
@@ -1753,23 +1838,40 @@ class Singleton extends ChangeNotifier {
     // Health mutations stay queued locally until a real account exists;
     // replaying them under the anonymous bootstrap session would upload
     // unconsented health data to an unrecoverable identity.
-    if (!_cloud.hasFullAccount) return 0;
+    final String? owner = _motionBackupOwner;
+    if (owner == null) return 0;
     await _completeMotionBulkDeleteIfPending();
-    if (!_cloud.isEnabled || _offlineSyncEngine.pendingCount == 0) return 0;
+    if (_motionBackupOwner != owner || _offlineSyncEngine.pendingCount == 0) {
+      return 0;
+    }
 
-    final uid = await _resolveUserId();
-    if (uid == null || !await _ensureCloudUserRecord(uid)) {
+    if (!await _ensureCloudUserRecord(owner) || _motionBackupOwner != owner) {
       await _markSyncPending(
         '${_offlineSyncEngine.pendingCount} changes pending',
       );
       return 0;
     }
 
-    final acknowledged = await _offlineSyncEngine.replay(
-      (mutations) => _cloud.applyHealthMutations(
-        mutations.map((mutation) => mutation.toRpcJson()).toList(),
-      ),
-    );
+    final preferences = MotionCoachPreferences.shared;
+    if (!preferences.isLoaded) await preferences.load();
+    if (_motionBackupOwner != owner) return 0;
+    final acknowledged = await _offlineSyncEngine.replay((mutations) async {
+      final Set<String> skipped = <String>{};
+      final List<Map<String, dynamic>> batch = [];
+      for (final mutation in mutations) {
+        if (!preferences.syncResultsEnabled &&
+            mutation.entityType == SyncEntityType.motionSession &&
+            mutation.operation == SyncMutationOperation.upsert) {
+          skipped.add(mutation.mutationId);
+        } else {
+          batch.add(mutation.toRpcJson());
+        }
+      }
+      if (batch.isEmpty) return skipped;
+      return skipped..addAll(
+        await _cloud.applyHealthMutations(batch, expectedUserId: owner),
+      );
+    });
     final deadLettered = _offlineSyncEngine.deadLetteredMutations.length;
     if (deadLettered > 0) {
       // Quarantined after repeated server rejections: unblocks the rest
@@ -1789,7 +1891,10 @@ class Singleton extends ChangeNotifier {
   }
 
   Future<bool> syncPendingMutations() async {
-    if (_offlineSyncEngine.pendingCount == 0) return true;
+    final bool motionDeletePending = _hasMotionSweepPending(await _prefs);
+    if (_offlineSyncEngine.pendingCount == 0 && !motionDeletePending) {
+      return true;
+    }
     if (!_cloud.isEnabled) {
       await _markSyncPending(
         '${_offlineSyncEngine.pendingCount} changes pending',
@@ -1799,7 +1904,8 @@ class Singleton extends ChangeNotifier {
 
     await _replayPendingMutations();
     notifyListenersSafe();
-    return _offlineSyncEngine.pendingCount == 0;
+    return _offlineSyncEngine.pendingCount == 0 &&
+        !_hasMotionSweepPending(await _prefs);
   }
 
   void _applyPendingMutationsToLocalState() {
@@ -2006,7 +2112,9 @@ class Singleton extends ChangeNotifier {
         return false;
       }
 
+      final String? expectedOwner = _motionBackupOwner;
       await _replayPendingMutations();
+      if (_motionBackupOwner != expectedOwner) return false;
       final snapshot = await _healthSyncCoordinator.loadParallel(
         user: () => _cloud.getUser(uid),
         logs: () => _cloud.getLogs(uid),
@@ -2015,6 +2123,7 @@ class Singleton extends ChangeNotifier {
         medicationEvents: () => _cloud.getMedicationEvents(uid),
         motionSessions: () => _cloud.getMotionSessions(uid),
       );
+      if (_motionBackupOwner != expectedOwner) return false;
       // A result exactly at the fetch cap almost certainly means older
       // rows were cut off server-side; surface it instead of letting a
       // long-term patient's early history vanish without a trace.
@@ -2065,7 +2174,7 @@ class Singleton extends ChangeNotifier {
       _observeCloudVersions(snapshot.recoverySessions);
       _observeCloudVersions(snapshot.medicationEvents);
       _observeCloudVersions(snapshot.motionSessions);
-      await _mergeCloudMotionSessions(snapshot.motionSessions);
+      await _mergeCloudMotionSessions(snapshot.motionSessions, owner: uid);
 
       log.clear();
       logIDs.clear();
@@ -2970,6 +3079,8 @@ class Singleton extends ChangeNotifier {
       // prefs.clear() removed the stored motion history, but the shared
       // in-memory instance still holds the decoded entries.
       await MotionSessionHistory.shared.clear();
+      _motionDeletedLocally.clear();
+      await MotionCoachPreferences.shared.load();
       // Rotate away the encryption key so any surviving ciphertext copies
       // are permanently unreadable, and drop the keystore-held auth session
       // for the deleted identity.
@@ -3043,6 +3154,7 @@ class Singleton extends ChangeNotifier {
       // motor-progression health data under their own storage key, so they
       // must not survive into the next sign-in either.
       await MotionSessionHistory.shared.clear();
+      _motionDeletedLocally.clear();
       // Per-person motion consents and cloud-facing toggles must not leak
       // to the next account: inheriting someone else's opt-in would send
       // the new person's scores to the backup or the AI service without
@@ -3050,9 +3162,8 @@ class Singleton extends ChangeNotifier {
       await prefs.remove('motion_coach_mediapipe_consent_v2');
       await prefs.remove(MotionCoachPreferences.syncResultsKey);
       await prefs.remove(MotionCoachPreferences.aiSummaryKey);
-      // The owed-deletion marker is scoped to the account that asked for
-      // it; surviving sign-out would sweep the NEXT account's history.
-      await prefs.remove(motionBulkDeletePendingKey);
+      await MotionCoachPreferences.shared.load();
+      await prefs.remove(_legacyMotionBulkDeletePendingKey);
       await MedicationReminderService().cancelAll();
       await _deleteStoredAvatarFiles();
       _lastSyncAt = null;

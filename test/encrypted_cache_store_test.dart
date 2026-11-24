@@ -28,6 +28,33 @@ void main() {
     expect(await EncryptedCacheStore().open(sealed), payload);
   });
 
+  test('concurrent first writes can both be opened after restart', () async {
+    final first = EncryptedCacheStore();
+    final second = EncryptedCacheStore();
+    final sealed = await Future.wait(<Future<String>>[
+      first.seal('first record'),
+      second.seal('second record'),
+    ]);
+    final reopened = EncryptedCacheStore();
+
+    expect(sealed, everyElement(startsWith(EncryptedCacheStore.payloadPrefix)));
+    expect(await reopened.open(sealed[0]), 'first record');
+    expect(await reopened.open(sealed[1]), 'second record');
+  });
+
+  test('destroying the key invalidates other previously used stores', () async {
+    final first = EncryptedCacheStore();
+    final second = EncryptedCacheStore();
+    final sealed = await first.seal('previous account');
+    expect(await second.open(sealed), 'previous account');
+
+    await first.destroyKey();
+
+    expect(await second.open(sealed), isNull);
+    final replacement = await second.seal('next account');
+    expect(await EncryptedCacheStore().open(replacement), 'next account');
+  });
+
   test('legacy plaintext payloads pass through for migration', () async {
     final store = EncryptedCacheStore();
     const legacy = '{"name":"Alex"}';

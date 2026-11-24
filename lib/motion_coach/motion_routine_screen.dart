@@ -12,8 +12,8 @@ import '../singleton.dart';
 import '../theme/app_theme.dart';
 import '../utils/haptic_utils.dart';
 import '../utils/orientation_policy.dart';
-import '../widgets/liquid_glass.dart';
 import '../widgets/modern_card.dart';
+import 'motion_analysis.dart' show motionCoachAvailable;
 import 'motion_capture_driver.dart';
 import 'motion_coach_preferences.dart';
 import 'motion_coach_screen.dart' show MotionCaptureDriverFactory;
@@ -29,6 +29,8 @@ import 'motion_session_history.dart';
 import 'motion_skeleton_overlay.dart';
 
 enum _RoutineScreenPhase { initializing, ready, running, suspended, error }
+
+enum _RoutineExit { discard, save }
 
 /// Guided multi-exercise routine.
 ///
@@ -74,6 +76,7 @@ class _MotionRoutineScreenState extends State<MotionRoutineScreen>
   late final MotionCueSpeaker _cueSpeaker;
   late final MotionCoachPreferences _preferences;
   MotionCaptureDriver? _driver;
+  Future<void>? _cameraCleanup;
   _RoutineScreenPhase _phase = _RoutineScreenPhase.initializing;
   MotionDemonstrationLoop? _demonstration;
   String? _demonstrationExerciseId;
@@ -86,6 +89,7 @@ class _MotionRoutineScreenState extends State<MotionRoutineScreen>
   String _errorTitle = 'The guided routine is unavailable';
   String _errorBody = 'Please try again.';
   bool _cameraDenied = false;
+  bool _showingSessionDialog = false;
 
   @override
   void initState() {
@@ -123,19 +127,15 @@ class _MotionRoutineScreenState extends State<MotionRoutineScreen>
       ..removeListener(_onControllerChanged)
       ..dispose();
     unawaited(_cueSpeaker.dispose());
-    unawaited(_driver?.dispose());
+    unawaited(_releaseCamera());
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      if (_phase == _RoutineScreenPhase.suspended) unawaited(_initialize());
-      return;
-    }
     // Ignore transient inactive (Control Center swipe, permission dialog,
-    // incoming call banner): tearing the camera down there forces a
-    // multi-second reinitialize and resets the routine for nothing.
+    // incoming call banner). A backgrounded session waits for an explicit
+    // resume before turning the camera back on.
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.detached ||
         state == AppLifecycleState.hidden) {
@@ -212,29 +212,38 @@ class _MotionRoutineScreenState extends State<MotionRoutineScreen>
 
   Future<void> _initialize() async {
     final int generation = ++_generation;
-    _controller.reset();
-    final MotionCaptureDriver? previous = _driver;
-    _driver = null;
-    await previous?.dispose();
-    if (!mounted || generation != _generation) return;
-
     setState(() => _phase = _RoutineScreenPhase.initializing);
+    await _releaseCamera();
+    if (!mounted || generation != _generation) return;
+    if (!motionCoachAvailable) {
+      setState(() {
+        _phase = _RoutineScreenPhase.error;
+        _cameraDenied = false;
+        _errorTitle = 'Motion Coach is unavailable';
+        _errorBody = 'Camera coaching is currently turned off.';
+      });
+      return;
+    }
+
     final MotionCaptureDriver driver =
         (widget.driverFactory ?? CameraMotionCaptureDriver.new)();
     _driver = driver;
     try {
       await driver.initialize(
-        _controller.handleSample,
-        onPersistentFailure: _onDetectorFailure,
+        (MotionPoseSample sample) {
+          if (mounted && generation == _generation) {
+            _controller.handleSample(sample);
+          }
+        },
+        onPersistentFailure: () {
+          if (generation == _generation) _onDetectorFailure();
+        },
       );
-      if (!mounted || generation != _generation) {
-        await driver.dispose();
-        return;
-      }
+      if (!mounted || generation != _generation) return;
       setState(() => _phase = _RoutineScreenPhase.ready);
     } on CameraException catch (error) {
-      await driver.dispose();
       if (!mounted || generation != _generation) return;
+      unawaited(_releaseCamera());
       final bool denied =
           error.code == 'CameraAccessDenied' ||
           error.code == 'CameraAccessDeniedWithoutPrompt' ||
@@ -248,11 +257,13 @@ class _MotionRoutineScreenState extends State<MotionRoutineScreen>
         _errorBody = denied
             ? 'Allow Camera access for ParkiWell in your phone settings, '
                   'then return and try again.'
+            : error.code == 'NoCamera'
+            ? 'Motion Coach needs a camera. Try on a phone or tablet with a camera.'
             : 'Close other apps using the camera, then try again.';
       });
     } catch (_) {
-      await driver.dispose();
       if (!mounted || generation != _generation) return;
+      unawaited(_releaseCamera());
       setState(() {
         _phase = _RoutineScreenPhase.error;
         _cameraDenied = false;
@@ -268,52 +279,67 @@ class _MotionRoutineScreenState extends State<MotionRoutineScreen>
   /// startup problem rather than leaving the person on "Looking for you".
   void _onDetectorFailure() {
     if (!mounted || _phase == _RoutineScreenPhase.error) return;
-    unawaited(_driver?.dispose());
-    _driver = null;
-    _controller.reset();
+    ++_generation;
+    unawaited(_releaseCamera());
+    unawaited(_cueSpeaker.stop());
     setState(() {
       _phase = _RoutineScreenPhase.error;
       _cameraDenied = false;
       _errorTitle = 'Movement tracking stopped working';
       _errorBody =
-          'The on-device motion model kept failing. Restart ParkiWell and '
-          'try again.';
+          'The camera stopped tracking movement. Try reopening the camera.';
     });
+    _controller.pause();
+  }
+
+  Future<void> _releaseCamera() {
+    final MotionCaptureDriver? driver = _driver;
+    _driver = null;
+    if (driver == null) return _cameraCleanup ?? Future<void>.value();
+    return _cameraCleanup = _disposeDriver(driver);
+  }
+
+  Future<void> _disposeDriver(MotionCaptureDriver driver) async {
+    try {
+      await driver.dispose();
+    } on Object catch (error, stackTrace) {
+      _logger.warning('Motion camera cleanup failed', error, stackTrace);
+    }
   }
 
   Future<void> _suspend() async {
-    if (_phase == _RoutineScreenPhase.suspended) return;
-    // Completion already owns the driver and navigation; suspending now
-    // would only flash a spurious paused screen under the results push.
-    if (_finishing) return;
+    if (_phase == _RoutineScreenPhase.suspended || _finishing) return;
     ++_generation;
-    _controller.reset();
-    final MotionCaptureDriver? driver = _driver;
-    _driver = null;
-    await driver?.dispose();
+    setState(() => _phase = _RoutineScreenPhase.suspended);
+    _controller.pause();
     unawaited(_cueSpeaker.stop());
-    if (mounted) setState(() => _phase = _RoutineScreenPhase.suspended);
+    await _releaseCamera();
   }
 
   void _start() {
-    if (!_controller.isFramingReady) return;
-    HapticUtils.mediumImpact();
-    _handledRepSerial = 0;
-    _handledCueSerial = 0;
-    _announcedStepIndex = -1;
-    _controller.start();
+    if (_phase != _RoutineScreenPhase.ready || !_controller.isFramingReady) {
+      return;
+    }
+    if (!motionCoachAvailable) {
+      unawaited(_initialize());
+      return;
+    }
+    if (_controller.isPaused) {
+      if (!_controller.resume()) return;
+    } else {
+      _controller.start();
+    }
+    if (_preferences.hapticsEnabled) HapticUtils.mediumImpact();
     setState(() => _phase = _RoutineScreenPhase.running);
   }
 
   Future<void> _finish() async {
     if (_finishing) return;
-    _finishing = true;
+    setState(() => _finishing = true);
     final Map<String, Object?>? evaluation = _controller.evaluation;
-    HapticUtils.success();
+    if (_preferences.hapticsEnabled) HapticUtils.success();
     unawaited(_cueSpeaker.stop());
-    final MotionCaptureDriver? driver = _driver;
-    _driver = null;
-    await driver?.dispose();
+    await _releaseCamera();
     if (evaluation == null || !mounted) return;
 
     // The evaluation is parsed exactly once. If the document itself cannot
@@ -325,6 +351,7 @@ class _MotionRoutineScreenState extends State<MotionRoutineScreen>
       record = MotionSessionRecord.fromEvaluation(
         evaluation,
         completedAt: DateTime.now(),
+        endedEarly: _controller.endedEarly,
       );
     } on Object catch (error, stackTrace) {
       // The engine emitted a document this build cannot parse; that is a
@@ -346,11 +373,12 @@ class _MotionRoutineScreenState extends State<MotionRoutineScreen>
     }
     // Count the completed session in the app's shared recovery tracking.
     // Best effort: a logging failure must not block the results screen.
-    try {
-      await (widget.onSessionLogged ?? _logToRecoveryTracking)(record);
-    } on Object catch (error, stackTrace) {
-      // The coach's own history above is the authoritative record.
-      _logger.warning('Recovery tracking log failed', error, stackTrace);
+    if (record.assessedSteps > 0) {
+      try {
+        await (widget.onSessionLogged ?? _logToRecoveryTracking)(record);
+      } on Object catch (error, stackTrace) {
+        _logger.warning('Recovery tracking log failed', error, stackTrace);
+      }
     }
     // Queue the full result for account backup. Fire-and-forget: it
     // respects the sync preference internally and never blocks results.
@@ -363,10 +391,8 @@ class _MotionRoutineScreenState extends State<MotionRoutineScreen>
       );
     }
     if (!mounted) return;
-    // The routine keeps running behind the skip/exit dialogs, so completion
-    // can arrive while one is open. pushReplacement swaps the TOPMOST
-    // route; replacing the dialog instead of this screen would strand a
-    // dead session screen with a disposed camera underneath the results.
+    // An exercise can finish while its skip dialog is open. Close that
+    // dialog before swapping the session route for its results.
     final ModalRoute<Object?>? ownRoute = ModalRoute.of(context);
     if (ownRoute != null && !ownRoute.isCurrent) {
       Navigator.of(
@@ -387,6 +413,7 @@ class _MotionRoutineScreenState extends State<MotionRoutineScreen>
 
   static Future<void> _logToRecoveryTracking(MotionSessionRecord record) =>
       Singleton().recordMotionCoachSession(
+        recordId: record.id,
         routineId: record.routineId,
         title: 'Motion coach: ${record.routineName}',
         completedAt: record.completedAt,
@@ -395,42 +422,61 @@ class _MotionRoutineScreenState extends State<MotionRoutineScreen>
   Future<void> _confirmExit() async {
     // Completion navigation is already in flight; a concurrent pop here
     // would race the pushReplacement onto a route being removed.
-    if (_finishing) return;
-    if (_phase != _RoutineScreenPhase.running) {
+    if (_finishing || _showingSessionDialog) return;
+    if (!_controller.isStarted) {
       if (mounted) Navigator.of(context).pop();
       return;
     }
-    final bool? leave = await showDialog<bool>(
+    _showingSessionDialog = true;
+    final bool wasRunning = _phase == _RoutineScreenPhase.running;
+    if (wasRunning) {
+      _controller.pause();
+      unawaited(_cueSpeaker.stop());
+      setState(() => _phase = _RoutineScreenPhase.ready);
+    }
+    final _RoutineExit? leave = await showDialog<_RoutineExit>(
       context: context,
       builder: (BuildContext context) => AlertDialog(
-        title: const Text('Stop this routine?'),
-        content: const Text(
-          'Your progress in this routine will be discarded. Nothing has been '
-          'recorded or saved.',
+        title: const Text('End this session?'),
+        content: Text(
+          _controller.canFinishEarly
+              ? 'Save the movements you completed, or discard this session.'
+              : 'If you end now, this session will be discarded.',
         ),
         actions: <Widget>[
           TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Keep going'),
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Return to session'),
           ),
           TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Stop'),
+            onPressed: () => Navigator.of(context).pop(_RoutineExit.discard),
+            child: const Text('Discard session'),
           ),
+          if (_controller.canFinishEarly)
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(_RoutineExit.save),
+              child: const Text('Save and end'),
+            ),
         ],
       ),
     );
-    // Re-checked after the dialog await: the routine can complete while the
-    // dialog is open, and popping then would tear the screen out from under
-    // the in-flight completion save.
-    if (leave == true && mounted && !_finishing) Navigator.of(context).pop();
+    _showingSessionDialog = false;
+    if (!mounted || _finishing) return;
+    switch (leave) {
+      case _RoutineExit.save:
+        _controller.finishEarly();
+      case _RoutineExit.discard:
+        Navigator.of(context).pop();
+      case null:
+        if (wasRunning) _start();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     return PopScope(
-      canPop: _phase != _RoutineScreenPhase.running && !_finishing,
+      canPop: !_controller.isStarted && !_finishing,
       onPopInvokedWithResult: (bool didPop, Object? result) {
         if (!didPop) unawaited(_confirmExit());
       },
@@ -443,42 +489,47 @@ class _MotionRoutineScreenState extends State<MotionRoutineScreen>
           title: Text(widget.description.title),
           leading: IconButton(
             icon: const Icon(Icons.close_rounded),
-            onPressed: () => unawaited(_confirmExit()),
+            tooltip: 'Close session',
+            onPressed: _finishing ? null : () => unawaited(_confirmExit()),
           ),
         ),
-        body: LiquidBackground(
-          child: SafeArea(
-            top: false,
-            child: switch (_phase) {
-              _RoutineScreenPhase.error => _buildMessage(
-                context,
-                icon: Icons.error_outline_rounded,
-                title: _errorTitle,
-                body: _errorBody,
-                actionLabel: 'Try again',
-                onAction: () => unawaited(_initialize()),
-                secondaryActionLabel: _cameraDenied ? 'Open Settings' : null,
-                onSecondaryAction: _cameraDenied
-                    ? () => unawaited(AppSettings.openAppSettings())
-                    : null,
-              ),
-              _RoutineScreenPhase.suspended => _buildMessage(
-                context,
-                icon: Icons.pause_circle_outline_rounded,
-                title: 'Routine paused',
-                body:
-                    'ParkiWell released the camera when you left the app. '
-                    'Start again when you are ready.',
-                actionLabel: 'Resume',
-                onAction: () => unawaited(_initialize()),
-              ),
-              _RoutineScreenPhase.initializing => const Center(
-                child: CircularProgressIndicator(),
-              ),
-              _RoutineScreenPhase.ready ||
-              _RoutineScreenPhase.running => _buildSession(context),
-            },
-          ),
+        body: SafeArea(
+          top: false,
+          child: _finishing
+              ? const _RoutineLoading(label: 'Saving results…')
+              : switch (_phase) {
+                  _RoutineScreenPhase.error => _buildMessage(
+                    context,
+                    icon: Icons.error_outline_rounded,
+                    title: _errorTitle,
+                    body: _errorBody,
+                    actionLabel: 'Try again',
+                    onAction: () => unawaited(_initialize()),
+                    secondaryActionLabel: _cameraDenied
+                        ? 'Open Settings'
+                        : null,
+                    onSecondaryAction: _cameraDenied
+                        ? () => unawaited(AppSettings.openAppSettings())
+                        : null,
+                  ),
+                  _RoutineScreenPhase.suspended => _buildMessage(
+                    context,
+                    icon: Icons.pause_circle_outline_rounded,
+                    title: _controller.isStarted
+                        ? 'Session paused'
+                        : 'Camera off',
+                    body: _controller.isStarted
+                        ? 'Your completed repetitions are still here. Open the camera when you’re ready to continue.'
+                        : 'Open the camera when you’re ready to check your position.',
+                    actionLabel: 'Open camera',
+                    onAction: () => unawaited(_initialize()),
+                  ),
+                  _RoutineScreenPhase.initializing => const _RoutineLoading(
+                    label: 'Opening camera…',
+                  ),
+                  _RoutineScreenPhase.ready ||
+                  _RoutineScreenPhase.running => _buildSession(context),
+                },
         ),
       ),
     );
@@ -487,124 +538,164 @@ class _MotionRoutineScreenState extends State<MotionRoutineScreen>
   Widget _buildSession(BuildContext context) {
     final colors = context.colors;
     final bool running = _phase == _RoutineScreenPhase.running;
-    final MotionExerciseDefinition exercise = _controller.currentExercise;
+    final MotionExerciseDefinition exercise =
+        _controller.upcomingExercise ?? _controller.currentExercise;
+    final bool preparingNext = _controller.upcomingExercise != null;
+    final int visibleStep = _controller.stepIndex + (preparingNext ? 2 : 1);
 
     return Column(
       children: <Widget>[
         LinearProgressIndicator(
           value: _controller.progress,
           minHeight: 6,
+          semanticsLabel: 'Routine progress',
           backgroundColor: colors.primary.withValues(alpha: 0.12),
         ),
         Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: <Widget>[
-                Text(
-                  'Step ${_controller.stepIndex + 1} of '
-                  '${_controller.stepCount} · ${exercise.postureLabel}',
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: colors.textSecondary,
-                    fontWeight: FontWeight.w700,
-                  ),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1024),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    Text(
+                      '${preparingNext ? 'Next · ' : ''}Step $visibleStep of '
+                      '${_controller.stepCount} · ${exercise.postureLabel}',
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: colors.textSecondary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Semantics(
+                      header: true,
+                      child: Text(
+                        exercise.title,
+                        style: Theme.of(context).textTheme.headlineSmall
+                            ?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.6,
+                            ),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      running && !preparingNext
+                          ? exercise.instructions
+                          : exercise.setupHint,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: colors.textSecondary,
+                        height: 1.4,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    // Tablets and other wide viewports get the stage beside the
+                    // status column instead of stacked, keeping the camera and
+                    // the numbers visible together without scrolling.
+                    LayoutBuilder(
+                      builder:
+                          (BuildContext context, BoxConstraints constraints) {
+                            final Widget status = _buildStatusColumn(
+                              context,
+                              running: running,
+                            );
+                            if (constraints.maxWidth < 720) {
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: <Widget>[
+                                  if (running) status else _buildStage(context),
+                                  const SizedBox(height: 16),
+                                  if (running) _buildStage(context) else status,
+                                ],
+                              );
+                            }
+                            return Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
+                                Expanded(flex: 3, child: _buildStage(context)),
+                                const SizedBox(width: 16),
+                                Expanded(flex: 2, child: status),
+                              ],
+                            );
+                          },
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  exercise.title,
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  running ? exercise.instructions : exercise.setupHint,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: colors.textSecondary,
-                    height: 1.4,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                // Tablets and other wide viewports get the stage beside the
-                // status column instead of stacked, keeping the camera and
-                // the numbers visible together without scrolling.
-                LayoutBuilder(
-                  builder: (BuildContext context, BoxConstraints constraints) {
-                    final Widget status = _buildStatusColumn(
-                      context,
-                      running: running,
-                    );
-                    if (constraints.maxWidth < 720) {
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: <Widget>[
-                          _buildStage(context, running: running),
-                          const SizedBox(height: 16),
-                          status,
-                        ],
-                      );
-                    }
-                    return Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Expanded(
-                          flex: 3,
-                          child: _buildStage(context, running: running),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(flex: 2, child: status),
-                      ],
-                    );
-                  },
-                ),
-              ],
+              ),
             ),
           ),
         ),
+        _buildSessionActions(context, running: running),
       ],
     );
   }
 
   Widget _buildStatusColumn(BuildContext context, {required bool running}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: <Widget>[
-        if (running)
-          _buildLiveStatus(context)
-        else
-          _buildFramingStatus(context),
-        const SizedBox(height: 16),
-        if (!running)
-          FilledButton.icon(
-            onPressed: _controller.isFramingReady ? _start : null,
-            icon: const Icon(Icons.play_arrow_rounded),
-            style: FilledButton.styleFrom(
-              minimumSize: const Size.fromHeight(56),
-            ),
-            label: Text(
-              _controller.isFramingReady
-                  ? 'Start routine'
-                  : 'Waiting for a clear view',
+    return running ? _buildLiveStatus(context) : _buildFramingStatus(context);
+  }
+
+  Widget _buildSessionActions(BuildContext context, {required bool running}) {
+    final bool canSkip =
+        running && _controller.phase == MotionRoutinePhase.active;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: context.colors.surface,
+        border: Border(top: BorderSide(color: Theme.of(context).dividerColor)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
+        child: Center(
+          heightFactor: 1,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 540),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                if (running)
+                  OutlinedButton.icon(
+                    onPressed: () => unawaited(_suspend()),
+                    icon: const Icon(Icons.pause_rounded),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(52),
+                    ),
+                    label: const Text('Pause session'),
+                  )
+                else
+                  FilledButton.icon(
+                    onPressed: _controller.isFramingReady ? _start : null,
+                    icon: const Icon(Icons.play_arrow_rounded),
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(56),
+                    ),
+                    label: Text(
+                      _controller.isPaused ? 'Resume session' : 'Start routine',
+                    ),
+                  ),
+                if (canSkip)
+                  TextButton.icon(
+                    onPressed: () => unawaited(_confirmSkipStep()),
+                    icon: const Icon(Icons.skip_next_rounded),
+                    label: const Text('Skip this exercise'),
+                  ),
+              ],
             ),
           ),
-        if (running && _controller.phase == MotionRoutinePhase.active) ...[
-          const SizedBox(height: 8),
-          TextButton.icon(
-            onPressed: () => unawaited(_confirmSkipStep()),
-            icon: const Icon(Icons.skip_next_rounded),
-            label: const Text('Skip this exercise'),
-          ),
-        ],
-      ],
+        ),
+      ),
     );
   }
 
   /// Camera preview beside the reference figure, so the person can compare
   /// what they are doing with what the exercise asks for.
-  Widget _buildStage(BuildContext context, {required bool running}) {
+  Widget _buildStage(BuildContext context) {
     final colors = context.colors;
-    final MotionDemonstrationLoop? demonstration = _demonstration;
+    final MotionDemonstrationLoop? demonstration =
+        _demonstration?.exerciseId == _demonstrationTargetId
+        ? _demonstration
+        : null;
     // Scales with the viewport so small phones keep the controls on screen
     // and tall phones get a larger preview; clamped to sane bounds.
     final double stageHeight = (MediaQuery.sizeOf(context).height * 0.34).clamp(
@@ -619,10 +710,10 @@ class _MotionRoutineScreenState extends State<MotionRoutineScreen>
             child: ClipRRect(
               borderRadius: BorderRadius.circular(18),
               child: ColoredBox(
-                color: colors.surface,
+                color: const Color(0xFF14264A),
                 child: _driver?.isInitialized == true
                     ? FittedBox(
-                        fit: BoxFit.cover,
+                        fit: BoxFit.contain,
                         clipBehavior: Clip.hardEdge,
                         child: SizedBox(
                           width: stageHeight / _driver!.aspectRatio,
@@ -691,6 +782,8 @@ class _MotionRoutineScreenState extends State<MotionRoutineScreen>
   }
 
   Future<void> _confirmSkipStep() async {
+    if (_finishing || _showingSessionDialog) return;
+    _showingSessionDialog = true;
     final int stepIndex = _controller.stepIndex;
     final MotionExerciseDefinition exercise = _controller.currentExercise;
     final bool? skip = await showDialog<bool>(
@@ -717,11 +810,13 @@ class _MotionRoutineScreenState extends State<MotionRoutineScreen>
     // agreed to skip may have finished on its own. Skipping is only honored
     // while that same step is still the active one, otherwise a confirm
     // would silently skip the following exercise instead.
+    _showingSessionDialog = false;
     if (skip == true &&
         mounted &&
+        _phase == _RoutineScreenPhase.running &&
         _controller.stepIndex == stepIndex &&
         _controller.phase == MotionRoutinePhase.active) {
-      HapticUtils.lightImpact();
+      if (_preferences.hapticsEnabled) HapticUtils.lightImpact();
       _controller.skipCurrentStep();
     }
   }
@@ -965,7 +1060,7 @@ class _MotionRoutineScreenState extends State<MotionRoutineScreen>
   }) {
     final colors = context.colors;
     return Center(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(28),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -989,7 +1084,19 @@ class _MotionRoutineScreenState extends State<MotionRoutineScreen>
               ),
             ),
             const SizedBox(height: 22),
-            FilledButton(onPressed: onAction, child: Text(actionLabel)),
+            FilledButton.icon(
+              onPressed: onAction,
+              icon: const Icon(Icons.videocam_outlined),
+              style: FilledButton.styleFrom(minimumSize: const Size(160, 52)),
+              label: Text(actionLabel),
+            ),
+            if (_controller.canFinishEarly) ...[
+              const SizedBox(height: 10),
+              TextButton(
+                onPressed: () => unawaited(_confirmExit()),
+                child: const Text('End session'),
+              ),
+            ],
             if (secondaryActionLabel != null && onSecondaryAction != null) ...[
               const SizedBox(height: 10),
               TextButton(
@@ -1002,4 +1109,22 @@ class _MotionRoutineScreenState extends State<MotionRoutineScreen>
       ),
     );
   }
+}
+
+class _RoutineLoading extends StatelessWidget {
+  const _RoutineLoading({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        const CircularProgressIndicator(),
+        const SizedBox(height: 16),
+        Semantics(liveRegion: true, child: Text(label)),
+      ],
+    ),
+  );
 }

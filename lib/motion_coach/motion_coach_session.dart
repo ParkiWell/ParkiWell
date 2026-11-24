@@ -268,14 +268,18 @@ class MotionCoachSession extends ChangeNotifier {
 /// rather than a partially populated one: the engine treats missing data as
 /// missing and abstains, which is only sound if the adapter never
 /// substitutes a plausible-looking value for an absent measurement.
-PoseFrame poseFrameFromDetection(MotionPoseDetection detection) {
+PoseFrame poseFrameFromDetection(
+  MotionPoseDetection detection, {
+  int? timestampMs,
+}) {
+  final int frameTime = timestampMs ?? detection.timestampMs;
   if (detection.poseCount != 1 || !detection.hasCompletePose) {
-    return PoseFrame(timestampMs: detection.timestampMs, landmarks: null);
+    return PoseFrame(timestampMs: frameTime, landmarks: null);
   }
   final List<MotionPoseLandmark> normalized = detection.normalizedLandmarks!;
   final List<MotionPoseLandmark> world = detection.worldLandmarks!;
   return PoseFrame(
-    timestampMs: detection.timestampMs,
+    timestampMs: frameTime,
     landmarks: List<PoseLandmark>.generate(
       33,
       (int index) => PoseLandmark(

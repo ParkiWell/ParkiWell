@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
-import '../widgets/liquid_glass.dart';
 import '../widgets/modern_card.dart';
 import 'motion_analysis.dart';
+import 'motion_coach_layout.dart';
 
 enum MotionCoachResultAction { useRecording, retry }
 
@@ -18,193 +18,111 @@ class MotionCoachResultsScreen extends StatelessWidget {
     final bool setupHelp = result.needsSetupHelp;
 
     return Scaffold(
-      backgroundColor: colors.background,
-      appBar: AppBar(
-        backgroundColor: colors.background,
-        surfaceTintColor: Colors.transparent,
-        elevation: 0,
-        automaticallyImplyLeading: false,
-        title: const Text('Motion check'),
-      ),
-      body: LiquidBackground(
-        child: SafeArea(
-          top: false,
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                ModernCard(
-                  margin: EdgeInsets.zero,
-                  padding: const EdgeInsets.all(20),
-                  backgroundColor: setupHelp
-                      ? colors.warning.withValues(alpha: 0.11)
-                      : colors.success.withValues(alpha: 0.11),
-                  border: Border.all(
-                    color: (setupHelp ? colors.warning : colors.success)
-                        .withValues(alpha: 0.32),
-                  ),
-                  child: Column(
-                    children: [
-                      Container(
-                        width: 56,
-                        height: 56,
-                        decoration: BoxDecoration(
-                          color: (setupHelp ? colors.warning : colors.success)
-                              .withValues(alpha: 0.16),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          setupHelp ? Icons.tune_rounded : Icons.check_rounded,
-                          color: setupHelp ? colors.warning : colors.success,
-                          size: 30,
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      Text(
-                        setupHelp
-                            ? 'Let’s adjust the setup'
-                            : 'Movement captured',
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.headlineSmall
-                            ?.copyWith(fontWeight: FontWeight.w800),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        setupHelp
-                            ? _setupMessage(result)
-                            : 'Here are neutral camera observations from this practice.',
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: colors.textSecondary,
-                          height: 1.45,
-                        ),
-                      ),
-                    ],
-                  ),
+      appBar: AppBar(title: const Text('Motion check')),
+      body: MotionScreenScroll(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            MotionSectionTitle(
+              title: setupHelp ? 'Let’s adjust the setup' : 'Movement captured',
+              description: setupHelp
+                  ? _setupMessage(result)
+                  : 'See the movements the camera was able to measure.',
+            ),
+            const SizedBox(height: 18),
+            if (!setupHelp) ...[
+              _EvidenceReportCard(result: result),
+              const SizedBox(height: 14),
+              _ObservationCard(
+                icon: Icons.repeat_rounded,
+                title: 'Complete movements',
+                value: '${result.repCount}',
+                detail: 'Movements measured through a complete cycle.',
+              ),
+              const SizedBox(height: 10),
+              if (result.rangeDegrees != null)
+                _ObservationCard(
+                  icon: Icons.expand_rounded,
+                  title: 'Observed movement range',
+                  value: '${result.rangeDegrees!.round()}°',
+                  detail:
+                      'Median measured range during complete movements'
+                      '${result.rangePercentOfReference == null ? '.' : ' — '
+                                '${result.rangePercentOfReference!.round()}% of '
+                                'this exercise reference.'}',
                 ),
-                const SizedBox(height: 18),
-                if (!setupHelp) ...[
-                  _EvidenceReportCard(result: result),
-                  const SizedBox(height: 14),
-                  _ObservationCard(
-                    icon: Icons.repeat_rounded,
-                    title: 'Complete movements',
-                    value: '${result.repCount}',
-                    detail: 'Movements measured through a complete cycle.',
-                  ),
-                  const SizedBox(height: 10),
-                  if (result.rangeDegrees != null)
-                    _ObservationCard(
-                      icon: Icons.expand_rounded,
-                      title: 'Observed movement range',
-                      value: '${result.rangeDegrees!.round()}°',
-                      detail:
-                          'Median measured range during complete movements'
-                          '${result.rangePercentOfReference == null ? '.' : ' — '
-                                    '${result.rangePercentOfReference!.round()}% of '
-                                    'this exercise reference.'}',
-                    ),
-                  if (result.rangeDegrees != null) const SizedBox(height: 10),
-                  if (result.tempoSeconds != null)
-                    _ObservationCard(
-                      icon: Icons.timer_outlined,
-                      title: 'Observed pace',
-                      value: '${result.tempoSeconds!.toStringAsFixed(1)} sec',
-                      detail: 'Median duration of one complete movement.',
-                    ),
-                  if (result.tempoSeconds != null) const SizedBox(height: 10),
-                  if (result.sideRangeRatio != null)
-                    _ObservationCard(
-                      icon: Icons.compare_arrows_rounded,
-                      title: 'Side-to-side range ratio',
-                      value: '${(result.sideRangeRatio! * 100).round()}%',
-                      detail:
-                          'Smaller observed side range divided by the larger.',
-                    ),
-                  if (result.sequenceSummary != null) ...[
-                    const SizedBox(height: 10),
-                    _ObservationCard(
-                      icon: Icons.trending_flat_rounded,
-                      title: 'First-to-last range',
-                      value:
-                          '${result.repetitions.first.romDegrees.round()}° → '
-                          '${result.repetitions.last.romDegrees.round()}°',
-                      detail:
-                          '${(result.amplitudeSequenceLastFirstRatio! * 100).round()}% '
-                          'last-to-first. This is a camera observation, not a '
-                          'fatigue score.',
-                    ),
-                  ],
-                  if (result.repetitions.isNotEmpty) ...[
-                    const SizedBox(height: 10),
-                    _RepetitionDetailCard(result: result),
-                  ],
-                  const SizedBox(height: 10),
-                  _ObservationCard(
-                    icon: Icons.visibility_outlined,
-                    title: 'Measurement coverage',
-                    value: '${(result.coverage * 100).round()}%',
-                    detail: result.coverage >= 0.99
-                        ? 'The camera tracked you for the whole recording.'
-                        : 'Part of the recording could not be tracked, so '
-                              'treat these numbers as a rough reading.',
-                  ),
-                  const SizedBox(height: 14),
-                ],
-                ModernCard(
-                  margin: EdgeInsets.zero,
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Icon(
-                        Icons.privacy_tip_outlined,
-                        color: colors.primary,
-                        size: 22,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          'Your video and pose landmarks stay on this device. '
-                          'These observations are not a diagnosis or a medical '
-                          'assessment.',
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(
-                                color: colors.textSecondary,
-                                height: 1.45,
-                              ),
-                        ),
-                      ),
-                    ],
-                  ),
+              if (result.rangeDegrees != null) const SizedBox(height: 10),
+              if (result.tempoSeconds != null)
+                _ObservationCard(
+                  icon: Icons.timer_outlined,
+                  title: 'Observed pace',
+                  value: '${result.tempoSeconds!.toStringAsFixed(1)} sec',
+                  detail: 'Median duration of one complete movement.',
                 ),
-                const SizedBox(height: 22),
-                FilledButton.icon(
-                  style: FilledButton.styleFrom(
-                    minimumSize: const Size.fromHeight(54),
-                  ),
-                  onPressed: () => Navigator.of(
-                    context,
-                  ).pop(MotionCoachResultAction.useRecording),
-                  icon: const Icon(Icons.check_rounded),
-                  label: Text(
-                    setupHelp ? 'Keep private recording' : 'Use this result',
-                  ),
+              if (result.tempoSeconds != null) const SizedBox(height: 10),
+              if (result.sideRangeRatio != null)
+                _ObservationCard(
+                  icon: Icons.compare_arrows_rounded,
+                  title: 'Side-to-side range ratio',
+                  value: '${(result.sideRangeRatio! * 100).round()}%',
+                  detail: 'Smaller observed side range divided by the larger.',
                 ),
+              if (result.sequenceSummary != null) ...[
                 const SizedBox(height: 10),
-                OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size.fromHeight(50),
-                  ),
-                  onPressed: () =>
-                      Navigator.of(context).pop(MotionCoachResultAction.retry),
-                  icon: const Icon(Icons.refresh_rounded),
-                  label: const Text('Try again'),
+                _ObservationCard(
+                  icon: Icons.trending_flat_rounded,
+                  title: 'First-to-last range',
+                  value:
+                      '${result.repetitions.first.romDegrees.round()}° → '
+                      '${result.repetitions.last.romDegrees.round()}°',
+                  detail:
+                      '${(result.amplitudeSequenceLastFirstRatio! * 100).round()}% '
+                      'last-to-first. This is a camera observation, not a '
+                      'fatigue score.',
                 ),
               ],
+              if (result.repetitions.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                _RepetitionDetailCard(result: result),
+              ],
+              const SizedBox(height: 10),
+              _ObservationCard(
+                icon: Icons.visibility_outlined,
+                title: 'Measurement coverage',
+                value: '${(result.coverage * 100).round()}%',
+                detail: result.coverage >= 0.99
+                    ? 'The camera tracked you for the whole recording.'
+                    : 'Part of the recording could not be tracked, so '
+                          'treat these numbers as a rough reading.',
+              ),
+              const SizedBox(height: 14),
+            ],
+            Text(
+              'Your video and pose landmarks stay on this device. '
+              'A camera observation is not a diagnosis.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: colors.textSecondary,
+                height: 1.45,
+              ),
             ),
-          ),
+            const SizedBox(height: 16),
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(minimumSize: const Size(48, 50)),
+              onPressed: () =>
+                  Navigator.of(context).pop(MotionCoachResultAction.retry),
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Try again'),
+            ),
+          ],
+        ),
+      ),
+      bottomNavigationBar: MotionActionBar(
+        child: FilledButton.icon(
+          style: FilledButton.styleFrom(minimumSize: const Size(48, 52)),
+          onPressed: () =>
+              Navigator.of(context).pop(MotionCoachResultAction.useRecording),
+          icon: const Icon(Icons.check_rounded),
+          label: Text(setupHelp ? 'Keep private recording' : 'Use this result'),
         ),
       ),
     );
@@ -386,7 +304,13 @@ class _ObservationCard extends StatelessWidget {
               color: colors.secondary.withValues(alpha: 0.13),
               borderRadius: BorderRadius.circular(13),
             ),
-            child: Icon(icon, color: colors.secondary, size: 23),
+            child: Icon(
+              icon,
+              color: context.isDarkMode
+                  ? colors.secondary
+                  : colors.secondaryDark,
+              size: 23,
+            ),
           ),
           const SizedBox(width: 14),
           Expanded(

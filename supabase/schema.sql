@@ -32,7 +32,8 @@ returns boolean
 language sql
 stable
 as $$
-  select coalesce((auth.jwt() ->> 'is_anonymous')::boolean, false) = false;
+  select auth.uid() is not null
+    and coalesce((auth.jwt() ->> 'is_anonymous')::boolean, false) = false;
 $$;
 
 create table if not exists public.users (
@@ -50,6 +51,54 @@ create table if not exists public.users (
 );
 
 alter table public.users add column if not exists community_alias text;
+
+-- Client profile inserts and auth identity deletion follow the same lock
+-- order. Auth deletion cascades to the text-keyed profile and its data
+-- within the auth transaction. Service fixtures can seed synthetic profiles
+-- without creating credentials.
+create or replace function public.lock_profile_auth_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_actor uuid := auth.uid();
+begin
+  if new.id = v_actor::text then
+    perform 1 from auth.users where id = v_actor for key share;
+    if not found then
+      raise exception 'The profile requires an active account';
+    end if;
+  end if;
+  return new;
+end;
+$$;
+
+create or replace function public.delete_retired_auth_profile()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  delete from public.users where id = old.id::text;
+  return old;
+end;
+$$;
+
+revoke all on function public.lock_profile_auth_user() from public, anon, authenticated;
+revoke all on function public.delete_retired_auth_profile() from public, anon, authenticated;
+
+drop trigger if exists trg_users_lock_auth_user on public.users;
+create trigger trg_users_lock_auth_user
+before insert on public.users
+for each row execute function public.lock_profile_auth_user();
+
+drop trigger if exists trg_auth_users_delete_profile on auth.users;
+create trigger trg_auth_users_delete_profile
+after delete on auth.users
+for each row execute function public.delete_retired_auth_profile();
 
 create table if not exists public.logs (
   id text primary key,
@@ -187,12 +236,21 @@ alter table public.motion_sessions
 create index if not exists idx_motion_sessions_user_completed
   on public.motion_sessions(user_id, completed_at desc);
 
--- Bulk deletion for "delete my movement history": removes every motion
--- session the caller owns and tombstones each id so other devices' pending
--- upserts cannot resurrect them. The per-id mutation path only covers the
--- sessions a device still holds locally (capped), so a server-side sweep is
--- required for the deletion promise to hold for long histories.
-create or replace function public.delete_my_motion_sessions()
+-- Keep the latest sweep time across devices. Per-session tombstones cover
+-- known IDs, while the cutoff also covers older sessions first synced later.
+create table if not exists public.motion_history_deletions (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  deleted_through timestamptz not null
+);
+alter table public.motion_history_deletions enable row level security;
+revoke all on public.motion_history_deletions from public, anon, authenticated;
+grant select on public.motion_history_deletions to authenticated;
+drop policy if exists motion_history_deletions_select_own on public.motion_history_deletions;
+create policy motion_history_deletions_select_own on public.motion_history_deletions
+  for select to authenticated
+  using (user_id = auth.uid() and public.is_full_account());
+
+create or replace function public.delete_my_motion_sessions(p_through timestamptz)
 returns integer
 language plpgsql
 security definer
@@ -200,6 +258,8 @@ set search_path = public
 as $$
 declare
   v_user_id text;
+  v_now timestamptz;
+  v_cutoff timestamptz;
   v_deleted integer;
 begin
   v_user_id := public.current_uid();
@@ -210,30 +270,60 @@ begin
     raise exception 'Anonymous sessions may not modify health data';
   end if;
 
+  perform pg_advisory_xact_lock(hashtextextended(v_user_id, 81301));
+  v_now := clock_timestamp();
+  v_cutoff := least(coalesce(p_through, v_now), v_now);
+  insert into public.motion_history_deletions (user_id, deleted_through)
+  values (v_user_id::uuid, v_cutoff)
+  on conflict (user_id) do update
+    set deleted_through = greatest(
+      public.motion_history_deletions.deleted_through, excluded.deleted_through
+    )
+  returning deleted_through into v_cutoff;
+
+  with deleted as (
+    delete from public.motion_sessions
+    where user_id = v_user_id and completed_at <= v_cutoff
+    returning id
+  )
   insert into public.sync_tombstones (
     entity_type, entity_id, user_id, deleted_at, mutation_id
   )
-  select 'motionSession', id, v_user_id, timezone('utc', now()),
-         gen_random_uuid()::text
-  from public.motion_sessions
-  where user_id = v_user_id
+  select 'motionSession', id, v_user_id, v_cutoff, gen_random_uuid()::text
+  from deleted
   on conflict (entity_type, entity_id, user_id) do update
-    set deleted_at = excluded.deleted_at,
-        mutation_id = excluded.mutation_id;
-
-  delete from public.motion_sessions where user_id = v_user_id;
+    set deleted_at = greatest(public.sync_tombstones.deleted_at, excluded.deleted_at);
   get diagnostics v_deleted = row_count;
   return v_deleted;
 end;
 $$;
 
-revoke all on function public.delete_my_motion_sessions() from public;
+revoke all on function public.delete_my_motion_sessions(timestamptz) from public, anon;
+grant execute on function public.delete_my_motion_sessions(timestamptz) to authenticated;
+
+-- Older app builds omit the cutoff and request deletion through server time.
+create or replace function public.delete_my_motion_sessions()
+returns integer
+language sql
+set search_path = public
+as $$
+  select public.delete_my_motion_sessions(null::timestamptz);
+$$;
+
+revoke all on function public.delete_my_motion_sessions() from public, anon;
 grant execute on function public.delete_my_motion_sessions() to authenticated;
 
--- Atomic attempt accounting for the AI summary edge function. Increments
--- and checks in one statement so concurrent requests cannot overrun the
--- per-session budget. Service-role only: the edge function has already
--- verified the caller owns the session.
+-- Generation attempts are tied to the auth identity so deleting synced
+-- session rows or a public profile does not refund the rolling quota.
+create table if not exists public.motion_summary_attempt_events (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  attempted_at timestamptz not null
+);
+create index if not exists idx_motion_summary_attempt_events_user_time
+  on public.motion_summary_attempt_events(user_id, attempted_at);
+alter table public.motion_summary_attempt_events enable row level security;
+revoke all on public.motion_summary_attempt_events from public, anon, authenticated;
+
 create or replace function public.claim_motion_summary_attempt(
   p_session_id text,
   p_user_id text,
@@ -245,21 +335,42 @@ security definer
 set search_path = public
 as $$
 declare
-  v_claimed boolean := false;
+  v_user_id uuid := p_user_id::uuid;
+  v_attempted_at timestamptz;
 begin
+  perform pg_advisory_xact_lock(hashtextextended(p_user_id, 81302));
+  v_attempted_at := clock_timestamp();
+
+  delete from public.motion_summary_attempt_events
+  where user_id = v_user_id
+    and attempted_at <= v_attempted_at - interval '24 hours';
+
+  if (select count(*) from public.motion_summary_attempt_events
+      where user_id = v_user_id) >= 20 then
+    return false;
+  end if;
+
   update public.motion_sessions
     set llm_summary_attempts = llm_summary_attempts + 1,
-        llm_summary_generated_at = timezone('utc', now())
+        llm_summary_generated_at = v_attempted_at
   where id = p_session_id
     and user_id = p_user_id
-    and llm_summary_attempts < p_max_attempts;
-  v_claimed := found;
-  return v_claimed;
+    and llm_summary is null
+    and llm_summary_attempts < least(p_max_attempts, 3)
+    and (llm_summary_generated_at is null
+      or llm_summary_generated_at <= v_attempted_at - interval '1 minute');
+  if not found then
+    return false;
+  end if;
+
+  insert into public.motion_summary_attempt_events (user_id, attempted_at)
+  values (v_user_id, v_attempted_at);
+  return true;
 end;
 $$;
 
 revoke all on function public.claim_motion_summary_attempt(text, text, integer)
-  from public;
+  from public, anon, authenticated;
 grant execute on function public.claim_motion_summary_attempt(text, text, integer)
   to service_role;
 
@@ -473,7 +584,7 @@ begin
 end;
 $$;
 
-revoke all on function public.increment_post_like(text) from public;
+revoke all on function public.increment_post_like(text) from public, anon;
 grant execute on function public.increment_post_like(text) to authenticated;
 
 create or replace function public.refresh_post_like_count(p_post_id text)
@@ -485,6 +596,8 @@ as $$
 begin
   -- Recomputes the counter from like rows (the source of truth), so the
   -- call is idempotent and cannot inflate counts. Used after unlike.
+  if not public.is_full_account() then return; end if;
+
   update public.community_posts
     set likes = (
           select count(*)
@@ -497,7 +610,7 @@ begin
 end;
 $$;
 
-revoke all on function public.refresh_post_like_count(text) from public;
+revoke all on function public.refresh_post_like_count(text) from public, anon;
 grant execute on function public.refresh_post_like_count(text) to authenticated;
 
 create table if not exists public.community_post_reports (
@@ -511,12 +624,9 @@ create table if not exists public.community_post_reports (
 alter table public.community_post_reports enable row level security;
 
 drop policy if exists post_reports_insert_own on public.community_post_reports;
-create policy post_reports_insert_own on public.community_post_reports
-  for insert to authenticated
-  with check (
-    user_id = auth.uid()::text
-    and coalesce((auth.jwt() ->> 'is_anonymous')::boolean, false) = false
-  );
+revoke insert on public.community_post_reports from public, anon, authenticated;
+create index if not exists idx_post_reports_reporter_created
+  on public.community_post_reports (user_id, created_at);
 
 drop policy if exists post_reports_select_own on public.community_post_reports;
 create policy post_reports_select_own on public.community_post_reports
@@ -568,14 +678,25 @@ begin
   -- Anonymous bootstrap sessions carry the authenticated role but must not
   -- moderate: unlimited free anonymous identities would otherwise let a
   -- script hide any post with three fabricated reports.
-  if coalesce((auth.jwt() ->> 'is_anonymous')::boolean, false) then
+  if not public.is_full_account() then
     raise exception 'full account required to report posts';
   end if;
 
-  select count(*) into v_recent_reports
-  from public.community_post_reports r
-  where r.user_id = auth.uid()::text
-    and r.created_at > timezone('utc', now()) - interval '1 hour';
+  perform pg_advisory_xact_lock(hashtextextended(public.current_uid(), 81303));
+  perform 1 from public.community_posts where id = p_post_id and not is_hidden
+    for update;
+  if not found then
+    return;
+  end if;
+
+  select
+    (select count(*) from public.community_post_reports r
+      where r.user_id = public.current_uid()
+        and r.created_at > now() - interval '1 hour')
+    + (select count(*) from public.community_comment_reports r
+      where r.user_id = public.current_uid()
+        and r.created_at > now() - interval '1 hour')
+  into v_recent_reports;
   if v_recent_reports >= 10 then
     raise exception 'report rate limit exceeded';
   end if;
@@ -600,7 +721,7 @@ begin
 end;
 $$;
 
-revoke all on function public.report_post(text, text) from public;
+revoke all on function public.report_post(text, text) from public, anon;
 grant execute on function public.report_post(text, text) to authenticated;
 
 create table if not exists public.community_comment_reports (
@@ -616,12 +737,9 @@ alter table public.community_comment_reports enable row level security;
 
 drop policy if exists comment_reports_insert_own
   on public.community_comment_reports;
-create policy comment_reports_insert_own on public.community_comment_reports
-  for insert to authenticated
-  with check (
-    user_id = auth.uid()::text
-    and coalesce((auth.jwt() ->> 'is_anonymous')::boolean, false) = false
-  );
+revoke insert on public.community_comment_reports from public, anon, authenticated;
+create index if not exists idx_comment_reports_reporter_created
+  on public.community_comment_reports (user_id, created_at);
 
 drop policy if exists comment_reports_select_own
   on public.community_comment_reports;
@@ -642,18 +760,27 @@ declare
   v_report_count integer;
   v_recent_reports integer;
 begin
-  if coalesce((auth.jwt() ->> 'is_anonymous')::boolean, false) then
+  if not public.is_full_account() then
     raise exception 'full account required to report comments';
+  end if;
+
+  perform pg_advisory_xact_lock(hashtextextended(public.current_uid(), 81303));
+  perform 1 from public.community_comments c
+    join public.community_posts p on p.id = c.post_id
+    where c.id = p_comment_id and not c.is_flagged and not p.is_hidden
+    for update of c;
+  if not found then
+    return;
   end if;
 
   -- Reports of posts and comments share one hourly budget per user.
   select
     (select count(*) from public.community_post_reports r
       where r.user_id = auth.uid()::text
-        and r.created_at > timezone('utc', now()) - interval '1 hour')
+        and r.created_at > now() - interval '1 hour')
     + (select count(*) from public.community_comment_reports r
       where r.user_id = auth.uid()::text
-        and r.created_at > timezone('utc', now()) - interval '1 hour')
+        and r.created_at > now() - interval '1 hour')
   into v_recent_reports;
   if v_recent_reports >= 10 then
     raise exception 'report rate limit exceeded';
@@ -677,7 +804,7 @@ begin
 end;
 $$;
 
-revoke all on function public.report_comment(text, text) from public;
+revoke all on function public.report_comment(text, text) from public, anon;
 grant execute on function public.report_comment(text, text) to authenticated;
 
 create or replace function public.get_comment_counts(p_post_ids text[])
@@ -688,15 +815,15 @@ set search_path = public
 as $$
   select c.post_id, count(*)::bigint
   from public.community_comments c
+  join public.community_posts p on p.id = c.post_id
   where c.post_id = any(p_post_ids)
     and c.is_flagged = false
-    -- Community data is full-account only; security definer bypasses the
-    -- table policies, so the anonymous gate must be restated here.
-    and coalesce((auth.jwt() ->> 'is_anonymous')::boolean, false) = false
+    and (not p.is_hidden or p.user_id = public.current_uid())
+    and public.is_full_account()
   group by c.post_id;
 $$;
 
-revoke all on function public.get_comment_counts(text[]) from public;
+revoke all on function public.get_comment_counts(text[]) from public, anon;
 grant execute on function public.get_comment_counts(text[]) to authenticated;
 
 create or replace function public.apply_health_mutations(p_mutations jsonb)
@@ -714,6 +841,8 @@ declare
   v_operation text;
   v_payload jsonb;
   v_client_updated_at timestamptz;
+  v_motion_completed_at timestamptz;
+  v_motion_deleted_through timestamptz;
   v_acknowledged jsonb := '[]'::jsonb;
   v_rows integer;
   v_owner text;
@@ -732,6 +861,10 @@ begin
   if jsonb_array_length(p_mutations) > 500 then
     raise exception 'A maximum of 500 mutations may be applied per batch';
   end if;
+
+  perform pg_advisory_xact_lock(hashtextextended(v_user_id, 81301));
+  select deleted_through into v_motion_deleted_through
+  from public.motion_history_deletions where user_id = v_user_id::uuid;
 
   for v_mutation in
     select value from jsonb_array_elements(p_mutations)
@@ -758,8 +891,9 @@ begin
       timezone('utc', now()) + interval '5 minutes'
     );
 
-    if v_mutation_id = '' or v_entity_id = '' then
-      raise exception 'Mutation and entity ids are required';
+    if not (length(v_mutation_id) between 1 and 64)
+       or not (length(v_entity_id) between 1 and 64) then
+      raise exception 'Mutation and entity ids are invalid';
     end if;
     if v_entity_type not in (
       'log',
@@ -772,6 +906,17 @@ begin
     end if;
     if v_operation not in ('upsert', 'delete') then
       raise exception 'Unsupported mutation operation: %', v_operation;
+    end if;
+
+    if v_entity_type = 'motionSession' and v_operation = 'upsert' then
+      v_motion_completed_at := coalesce(
+        nullif(v_payload ->> 'completed_at', '')::timestamptz,
+        v_client_updated_at
+      );
+      if v_motion_completed_at <= v_motion_deleted_through then
+        v_acknowledged := v_acknowledged || jsonb_build_array(v_mutation_id);
+        continue;
+      end if;
     end if;
 
     if v_operation = 'delete' then
@@ -830,9 +975,7 @@ begin
         elsif v_entity_type = 'motionSession' then
           delete from public.motion_sessions
           where id = v_entity_id
-            and user_id = v_user_id
-            and (client_updated_at, last_mutation_id)
-                <= (v_client_updated_at, v_mutation_id);
+            and user_id = v_user_id;
         end if;
       end if;
     elsif not exists (
@@ -841,8 +984,9 @@ begin
       where tombstone.entity_type = v_entity_type
         and tombstone.entity_id = v_entity_id
         and tombstone.user_id = v_user_id
-        and (tombstone.deleted_at, tombstone.mutation_id)
-            > (v_client_updated_at, v_mutation_id)
+        and (v_entity_type = 'motionSession'
+          or (tombstone.deleted_at, tombstone.mutation_id)
+             > (v_client_updated_at, v_mutation_id))
     ) then
       delete from public.sync_tombstones
       where entity_type = v_entity_type
@@ -1005,10 +1149,7 @@ begin
           coalesce(v_payload ->> 'routine_id', ''),
           coalesce(v_payload ->> 'routine_name', ''),
           coalesce(v_payload ->> 'engine_version', ''),
-          coalesce(
-            nullif(v_payload ->> 'completed_at', '')::timestamptz,
-            v_client_updated_at
-          ),
+          v_motion_completed_at,
           (v_payload ->> 'overall_score')::double precision,
           coalesce(v_payload -> 'record', '{}'::jsonb),
           coalesce(v_payload -> 'evaluation', '{}'::jsonb),
@@ -1073,11 +1214,9 @@ begin
       -- row, tombstone uniqueness) rejects only that mutation; aborting
       -- the batch would wedge every other pending change behind it.
       when others then
-        -- Log the id and error class only: sqlerrm can embed row values
-        -- (symptom text, medication names) and Postgres logs are not a
-        -- place for health data.
-        raise warning 'mutation % rejected (sqlstate %)',
-          v_mutation_id, sqlstate;
+        -- Log the error class alone. Values and error messages can include
+        -- health data sent by a client.
+        raise warning 'health mutation rejected (sqlstate %)', sqlstate;
     end;
   end loop;
 
@@ -1085,7 +1224,7 @@ begin
 end;
 $$;
 
-revoke all on function public.apply_health_mutations(jsonb) from public;
+revoke all on function public.apply_health_mutations(jsonb) from public, anon;
 grant execute on function public.apply_health_mutations(jsonb) to authenticated;
 
 alter table public.users enable row level security;
@@ -1131,6 +1270,12 @@ create policy users_update_own on public.users
 create policy users_delete_own on public.users
   for delete to authenticated
   using (id = public.current_uid());
+
+-- The community identity trigger is the only writer of reserved aliases.
+revoke insert, update on public.users from public, anon, authenticated;
+grant insert (id, name, email, age, profile_image, updated_at),
+      update (id, name, email, age, profile_image, updated_at)
+  on public.users to authenticated;
 
 drop policy if exists logs_select_own on public.logs;
 drop policy if exists logs_insert_own on public.logs;
@@ -1214,14 +1359,8 @@ create policy motion_sessions_select_own on public.motion_sessions
   for select to authenticated
   using (user_id = public.current_uid() and public.is_full_account());
 
--- No insert/update policies on purpose: every client write flows through
--- apply_health_mutations (security definer), and a direct row UPDATE would
--- let an owner rewrite the llm_summary_* budget columns and defeat the AI
--- spend limits. Deletion stays client-reachable for the account-deletion
--- fallback path.
-create policy motion_sessions_delete_own on public.motion_sessions
-  for delete to authenticated
-  using (user_id = public.current_uid() and public.is_full_account());
+-- Every client write and deletion goes through a mutation or deletion RPC.
+-- Full account deletion cascades from the owner's profile row.
 
 drop policy if exists medication_events_select_own on public.medication_events;
 drop policy if exists medication_events_insert_own on public.medication_events;
@@ -1254,6 +1393,29 @@ drop policy if exists sync_tombstones_select_own on public.sync_tombstones;
 create policy sync_tombstones_select_own on public.sync_tombstones
   for select to authenticated
   using (user_id = public.current_uid() and public.is_full_account());
+
+create or replace function public.get_my_motion_session_deletions(p_local_ids text[])
+returns jsonb
+language sql
+stable
+set search_path = public
+as $$
+  select jsonb_build_object(
+    'cutoff', (
+      select deleted_through from public.motion_history_deletions
+      where user_id = auth.uid()
+    ),
+    'deleted_ids', coalesce((
+      select jsonb_agg(entity_id) from public.sync_tombstones
+      where entity_type = 'motionSession'
+        and user_id = public.current_uid()
+        and entity_id = any(p_local_ids[1:60])
+    ), '[]'::jsonb)
+  );
+$$;
+
+revoke all on function public.get_my_motion_session_deletions(text[]) from public, anon;
+grant execute on function public.get_my_motion_session_deletions(text[]) to authenticated;
 
 drop policy if exists posts_select_all on public.community_posts;
 drop policy if exists posts_insert_own on public.community_posts;
@@ -1314,6 +1476,12 @@ begin
   end if;
 
   if tg_op = 'INSERT' then
+    if public.current_uid() is not null then
+      if new.user_id <> public.current_uid() then
+        return new; -- The insert policy rejects a mismatched owner.
+      end if;
+      perform pg_advisory_xact_lock(hashtextextended(new.user_id, 81304));
+    end if;
     -- Count from the append-only audit, not live rows: counting live rows
     -- lets post-delete-repost cycles bypass the hourly limit entirely.
     select count(*) into v_recent
@@ -1365,6 +1533,9 @@ begin
     select u.name, u.community_alias into v_own_name, v_own_alias
     from public.users u
     where u.id = public.current_uid();
+    if v_own_alias !~ '^Member-[0-9]{4,6}$' then
+      v_own_alias := null;
+    end if;
 
     if new.user_name = '' then
       new.user_name := coalesce(v_own_alias, 'Member');
@@ -1376,8 +1547,6 @@ begin
       -- in a patient community; profile names containing these terms are
       -- never shown as community identity, even if they match users.name.
       new.user_name := coalesce(v_own_alias, 'Member');
-    elsif new.user_name is not distinct from v_own_name then
-      null; -- posting under own profile name
     elsif new.user_name ~ '^Member-[0-9]{4,6}$' then
       if new.user_name is not distinct from v_own_alias then
         null; -- caller's own reserved alias
@@ -1400,6 +1569,8 @@ begin
           new.user_name := coalesce(v_own_alias, 'Member');
         end if;
       end if;
+    elsif new.user_name is not distinct from v_own_name then
+      null; -- posting under own profile name
     else
       new.user_name := coalesce(v_own_alias, 'Member');
     end if;
@@ -1439,12 +1610,16 @@ for each row execute function public.enforce_community_content();
 -- Moderation state is not author-writable: without the column grants an
 -- author could clear is_hidden/is_flagged/reports on their own row and
 -- undo the community's reports.
-revoke update on public.community_posts from authenticated;
+revoke insert, update on public.community_posts from public, anon, authenticated;
+grant insert (id, user_id, user_name, profile_image, content, category, updated_at)
+  on public.community_posts to authenticated;
 -- likes moves only through the security definer RPCs, so an author can
 -- never hand-edit their own counter.
 grant update (content, category, updated_at)
   on public.community_posts to authenticated;
-revoke update on public.community_comments from authenticated;
+revoke insert, update on public.community_comments from public, anon, authenticated;
+grant insert (id, post_id, user_id, user_name, profile_image, content)
+  on public.community_comments to authenticated;
 grant update (content, updated_at)
   on public.community_comments to authenticated;
 
@@ -1473,6 +1648,9 @@ create policy comments_select_all on public.community_comments
     -- no explanation.
     (is_flagged = false or user_id = public.current_uid())
     and coalesce((auth.jwt() ->> 'is_anonymous')::boolean, false) = false
+    and (user_id = public.current_uid() or exists (
+      select 1 from public.community_posts p where p.id = post_id
+    ))
   );
 
 create policy comments_insert_own on public.community_comments
@@ -1481,6 +1659,7 @@ create policy comments_insert_own on public.community_comments
     user_id = public.current_uid()
     and length(trim(content)) > 0
     and coalesce((auth.jwt() ->> 'is_anonymous')::boolean, false) = false
+    and exists (select 1 from public.community_posts p where p.id = post_id)
   );
 
 create policy comments_update_own on public.community_comments

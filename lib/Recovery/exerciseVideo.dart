@@ -290,7 +290,7 @@ class _ExerciseVideoState extends State<ExerciseVideo> {
   }
 
   Future<void> _openMotionCoach() async {
-    if (_isMotionCoachOpening || kIsWeb) return;
+    if (_isMotionCoachOpening || !motionCoachAvailable) return;
     final MotionExerciseDefinition? exercise = _motionExercise;
     if (exercise == null) return;
     HapticUtils.mediumImpact();
@@ -301,14 +301,18 @@ class _ExerciseVideoState extends State<ExerciseVideo> {
       // the asset has to be decoded before the capture screen is built.
       final MotionReferenceLibrary library = MotionReferenceLibrary.shared;
       await library.templateFor(exercise.exerciseId);
-      if (!mounted) return;
+      if (!mounted || !motionCoachAvailable) return;
       final outcome = await Navigator.of(context).push<MotionCoachOutcome>(
         MaterialPageRoute<MotionCoachOutcome>(
           builder: (_) =>
               MotionCoachScreen(library: library, exercise: exercise),
         ),
       );
-      if (outcome == null || !mounted) return;
+      if (outcome == null) return;
+      if (!mounted) {
+        await _deleteRecordingFile(outcome.videoPath);
+        return;
+      }
       await _setRecording(outcome.videoPath);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

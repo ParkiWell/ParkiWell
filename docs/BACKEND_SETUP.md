@@ -57,13 +57,20 @@ Schema already includes:
 - like increment RPC (`increment_post_like`)
 - unique per-user post likes (`community_post_likes` primary key)
 - persistent group membership (`community_group_memberships`)
-- motion coach session storage (`motion_sessions`, LWW like the other
-  health tables, plus `delete_my_motion_sessions` bulk deletion and
-  `claim_motion_summary_attempt` for AI-summary spend accounting)
+- motion coach session storage with account-scoped deletion cutoffs,
+  per-session tombstones, and a rolling AI summary quota
 - remote kill switch (`app_flags`, read-only to clients)
 
 Motion coach operations:
 
+- **Schema rollout:** apply `supabase/schema.sql` before deploying the updated
+  `delete_account` and `motion_summary` functions or releasing clients that
+  send the history-deletion cutoff. The schema adds the auth deletion trigger
+  used by `delete_account`.
+- **History deletion:** the app sends its deletion time as a UTC timestamp.
+  The server caps it to server time, keeps the latest cutoff, and discards
+  older records that arrive later from an offline device. Sessions completed
+  after the cutoff can still sync.
 - **Kill switch:** disable or re-enable the motion coach without a store
   release from the SQL editor:
   `update public.app_flags set enabled = false where key = 'motion_coach';`

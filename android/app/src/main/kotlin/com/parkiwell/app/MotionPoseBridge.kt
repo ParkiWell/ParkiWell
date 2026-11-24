@@ -1,15 +1,19 @@
 package com.parkiwell.app
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Matrix
-import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
+import com.google.mediapipe.framework.MediaPipeException
 import com.google.mediapipe.framework.image.BitmapImageBuilder
+import com.google.mediapipe.framework.image.MPImage
 import com.google.mediapipe.tasks.core.BaseOptions
 import com.google.mediapipe.tasks.core.Delegate
 import com.google.mediapipe.tasks.vision.core.RunningMode
 import com.google.mediapipe.tasks.vision.poselandmarker.PoseLandmarker
+import com.google.mediapipe.tasks.vision.poselandmarker.PoseLandmarkerResult
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
@@ -28,6 +32,8 @@ internal class MotionPoseBridge(
     private val worker: ExecutorService = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
     private var poseLandmarker: PoseLandmarker? = null
+    private var gpuModelPath: String? = null
+    private var useCpu = false
     @Volatile private var closed = false
 
     init {
@@ -47,10 +53,7 @@ internal class MotionPoseBridge(
         if (closed) return
         closed = true
         channel.setMethodCallHandler(null)
-        worker.execute {
-            poseLandmarker?.close()
-            poseLandmarker = null
-        }
+        worker.execute(::releaseLandmarker)
         worker.shutdown()
     }
 
@@ -62,8 +65,18 @@ internal class MotionPoseBridge(
         }
         worker.execute {
             try {
-                poseLandmarker?.close()
-                poseLandmarker = createLandmarker(modelPath)
+                releaseLandmarker()
+                if (!useCpu) {
+                    try {
+                        poseLandmarker = createLandmarker(modelPath, Delegate.GPU)
+                        gpuModelPath = modelPath
+                    } catch (_: RuntimeException) {
+                        useCpu = true
+                    }
+                }
+                if (useCpu) {
+                    poseLandmarker = createLandmarker(modelPath, Delegate.CPU)
+                }
                 succeed(result, null)
             } catch (error: Throwable) {
                 fail(result, "INITIALIZATION_FAILED", error)
@@ -71,37 +84,53 @@ internal class MotionPoseBridge(
         }
     }
 
-    private fun createLandmarker(modelPath: String): PoseLandmarker {
-        fun options(delegate: Delegate): PoseLandmarker.PoseLandmarkerOptions {
-            val modelBytes = File(modelPath).readBytes()
-            val modelBuffer = ByteBuffer.allocateDirect(modelBytes.size).apply {
-                put(modelBytes)
-                rewind()
-            }
-            val baseOptions = BaseOptions.builder()
-                .setModelAssetBuffer(modelBuffer)
-                .setDelegate(delegate)
-                .build()
-            return PoseLandmarker.PoseLandmarkerOptions.builder()
-                .setBaseOptions(baseOptions)
-                .setRunningMode(RunningMode.IMAGE)
-                .setNumPoses(2)
-                .setMinPoseDetectionConfidence(0.5f)
-                .setMinPosePresenceConfidence(0.5f)
-                .setMinTrackingConfidence(0.5f)
-                .build()
+    private fun createLandmarker(modelPath: String, delegate: Delegate): PoseLandmarker {
+        val modelBytes = File(modelPath).readBytes()
+        val modelBuffer = ByteBuffer.allocateDirect(modelBytes.size).apply {
+            put(modelBytes)
+            rewind()
         }
+        val baseOptions = BaseOptions.builder()
+            .setModelAssetBuffer(modelBuffer)
+            .setDelegate(delegate)
+            .build()
+        val options = PoseLandmarker.PoseLandmarkerOptions.builder()
+            .setBaseOptions(baseOptions)
+            .setRunningMode(RunningMode.IMAGE)
+            .setNumPoses(2)
+            .setMinPoseDetectionConfidence(0.5f)
+            .setMinPosePresenceConfidence(0.5f)
+            .setMinTrackingConfidence(0.5f)
+            .build()
+        return PoseLandmarker.createFromOptions(applicationContext, options)
+    }
 
+    private fun detectPose(image: MPImage): PoseLandmarkerResult {
+        val landmarker = poseLandmarker
+            ?: throw IllegalStateException("Pose runtime is not initialized.")
         return try {
-            PoseLandmarker.createFromOptions(
-                applicationContext,
-                options(Delegate.GPU),
-            )
-        } catch (_: Throwable) {
-            PoseLandmarker.createFromOptions(
-                applicationContext,
-                options(Delegate.CPU),
-            )
+            landmarker.detect(image)
+        } catch (error: MediaPipeException) {
+            // Some drivers accept the GPU graph but fail on the first frame.
+            val modelPath = gpuModelPath ?: throw error
+            useCpu = true
+            releaseLandmarker()
+            Log.w(TAG, "GPU pose inference failed. Using the CPU delegate.")
+            val cpuLandmarker = createLandmarker(modelPath, Delegate.CPU)
+            poseLandmarker = cpuLandmarker
+            cpuLandmarker.detect(image)
+        }
+    }
+
+    private fun releaseLandmarker() {
+        val landmarker = poseLandmarker
+        poseLandmarker = null
+        gpuModelPath = null
+        try {
+            landmarker?.close()
+        } catch (_: RuntimeException) {
+            // MediaPipe can throw the earlier graph failure again on close.
+            Log.w(TAG, "Pose graph closed with an error.")
         }
     }
 
@@ -130,8 +159,6 @@ internal class MotionPoseBridge(
 
         worker.execute {
             try {
-                val landmarker = poseLandmarker
-                    ?: throw IllegalStateException("Pose runtime is not initialized.")
                 val source = when (format) {
                     "yuv420" -> yuv420ToBitmap(
                         planes,
@@ -145,9 +172,17 @@ internal class MotionPoseBridge(
                         "Unsupported Android camera format: $format",
                     )
                 }
-                val rotated = rotateBitmap(source, rotationDegrees)
                 val started = System.nanoTime()
-                val detection = landmarker.detect(BitmapImageBuilder(rotated).build())
+                val detection = try {
+                    val rotated = rotateBitmap(source, rotationDegrees)
+                    try {
+                        BitmapImageBuilder(rotated).build().use(::detectPose)
+                    } finally {
+                        if (rotated !== source && !rotated.isRecycled) rotated.recycle()
+                    }
+                } finally {
+                    if (!source.isRecycled) source.recycle()
+                }
                 val inferenceMs = (System.nanoTime() - started) / 1_000_000.0
                 val response = mutableMapOf<String, Any?>(
                     "timestampMs" to timestampMs,
@@ -184,10 +219,6 @@ internal class MotionPoseBridge(
                         )
                     }
                 }
-                if (rotated !== source) {
-                    source.recycle()
-                }
-                rotated.recycle()
                 succeed(result, response)
             } catch (error: Throwable) {
                 fail(result, "DETECTION_FAILED", error)
@@ -197,8 +228,7 @@ internal class MotionPoseBridge(
 
     private fun dispose(result: MethodChannel.Result) {
         worker.execute {
-            poseLandmarker?.close()
-            poseLandmarker = null
+            releaseLandmarker()
             succeed(result, null)
         }
     }
@@ -301,5 +331,6 @@ internal class MotionPoseBridge(
 
     companion object {
         private const val CHANNEL_NAME = "com.parkiwell.app/motion_pose"
+        private const val TAG = "MotionPoseBridge"
     }
 }

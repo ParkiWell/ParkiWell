@@ -291,6 +291,30 @@ final class RoutineSession {
     return _finishStep(timestampMs);
   }
 
+  /// Evaluate the exercises reached so far, including the active exercise.
+  /// Exercises after a rest or an active step remain unattempted.
+  List<RoutineSessionEvent> finishEarly() {
+    if (_phase != RoutineSessionPhase.active &&
+        _phase != RoutineSessionPhase.rest) {
+      return const <RoutineSessionEvent>[];
+    }
+    final List<RoutineSessionEvent> events = <RoutineSessionEvent>[];
+    if (_phase == RoutineSessionPhase.active) {
+      final Map<String, Object?> result = _buildStepResult();
+      _stepResults.add(result);
+      events.add(RoutineStepCompleted(stepIndex: _stepIndex, result: result));
+    }
+    events.add(_complete());
+    return events;
+  }
+
+  RoutineSessionCompleted _complete() {
+    _phase = RoutineSessionPhase.complete;
+    _restUntilMs = null;
+    _evaluation = _buildEvaluation();
+    return RoutineSessionCompleted(evaluation: _evaluation!);
+  }
+
   RoutineStepStarted _stepStartedEvent() {
     final ExerciseSpec spec = _specs[_stepIndex];
     return RoutineStepStarted(
@@ -317,9 +341,7 @@ final class RoutineSession {
     ];
     final bool isLast = _stepIndex + 1 >= routine.steps.length;
     if (isLast) {
-      _phase = RoutineSessionPhase.complete;
-      _evaluation = _buildEvaluation();
-      events.add(RoutineSessionCompleted(evaluation: _evaluation!));
+      events.add(_complete());
       return events;
     }
     final double restS = routine.steps[_stepIndex].restDurationS;

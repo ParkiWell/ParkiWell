@@ -10,6 +10,37 @@ void main() {
   setUp(() => SharedPreferences.setMockInitialValues(<String, Object>{}));
 
   group('MotionSessionHistory', () {
+    test(
+      'orders concurrent saves and does not restore deleted results',
+      () async {
+        final MotionSessionHistory history = MotionSessionHistory();
+        final DateTime cutoff = DateTime.utc(2026, 11, 24);
+        final MotionSessionRecord older = MotionSessionRecord.fromEvaluation(
+          _evaluation(score: 70),
+          completedAt: cutoff,
+        );
+        final MotionSessionRecord newer = MotionSessionRecord.fromEvaluation(
+          _evaluation(score: 75),
+          completedAt: cutoff.add(const Duration(minutes: 1)),
+        );
+        await Future.wait(<Future<void>>[
+          history.add(older),
+          history.add(newer),
+        ]);
+        expect(history.entries, <MotionSessionRecord>[newer, older]);
+        await history.mergeFromCloud(<MotionSessionRecord>[
+          older,
+        ], deletedThrough: cutoff);
+        expect((await MotionSessionHistory().load()).single.id, newer.id);
+
+        await history.mergeFromCloud(
+          <MotionSessionRecord>[newer],
+          deletedIds: {newer.id},
+        );
+        expect(await MotionSessionHistory().load(), isEmpty);
+      },
+    );
+
     test('records a session evaluation and reloads it verbatim', () async {
       final MotionSessionHistory history = MotionSessionHistory();
       await history.record(

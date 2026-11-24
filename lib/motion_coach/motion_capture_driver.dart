@@ -52,6 +52,9 @@ class CameraMotionCaptureDriver implements MotionCaptureDriver {
   CameraDescription? _description;
   MotionSampleCallback? _onSample;
   VoidCallback? _onPersistentFailure;
+  Future<void>? _initialization;
+  Future<void>? _disposal;
+  Future<void>? _recordingStart;
   int _consecutiveDetectionFailures = 0;
   bool _persistentFailureReported = false;
   bool _processingFrame = false;
@@ -70,27 +73,38 @@ class CameraMotionCaptureDriver implements MotionCaptureDriver {
   Future<void> initialize(
     MotionSampleCallback onSample, {
     VoidCallback? onPersistentFailure,
-  }) async {
+  }) {
     if (_disposed) {
       throw StateError('A disposed camera driver cannot be reused');
     }
     _onSample = onSample;
     _onPersistentFailure = onPersistentFailure;
+    return _initialization ??= _initialize();
+  }
+
+  Future<void> _initialize() async {
+    try {
+      await _openCamera();
+    } on _DisposedDuringInitialize {
+      // The disposer waits for initialization before releasing resources.
+    }
+  }
+
+  Future<void> _openCamera() async {
     final List<CameraDescription> cameras = await availableCameras();
     _throwIfDisposedDuringInitialize();
-    if (cameras.isEmpty) {
+    final CameraDescription? frontCamera = cameras
+        .where((camera) => camera.lensDirection == CameraLensDirection.front)
+        .firstOrNull;
+    if (frontCamera == null) {
       throw CameraException(
         'NoCamera',
-        'No camera is available on this device.',
+        'No front-facing camera is available on this device.',
       );
     }
-    _description = cameras.firstWhere(
-      (CameraDescription camera) =>
-          camera.lensDirection == CameraLensDirection.front,
-      orElse: () => cameras.first,
-    );
+    _description = frontCamera;
     final CameraController controller = CameraController(
-      _description!,
+      frontCamera,
       ResolutionPreset.medium,
       enableAudio: false,
       imageFormatGroup: Platform.isIOS
@@ -98,36 +112,14 @@ class CameraMotionCaptureDriver implements MotionCaptureDriver {
           : ImageFormatGroup.yuv420,
     );
     _camera = controller;
-    try {
-      await controller.initialize();
-      _throwIfDisposedDuringInitialize();
-      await controller.lockCaptureOrientation(DeviceOrientation.portraitUp);
-      _throwIfDisposedDuringInitialize();
-      await _poseBridge.initialize();
-      _throwIfDisposedDuringInitialize();
-      _clock
-        ..reset()
-        ..start();
-      await controller.startImageStream(_handleImage);
-      _throwIfDisposedDuringInitialize();
-    } on _DisposedDuringInitialize {
-      // dispose() already ran and found nothing to clean up, so this camera
-      // (and a pose landmarker initialized moments ago) would keep running
-      // with no owner. Tear both down here instead of leaving hardware on
-      // after the user has left the screen.
-      _camera = null;
-      try {
-        await controller.dispose();
-      } catch (_) {
-        // Already-released platform resources are fine to ignore here.
-      }
-      try {
-        await _poseBridge.dispose();
-      } catch (_) {
-        // A bridge that never finished initializing has nothing to free.
-      }
-      return;
-    }
+    await controller.initialize();
+    _throwIfDisposedDuringInitialize();
+    await controller.lockCaptureOrientation(DeviceOrientation.portraitUp);
+    _throwIfDisposedDuringInitialize();
+    await _poseBridge.initialize();
+    _throwIfDisposedDuringInitialize();
+    _clock.start();
+    await controller.startImageStream(_handleImage);
   }
 
   /// Guard for every await inside [initialize]: [dispose] can run mid-flight
@@ -149,7 +141,9 @@ class CameraMotionCaptureDriver implements MotionCaptureDriver {
   }
 
   @override
-  Future<void> startRecording() async {
+  Future<void> startRecording() => _recordingStart ??= _startRecording();
+
+  Future<void> _startRecording() async {
     final CameraController camera = _requireCamera();
     if (camera.value.isStreamingImages) {
       await camera.stopImageStream();
@@ -184,13 +178,21 @@ class CameraMotionCaptureDriver implements MotionCaptureDriver {
   }
 
   @override
-  Future<void> dispose() async {
-    if (_disposed) return;
+  Future<void> dispose() => _disposal ??= _dispose();
+
+  Future<void> _dispose() async {
     _disposed = true;
     _clock.stop();
+    _onSample = null;
+    _onPersistentFailure = null;
+    try {
+      await _initialization;
+      await _recordingStart;
+    } catch (_) {
+      // Startup reports its own error; partially opened resources still close.
+    }
     final CameraController? camera = _camera;
     _camera = null;
-    _onSample = null;
     try {
       if (camera?.value.isRecordingVideo == true) {
         final XFile file = await camera!.stopVideoRecording();
@@ -204,8 +206,11 @@ class CameraMotionCaptureDriver implements MotionCaptureDriver {
     } catch (_) {
       // The platform may already have released the camera during lifecycle exit.
     }
-    await camera?.dispose();
-    await _poseBridge.dispose();
+    try {
+      await camera?.dispose();
+    } finally {
+      await _poseBridge.dispose();
+    }
   }
 
   CameraController _requireCamera() {

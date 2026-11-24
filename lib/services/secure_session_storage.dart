@@ -3,6 +3,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../config/backend_config.dart';
+
 /// Keeps the Supabase auth session (refresh token) in the platform
 /// keystore instead of plaintext SharedPreferences.
 ///
@@ -11,20 +13,33 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 /// point. A legacy plaintext session written by the default storage is
 /// migrated on first launch and removed from SharedPreferences.
 class SecureSessionStorage extends LocalStorage {
-  SecureSessionStorage({FlutterSecureStorage? secureStorage})
-    : _secure =
-          secureStorage ??
-          const FlutterSecureStorage(
-            // Keys must never leave the device: first_unlock_this_device
-            // keeps them out of encrypted iCloud/iTunes backups, matching
-            // the Android backup exclusion.
-            iOptions: IOSOptions(
-              accessibility: KeychainAccessibility.first_unlock_this_device,
-            ),
-          );
+  SecureSessionStorage({
+    FlutterSecureStorage? secureStorage,
+    String? supabaseUrl,
+  }) : _backendHost = Uri.tryParse(
+         supabaseUrl ?? BackendConfig.supabaseUrl,
+       )?.host,
+       _secure =
+           secureStorage ??
+           const FlutterSecureStorage(
+             // Keys must never leave the device: first_unlock_this_device
+             // keeps them out of encrypted iCloud/iTunes backups, matching
+             // the Android backup exclusion.
+             iOptions: IOSOptions(
+               accessibility: KeychainAccessibility.first_unlock_this_device,
+             ),
+           );
 
   static const String _key = 'parkiwell_supabase_session_v1';
+  static Future<void> _sessionOperations = Future<void>.value();
+  final String? _backendHost;
   final FlutterSecureStorage _secure;
+
+  static Future<T> _inOrder<T>(Future<T> Function() operation) {
+    final result = _sessionOperations.then((_) => operation());
+    _sessionOperations = result.then<void>((_) {}, onError: (Object _) {});
+    return result;
+  }
 
   @override
   Future<void> initialize() async {
@@ -34,12 +49,19 @@ class SecureSessionStorage extends LocalStorage {
           .getKeys()
           .where((k) => k.startsWith('sb-') && k.endsWith('-auth-token'))
           .toList();
-      for (final legacyKey in legacyKeys) {
-        final value = prefs.getString(legacyKey);
-        if (value != null && value.isNotEmpty && !await hasAccessToken()) {
+      final reference = _backendHost?.split('.').first;
+      final value = reference == null || reference.isEmpty
+          ? null
+          : prefs.get('sb-$reference-auth-token');
+      try {
+        if (value is String && value.isNotEmpty && !await hasAccessToken()) {
           await persistSession(value);
         }
-        await prefs.remove(legacyKey);
+      } finally {
+        // Erase plaintext credentials even when the keystore is unavailable.
+        for (final key in legacyKeys) {
+          await prefs.remove(key);
+        }
       }
     } on MissingPluginException {
       // No keystore in this environment (tests, desktop shells); Supabase
@@ -53,7 +75,7 @@ class SecureSessionStorage extends LocalStorage {
   @override
   Future<String?> accessToken() async {
     try {
-      return await _secure.read(key: _key);
+      return await _inOrder(() => _secure.read(key: _key));
     } on MissingPluginException {
       return null;
     }
@@ -65,7 +87,9 @@ class SecureSessionStorage extends LocalStorage {
   @override
   Future<void> persistSession(String persistSessionString) async {
     try {
-      await _secure.write(key: _key, value: persistSessionString);
+      await _inOrder(
+        () => _secure.write(key: _key, value: persistSessionString),
+      );
     } on MissingPluginException {
       // Session stays in memory only for this run.
     }
@@ -74,7 +98,7 @@ class SecureSessionStorage extends LocalStorage {
   @override
   Future<void> removePersistedSession() async {
     try {
-      await _secure.delete(key: _key);
+      await _inOrder(() => _secure.delete(key: _key));
     } on MissingPluginException {
       // Nothing persisted to remove.
     }

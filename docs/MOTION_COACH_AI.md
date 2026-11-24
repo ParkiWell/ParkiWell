@@ -31,21 +31,23 @@ An optional edge function (`supabase/functions/motion_summary`) asks a
 Claude model to rephrase one synced session's metrics as a short,
 encouraging paragraph.
 
-Safety properties, enforced in code rather than by prompt alone:
+The summary service enforces several limits in code.
 
-- Requires a signed-in, non-anonymous account and RLS-scoped row ownership.
-- Input is the session's own evidence document plus day-level score trend;
-  no identity fields are sent.
-- Output is validated deterministically: length caps and a number-echo
-  guard that rejects any summary containing a number not present in the
-  input. Rejected output is discarded, never shown.
-- One generation per session (cached on the row) plus a per-user daily
-  ceiling bounds cost structurally.
-- Any failure, offline state, or refusal renders nothing; Tier 1 feedback
-  is always present.
+- The service checks the signed-in account against the session owner before
+  looking up metrics.
+- The provider receives a fixed set of numeric scores and repetition counts,
+  including up to 10 earlier scores for the same routine.
+- The service checks output length and numeric tokens before showing or
+  caching the summary.
+- The database permits up to 20 generation attempts per account in a rolling
+  24 hours, with a one-minute cooldown and up to three attempts per session.
+  The session row caches the first accepted summary.
+- The on-device results remain available after a failure, offline state, or
+  model refusal.
 
-Deployment: `supabase functions deploy motion_summary` (leave JWT
-verification on) and `supabase secrets set ANTHROPIC_API_KEY=...`.
+Apply `supabase/schema.sql` first, deploy with
+`supabase functions deploy motion_summary` with JWT verification enabled,
+and set `ANTHROPIC_API_KEY` in Supabase Edge secrets.
 
 ## Why the AI tier is not on-device today
 

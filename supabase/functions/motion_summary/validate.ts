@@ -5,7 +5,7 @@
 // they can be unit tested with `deno test`.
 
 const MAX_SUMMARY_CHARS = 600;
-const MAX_SUMMARY_WORDS = 90;
+const MAX_SUMMARY_WORDS = 80;
 
 /// Every numeric token a summary is allowed to contain, harvested from the
 /// exact input the model saw. Rounded forms are included because prose
@@ -19,21 +19,13 @@ export function extractAllowedNumbers(input: unknown): Set<string> {
       allowed.add(String(Math.floor(value)));
       allowed.add(String(Math.ceil(value)));
       allowed.add(value.toFixed(1));
-    } else if (typeof value === "string") {
-      for (const match of value.matchAll(/\d+(?:\.\d+)?/g)) {
-        allowed.add(match[0]);
-      }
     } else if (Array.isArray(value)) {
-      // Counting list entries is fair game ("all 4 movements").
-      allowed.add(String(value.length));
       value.forEach(visit);
     } else if (value && typeof value === "object") {
       Object.values(value).forEach(visit);
     }
   };
   visit(input);
-  // Small counts read naturally in prose regardless of the metrics.
-  for (let i = 0; i <= 10; i += 1) allowed.add(String(i));
   return allowed;
 }
 

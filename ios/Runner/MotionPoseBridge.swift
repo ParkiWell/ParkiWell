@@ -10,6 +10,8 @@ final class MotionPoseBridge: NSObject, FlutterPlugin {
     qos: .userInitiated
   )
   private var poseLandmarker: PoseLandmarker?
+  private var gpuModelPath: String?
+  private var useCPU = false
   private var disposed = false
 
   static func register(with registrar: FlutterPluginRegistrar) {
@@ -38,6 +40,7 @@ final class MotionPoseBridge: NSObject, FlutterPlugin {
   func detachFromEngine(for registrar: FlutterPluginRegistrar) {
     worker.sync {
       poseLandmarker = nil
+      gpuModelPath = nil
       disposed = true
     }
   }
@@ -62,24 +65,31 @@ final class MotionPoseBridge: NSObject, FlutterPlugin {
     }
 
     worker.async { [weak self] in
+      guard let self else { return }
       do {
-        self?.poseLandmarker = try Self.createLandmarker(
-          modelPath: modelPath,
-          delegate: .GPU
-        )
-        self?.disposed = false
-        Self.succeed(result, value: nil)
-      } catch {
-        do {
-          self?.poseLandmarker = try Self.createLandmarker(
+        self.poseLandmarker = nil
+        self.gpuModelPath = nil
+        if !self.useCPU {
+          do {
+            self.poseLandmarker = try Self.createLandmarker(
+              modelPath: modelPath,
+              delegate: .GPU
+            )
+            self.gpuModelPath = modelPath
+          } catch {
+            self.useCPU = true
+          }
+        }
+        if self.useCPU {
+          self.poseLandmarker = try Self.createLandmarker(
             modelPath: modelPath,
             delegate: .CPU
           )
-          self?.disposed = false
-          Self.succeed(result, value: nil)
-        } catch {
-          Self.fail(result, code: "INITIALIZATION_FAILED", error: error)
         }
+        self.disposed = false
+        Self.succeed(result, value: nil)
+      } catch {
+        Self.fail(result, code: "INITIALIZATION_FAILED", error: error)
       }
     }
   }
@@ -97,6 +107,23 @@ final class MotionPoseBridge: NSObject, FlutterPlugin {
     options.minPosePresenceConfidence = 0.5
     options.minTrackingConfidence = 0.5
     return try PoseLandmarker(options: options)
+  }
+
+  private func detectPose(_ image: MPImage) throws -> PoseLandmarkerResult {
+    guard let landmarker = poseLandmarker, !disposed else {
+      throw MotionPoseError.notInitialized
+    }
+    do {
+      return try landmarker.detect(image: image)
+    } catch {
+      guard let modelPath = gpuModelPath else { throw error }
+      gpuModelPath = nil
+      useCPU = true
+      poseLandmarker = nil
+      let cpu = try Self.createLandmarker(modelPath: modelPath, delegate: .CPU)
+      poseLandmarker = cpu
+      return try cpu.detect(image: image)
+    }
   }
 
   private func detect(
@@ -127,8 +154,7 @@ final class MotionPoseBridge: NSObject, FlutterPlugin {
 
     worker.async { [weak self] in
       do {
-        guard let landmarker = self?.poseLandmarker, self?.disposed == false
-        else {
+        guard let self, self.poseLandmarker != nil, !self.disposed else {
           throw MotionPoseError.notInitialized
         }
         guard format == "bgra8888" else {
@@ -145,7 +171,7 @@ final class MotionPoseBridge: NSObject, FlutterPlugin {
           orientation: Self.orientation(for: rotationDegrees)
         )
         let started = ProcessInfo.processInfo.systemUptime
-        let detection = try landmarker.detect(image: mpImage)
+        let detection = try self.detectPose(mpImage)
         let inferenceMs =
           (ProcessInfo.processInfo.systemUptime - started) * 1_000
         var response: [String: Any?] = [
@@ -189,6 +215,7 @@ final class MotionPoseBridge: NSObject, FlutterPlugin {
   private func dispose(result: @escaping FlutterResult) {
     worker.async { [weak self] in
       self?.poseLandmarker = nil
+      self?.gpuModelPath = nil
       self?.disposed = true
       Self.succeed(result, value: nil)
     }

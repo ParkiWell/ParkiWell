@@ -28,17 +28,16 @@ class MotionRoutineDescription {
   String get durationLabel => 'about $approximateMinutes minutes';
 }
 
-const MotionRoutineDescription seatedFoundationRoutine =
-    MotionRoutineDescription(
-      routineAssetId: 'seated_foundation_v1',
-      title: 'Seated foundation',
-      summary:
-          'Four seated movements — arm raises, forward reach, elbow bends, '
-          'and a seated march. Nothing here asks you to stand.',
-      approximateMinutes: 6,
-      icon: Icons.event_seat_rounded,
-      requiresStanding: false,
-    );
+const MotionRoutineDescription
+seatedFoundationRoutine = MotionRoutineDescription(
+  routineAssetId: 'seated_foundation_v1',
+  title: 'Seated foundation',
+  summary:
+      'Arm raises, forward reaches, elbow bends, a seated march and a side lean.',
+  approximateMinutes: 6,
+  icon: Icons.event_seat_rounded,
+  requiresStanding: false,
+);
 
 const MotionRoutineDescription fullBodyRoutine = MotionRoutineDescription(
   routineAssetId: 'full_body_v1',

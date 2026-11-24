@@ -245,6 +245,39 @@ void main() {
       expect(controller.restRemainingSeconds, greaterThan(0));
     });
 
+    test('resumes with a new camera clock and keeps measured reps', () async {
+      final MotionRoutineController controller = await _controller(
+        targetRepetitions: 3,
+        maximumDurationS: 25,
+      );
+      addTearDown(controller.dispose);
+      controller.start();
+      _driveRepetitions(controller, count: 1, startMs: 200);
+      expect(controller.completedRepetitions, 1);
+
+      controller.pause();
+      expect(controller.isPaused, isTrue);
+      expect(controller.isFramingReady, isFalse);
+      expect(controller.resume(), isFalse);
+      for (int index = 0; index < 6; index += 1) {
+        controller.handleSample(armRaiseSample(10, index * 60));
+      }
+      expect(controller.resume(), isTrue);
+      _driveRepetitions(controller, count: 1, startMs: 600);
+      expect(controller.phase, MotionRoutinePhase.active);
+      expect(controller.completedRepetitions, 2);
+
+      expect(controller.finishEarly(), isTrue);
+      final MotionSessionRecord record = MotionSessionRecord.fromEvaluation(
+        controller.evaluation!,
+        completedAt: DateTime(2026, 11, 24),
+        endedEarly: true,
+      );
+      expect(record.completedRepetitions, 2);
+      expect(record.assessedSteps, 1);
+      expect(MotionSessionRecord.fromJson(record.toJson()).endedEarly, isTrue);
+    });
+
     test('skips the active step while keeping measured movements', () async {
       final MotionRoutineController controller = await _controller(
         targetRepetitions: 3,
@@ -299,6 +332,122 @@ void main() {
     setUpAll(() async {
       screenLibrary = MotionReferenceLibrary();
       await screenLibrary.templateFor(seatedArmRaiseExercise.exerciseId);
+    });
+
+    testWidgets('reopens a paused session and saves an early finish', (
+      WidgetTester tester,
+    ) async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final List<_FakeRoutineDriver> drivers = [];
+      final List<MotionSessionRecord> logged = [];
+      final MotionSessionHistory history = MotionSessionHistory();
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightTheme(),
+          home: MotionRoutineScreen(
+            description: singleExerciseDescription(seatedArmRaiseExercise),
+            routine: singleExerciseRoutine(seatedArmRaiseExercise),
+            library: screenLibrary,
+            driverFactory: () {
+              final driver = _FakeRoutineDriver();
+              drivers.add(driver);
+              return driver;
+            },
+            cueSpeaker: _SilentCueSpeaker(),
+            history: history,
+            onSessionLogged: (record) async => logged.add(record),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      for (int index = 0; index < 6; index++) {
+        drivers.single.emit(armRaiseSample(10, index * 60));
+      }
+      await tester.pump();
+      await tester.tap(find.text('Start routine'));
+      int timestampMs = 600;
+      for (final double phase in repPhase) {
+        drivers.single.emit(armRaiseSample(10 + 60 * phase, timestampMs));
+        timestampMs += 300;
+      }
+      await tester.pump();
+      expect(find.textContaining('1 of '), findsWidgets);
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      await tester.pumpAndSettle();
+      expect(drivers.single.isInitialized, isFalse);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pumpAndSettle();
+      expect(find.text('Session paused'), findsOneWidget);
+      expect(drivers, hasLength(1));
+      await tester.tap(find.text('Open camera'));
+      await tester.pumpAndSettle();
+      expect(drivers, hasLength(2));
+      for (int index = 0; index < 6; index++) {
+        drivers.last.emit(armRaiseSample(10, index * 60));
+      }
+      await tester.pump();
+      await tester.tap(find.text('Resume session'));
+      await tester.pump();
+      await tester.tap(find.byTooltip('Close session'));
+      await tester.pumpAndSettle();
+      timestampMs = 600;
+      for (final double phase in repPhase) {
+        drivers.last.emit(armRaiseSample(10 + 60 * phase, timestampMs));
+        timestampMs += 300;
+      }
+      await tester.pump();
+      await tester.tap(find.text('Save and end'));
+      await tester.pumpAndSettle();
+      expect(history.entries.single.endedEarly, isTrue);
+      expect(history.entries.single.completedRepetitions, 1);
+      expect(logged.single.id, history.entries.single.id);
+      expect(drivers.last.isInitialized, isFalse);
+    });
+
+    testWidgets('a session without an assessment does not update Recovery', (
+      WidgetTester tester,
+    ) async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final _FakeRoutineDriver driver = _FakeRoutineDriver();
+      final List<MotionSessionRecord> logged = [];
+      final MotionSessionHistory history = MotionSessionHistory();
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightTheme(),
+          home: MotionRoutineScreen(
+            description: singleExerciseDescription(seatedArmRaiseExercise),
+            routine: RoutineDefinition(
+              routineId: 'timeout',
+              routineVersion: 1,
+              displayName: 'Timeout',
+              steps: <RoutineStepDefinition>[
+                RoutineStepDefinition(
+                  exerciseId: seatedArmRaiseExercise.exerciseId,
+                  targetRepetitions: 1,
+                  maximumDurationS: 1,
+                  restDurationS: 0,
+                ),
+              ],
+            ),
+            library: screenLibrary,
+            driverFactory: () => driver,
+            cueSpeaker: _SilentCueSpeaker(),
+            history: history,
+            onSessionLogged: (record) async => logged.add(record),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      for (int index = 0; index < 6; index++) {
+        driver.emit(armRaiseSample(10, index * 60));
+      }
+      await tester.pump();
+      await tester.tap(find.text('Start routine'));
+      driver.emit(armRaiseSample(10, 1500));
+      await tester.pumpAndSettle();
+      expect(history.entries.single.assessedSteps, 0);
+      expect(logged, isEmpty);
     });
 
     testWidgets('completes a session, saves it, and logs it to recovery', (

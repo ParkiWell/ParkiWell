@@ -7,8 +7,7 @@ import 'package:share_plus/share_plus.dart';
 import '../singleton.dart';
 import '../theme/app_theme.dart';
 import '../utils/haptic_utils.dart';
-import '../widgets/liquid_glass.dart';
-import '../widgets/modern_card.dart';
+import 'motion_coach_layout.dart';
 import 'motion_exercise_catalog.dart';
 import 'motion_routine_results_screen.dart';
 import 'motion_session_history.dart';
@@ -29,6 +28,9 @@ class MotionProgressScreen extends StatefulWidget {
 
 class _MotionProgressScreenState extends State<MotionProgressScreen> {
   bool _loading = true;
+  bool _loadFailed = false;
+  bool _clearing = false;
+  final GlobalKey _actionsKey = GlobalKey();
 
   @override
   void initState() {
@@ -37,17 +39,33 @@ class _MotionProgressScreenState extends State<MotionProgressScreen> {
   }
 
   Future<void> _load() async {
-    await widget.history.load();
-    if (mounted) setState(() => _loading = false);
+    if (!_loading) {
+      setState(() {
+        _loading = true;
+        _loadFailed = false;
+      });
+    }
+    try {
+      await widget.history.load();
+    } on Object {
+      if (mounted) setState(() => _loadFailed = true);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   Future<void> _export() async {
     HapticUtils.lightImpact();
     try {
+      final anchor = _actionsKey.currentContext?.findRenderObject();
+      final origin = anchor is RenderBox && anchor.hasSize
+          ? anchor.localToGlobal(Offset.zero) & anchor.size
+          : null;
       await SharePlus.instance.share(
         ShareParams(
           text: widget.history.exportJson(),
           subject: 'ParkiWell movement history',
+          sharePositionOrigin: origin,
         ),
       );
     } on Object {
@@ -82,78 +100,98 @@ class _MotionProgressScreenState extends State<MotionProgressScreen> {
         ],
       ),
     );
-    if (clear != true) return;
+    if (clear != true || !mounted) return;
+    setState(() => _clearing = true);
     HapticUtils.mediumImpact();
-    // Deletion must reach the account backup too, or the next sign-in
-    // restore would resurrect everything the person just deleted.
-    await Singleton().deleteAllMotionSessions(history: widget.history);
-    if (mounted) setState(() {});
+    try {
+      await Singleton().deleteAllMotionSessions(history: widget.history);
+    } on Object {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not delete history. Try again.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _clearing = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.colors;
-    final List<MotionSessionRecord> entries = widget.history.entries;
-
+    final entries = widget.history.entries;
     return Scaffold(
-      backgroundColor: colors.background,
       appBar: AppBar(
-        backgroundColor: colors.background,
-        surfaceTintColor: Colors.transparent,
-        elevation: 0,
         title: const Text('Movement progress'),
-        actions: <Widget>[
-          if (entries.isNotEmpty) ...[
-            IconButton(
-              tooltip: 'Export history',
-              icon: const Icon(Icons.ios_share_rounded),
-              onPressed: () => unawaited(_export()),
+        actions: [
+          if (!_loading && !_loadFailed && entries.isNotEmpty)
+            PopupMenuButton<bool>(
+              key: _actionsKey,
+              tooltip: 'Manage movement history',
+              enabled: !_clearing,
+              onSelected: (export) =>
+                  unawaited(export ? _export() : _confirmClear()),
+              itemBuilder: (context) => const [
+                PopupMenuItem(value: true, child: Text('Export history')),
+                PopupMenuItem(value: false, child: Text('Delete history')),
+              ],
             ),
-            IconButton(
-              tooltip: 'Delete history',
-              icon: const Icon(Icons.delete_outline_rounded),
-              onPressed: () => unawaited(_confirmClear()),
-            ),
-          ],
         ],
       ),
-      body: LiquidBackground(
-        child: SafeArea(
-          top: false,
-          child: _loading
-              ? const Center(child: CircularProgressIndicator())
-              : entries.isEmpty
-              ? _buildEmpty(context)
-              : _buildContent(context, entries),
-        ),
-      ),
+      body: _loading || _clearing
+          ? Center(
+              child: CircularProgressIndicator(
+                semanticsLabel: _clearing
+                    ? 'Deleting history'
+                    : 'Loading history',
+              ),
+            )
+          : _loadFailed
+          ? MotionScreenScroll(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const MotionSectionTitle(
+                    title: 'History could not be loaded',
+                  ),
+                  const SizedBox(height: 12),
+                  OutlinedButton(
+                    onPressed: () => unawaited(_load()),
+                    child: const Text('Try again'),
+                  ),
+                ],
+              ),
+            )
+          : entries.isEmpty
+          ? _buildEmpty(context)
+          : _buildContent(context, entries),
+      bottomNavigationBar:
+          !_loading && !_clearing && !_loadFailed && entries.isEmpty
+          ? MotionActionBar(
+              child: FilledButton(
+                onPressed: () => Navigator.of(context).maybePop(),
+                style: FilledButton.styleFrom(minimumSize: const Size(48, 52)),
+                child: const Text('Back to Motion coach'),
+              ),
+            )
+          : null,
     );
   }
 
   Widget _buildEmpty(BuildContext context) {
     final colors = context.colors;
-    return Center(
+    return MotionScreenScroll(
       child: Padding(
-        padding: const EdgeInsets.all(32),
+        padding: const EdgeInsets.only(top: 32),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Icon(Icons.timeline_rounded, size: 48, color: colors.textSecondary),
-            const SizedBox(height: 16),
-            Text(
-              'No sessions yet',
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Finish a guided routine and your scores will appear here.',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: colors.textSecondary,
-                height: 1.4,
-              ),
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.insights_rounded, size: 42, color: colors.navSelected),
+            const SizedBox(height: 14),
+            const MotionSectionTitle(
+              title: 'No sessions yet',
+              description:
+                  'Your movement results will appear here after your first '
+                  'guided routine or single-exercise practice.',
             ),
           ],
         ),
@@ -173,62 +211,63 @@ class _MotionProgressScreenState extends State<MotionProgressScreen> {
           if (step.overallScore != null) step.exerciseId,
     };
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+    final stats = [
+      _Statistic(label: 'Sessions', value: '${entries.length}'),
+      _Statistic(
+        label: 'Recent average',
+        value: recent == null ? '—' : '${recent.round()}',
+      ),
+      _Statistic(
+        label: 'Day streak',
+        value: '${widget.history.currentStreakDays()}',
+      ),
+      _Statistic(
+        label: 'This week',
+        value: '${widget.history.sessionsInLastWeek()}',
+      ),
+    ];
+
+    return MotionScreenScroll(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: <Widget>[
-          ModernCard(
-            margin: EdgeInsets.zero,
-            padding: const EdgeInsets.all(20),
-            backgroundColor: colors.primary.withValues(alpha: 0.1),
-            child: Row(
-              children: <Widget>[
-                Expanded(
-                  child: _Statistic(
-                    label: 'Sessions',
-                    value: '${entries.length}',
-                  ),
-                ),
-                Expanded(
-                  child: _Statistic(
-                    label: 'Recent average',
-                    value: recent == null ? '—' : '${recent.round()}',
-                  ),
-                ),
-                Expanded(
-                  child: _Statistic(
-                    label: 'Day streak',
-                    value: '${widget.history.currentStreakDays()}',
-                  ),
-                ),
-                Expanded(
-                  child: _Statistic(
-                    label: 'This week',
-                    value: '${widget.history.sessionsInLastWeek()}',
-                  ),
-                ),
-              ],
+        children: [
+          const MotionSectionTitle(title: 'Your practice'),
+          const SizedBox(height: 10),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: colors.surfaceVariant,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(18),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  const gap = 14.0;
+                  final scaled = MediaQuery.textScalerOf(context).scale(16);
+                  final columns = constraints.maxWidth >= 450 && scaled <= 20
+                      ? 4
+                      : constraints.maxWidth < 170
+                      ? 1
+                      : 2;
+                  final width =
+                      (constraints.maxWidth - gap * (columns - 1)) / columns;
+                  return Wrap(
+                    spacing: gap,
+                    runSpacing: gap,
+                    children: [
+                      for (final stat in stats)
+                        SizedBox(width: width, child: stat),
+                    ],
+                  );
+                },
+              ),
             ),
           ),
-          if (practised.isNotEmpty) ...[
-            const SizedBox(height: 20),
-            const SectionHeading(
-              title: 'By exercise',
-              description: 'Most recent score first.',
-            ),
-            const SizedBox(height: 12),
-            for (final String exerciseId in practised)
-              _ExerciseTrendCard(
-                exerciseId: exerciseId,
-                scores: widget.history.scoreTrendFor(exerciseId),
-              ),
-          ],
-          const SizedBox(height: 20),
-          const SectionHeading(title: 'Sessions'),
-          const SizedBox(height: 12),
-          for (final MotionSessionRecord entry in entries)
-            _SessionCard(
+          const SizedBox(height: 24),
+          const MotionSectionTitle(title: 'Sessions'),
+          const SizedBox(height: 9),
+          for (final entry in entries)
+            _SessionRow(
               entry: entry,
               onTap: () {
                 HapticUtils.lightImpact();
@@ -237,11 +276,25 @@ class _MotionProgressScreenState extends State<MotionProgressScreen> {
                     builder: (_) => MotionRoutineResultsScreen(
                       title: entry.routineName,
                       record: entry,
+                      history: widget.history,
                     ),
                   ),
                 );
               },
             ),
+          if (practised.isNotEmpty) ...[
+            const SizedBox(height: 24),
+            const MotionSectionTitle(
+              title: 'By exercise',
+              description: 'Latest score and changes over time.',
+            ),
+            const SizedBox(height: 9),
+            for (final exerciseId in practised)
+              _ExerciseTrendCard(
+                exerciseId: exerciseId,
+                scores: widget.history.scoreTrendFor(exerciseId),
+              ),
+          ],
         ],
       ),
     );
@@ -258,18 +311,19 @@ class _Statistic extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         Text(
           value,
           style: Theme.of(context).textTheme.headlineSmall?.copyWith(
             fontWeight: FontWeight.w800,
-            color: colors.primary,
+            color: colors.navSelected,
+            fontFeatures: const [FontFeature.tabularFigures()],
           ),
         ),
         const SizedBox(height: 2),
         Text(
           label,
-          textAlign: TextAlign.center,
           style: Theme.of(
             context,
           ).textTheme.labelSmall?.copyWith(color: colors.textSecondary),
@@ -300,70 +354,73 @@ class _ExerciseTrendCard extends StatelessWidget {
       title = exerciseId;
     }
 
-    return ModernCard(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        children: <Widget>[
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  title,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-                ),
-                Text(
-                  '${scores.length} scored '
-                  '${scores.length == 1 ? 'session' : 'sessions'}',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodySmall?.copyWith(color: colors.textSecondary),
-                ),
-              ],
-            ),
-          ),
-          if (scores.length >= 2) ...[
-            SizedBox(
-              width: 64,
-              height: 24,
-              child: CustomPaint(
-                painter: _SparklinePainter(
-                  // Stored newest-first; drawn oldest-to-newest.
-                  scores: scores.reversed.toList(growable: false),
-                  color: colors.primary,
-                ),
+    final text = Theme.of(context).textTheme;
+    final detail =
+        '${scores.length} scored '
+        '${scores.length == 1 ? 'session' : 'sessions'}';
+    final difference = change == null || change.abs() < 1
+        ? null
+        : '${change > 0 ? '+' : '−'}${change.abs().round()} since last score';
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: colors.surface,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: text.titleSmall),
+              const SizedBox(height: 4),
+              Text(
+                detail,
+                style: text.bodySmall?.copyWith(color: colors.textSecondary),
               ),
-            ),
-            const SizedBox(width: 10),
-          ],
-          Text(
-            '${latest.round()}',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.w800,
-              color: colors.primary,
-            ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 12,
+                runSpacing: 5,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Text(
+                    '${latest.round()} out of 100',
+                    style: text.titleSmall?.copyWith(color: colors.navSelected),
+                  ),
+                  if (difference != null)
+                    Text(
+                      difference,
+                      style: text.bodySmall?.copyWith(
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                  if (scores.length >= 2)
+                    ExcludeSemantics(
+                      child: SizedBox(
+                        width: 72,
+                        height: 24,
+                        child: CustomPaint(
+                          painter: _SparklinePainter(
+                            scores: scores.reversed.toList(growable: false),
+                            color: colors.navSelected,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ],
           ),
-          if (change != null && change.abs() >= 1) ...[
-            const SizedBox(width: 8),
-            Icon(
-              change > 0
-                  ? Icons.trending_up_rounded
-                  : Icons.trending_down_rounded,
-              size: 20,
-              color: change > 0 ? colors.success : colors.textSecondary,
-            ),
-          ],
-        ],
+        ),
       ),
     );
   }
 }
 
-class _SessionCard extends StatelessWidget {
-  const _SessionCard({required this.entry, required this.onTap});
+class _SessionRow extends StatelessWidget {
+  const _SessionRow({required this.entry, required this.onTap});
 
   final MotionSessionRecord entry;
   final VoidCallback onTap;
@@ -371,64 +428,24 @@ class _SessionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    return ModernCard(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(16),
+    final text = Theme.of(context).textTheme;
+    final date = MaterialLocalizations.of(
+      context,
+    ).formatMediumDate(entry.completedAt.toLocal());
+    final score = entry.overallScore;
+    return ListTile(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       onTap: onTap,
-      child: Row(
-        children: <Widget>[
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  entry.routineName,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '${_formatDate(entry.completedAt)} · '
-                  '${entry.completedRepetitions} movements · '
-                  '${entry.assessedSteps}/${entry.totalSteps} steps measured',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodySmall?.copyWith(color: colors.textSecondary),
-                ),
-              ],
-            ),
-          ),
-          Text(
-            entry.overallScore == null ? '—' : '${entry.overallScore!.round()}',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.w800,
-              color: entry.overallScore == null
-                  ? colors.textSecondary
-                  : colors.primary,
-            ),
-          ),
-        ],
+      title: Text(entry.routineName, style: text.titleSmall),
+      subtitle: Text(
+        '$date · ${entry.completedRepetitions} movements'
+        '${entry.endedEarly ? ' · Ended early' : ''}'
+        '${score == null ? '' : ' · Score ${score.round()}'}',
+        style: text.bodySmall?.copyWith(color: colors.textSecondary),
       ),
+      trailing: Icon(Icons.chevron_right_rounded, color: colors.textTertiary),
     );
-  }
-
-  static String _formatDate(DateTime value) {
-    const List<String> months = <String>[
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    return '${value.day} ${months[value.month - 1]} ${value.year}';
   }
 }
 
@@ -444,7 +461,8 @@ class _SparklinePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (scores.length < 2) return;
     // Inset so the end-point dot is not clipped by the canvas edge.
-    final double plotWidth = size.width - 3;
+    final double plotWidth = size.width - 6;
+    final double plotHeight = size.height - 6;
     final Paint line = Paint()
       ..color = color.withValues(alpha: 0.75)
       ..strokeWidth = 2
@@ -452,9 +470,9 @@ class _SparklinePainter extends CustomPainter {
       ..style = PaintingStyle.stroke;
     final Path path = Path();
     for (int index = 0; index < scores.length; index += 1) {
-      final double x = plotWidth * index / (scores.length - 1);
+      final double x = 3 + plotWidth * index / (scores.length - 1);
       final double y =
-          size.height * (1 - (scores[index] / 100).clamp(0.0, 1.0));
+          3 + plotHeight * (1 - (scores[index] / 100).clamp(0.0, 1.0));
       if (index == 0) {
         path.moveTo(x, y);
       } else {
@@ -463,8 +481,8 @@ class _SparklinePainter extends CustomPainter {
     }
     canvas.drawPath(path, line);
     final double lastY =
-        size.height * (1 - (scores.last / 100).clamp(0.0, 1.0));
-    canvas.drawCircle(Offset(plotWidth, lastY), 3, Paint()..color = color);
+        3 + plotHeight * (1 - (scores.last / 100).clamp(0.0, 1.0));
+    canvas.drawCircle(Offset(3 + plotWidth, lastY), 3, Paint()..color = color);
   }
 
   @override
