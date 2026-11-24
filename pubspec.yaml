@@ -55,7 +55,7 @@ dependencies:
   motion_engine:
     path: packages/motion_engine
   video_player: ^2.9.2
-  url_launcher: ^6.3.1
+  url_launcher: ^6.3.3
   share_plus: ^11.1.0
   
   # Utilities
