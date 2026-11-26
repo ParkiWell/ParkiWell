@@ -61,7 +61,7 @@ dependencies:
   # Utilities
   terminate_restart: ^1.1.0
   logger: ^2.7.0
-  connectivity_plus: ^6.0.5
+  connectivity_plus: ^7.3.1
   package_info_plus: ^8.0.2
   webview_flutter: ^4.14.1
   sign_in_with_apple: ^8.1.0
