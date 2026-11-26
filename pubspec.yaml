@@ -45,7 +45,7 @@ dependencies:
   
   # UI Components
   image_picker: ^1.0.4
-  fl_chart: ^1.1.1
+  fl_chart: ^1.3.1
   
   # Media
   # Exact-pinned: the hand-rolled MotionPoseBridge natives are validated
